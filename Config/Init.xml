@@ -1,0 +1,6 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Configuration UI -->
+	<Script file="ccm_config.lua"/>
+	<Script file="ccm_tabs.lua"/>
+	<Script file="ccm_handlers.lua"/>
+</Ui>

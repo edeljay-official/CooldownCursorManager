@@ -1,0 +1,78 @@
+Copyright (c) 2026 Edeljay
+
+All Rights Reserved
+
+================================================================================
+LICENSE TERMS
+================================================================================
+
+This addon and its source code are the intellectual property of Edeljay.
+
+Permission is granted to:
+- Use this addon for personal, non-commercial purposes
+- Distribute this addon in its original, unmodified form through authorized 
+  platforms (CurseForge, Wago, WoWInterface)
+
+The following actions are NOT permitted without explicit written permission:
+- Modification of the source code
+- Creation of derivative works
+- Commercial use or sale
+- Redistribution of modified versions
+- Repackaging or bundling with other software
+- Use of the addon's code in other projects
+
+================================================================================
+DISCLAIMER OF WARRANTY
+================================================================================
+
+THIS ADDON IS PROVIDED "AS IS" WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, 
+INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A 
+PARTICULAR PURPOSE AND NONINFRINGEMENT.
+
+THE AUTHOR MAKES NO REPRESENTATIONS OR WARRANTIES REGARDING THE ACCURACY, 
+FUNCTIONALITY, OR PERFORMANCE OF THIS ADDON.
+
+================================================================================
+LIMITATION OF LIABILITY
+================================================================================
+
+IN NO EVENT SHALL THE AUTHOR, COPYRIGHT HOLDER, OR CONTRIBUTORS BE LIABLE FOR 
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES 
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; 
+LOSS OF USE, DATA, OR PROFITS; BUSINESS INTERRUPTION; GAME ACCOUNT SUSPENSION 
+OR TERMINATION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN 
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING 
+IN ANY WAY OUT OF THE USE OF THIS ADDON, EVEN IF ADVISED OF THE POSSIBILITY OF 
+SUCH DAMAGE.
+
+The author is explicitly not responsible for:
+- Any damages to your game client, computer, or other software
+- Account suspensions, bans, or other disciplinary actions by Blizzard Entertainment
+- Loss of in-game progress, items, currency, or achievements
+- Data loss or corruption of any kind
+- Any incompatibility with other addons or game updates
+- Any issues arising from modifications made by third parties
+
+================================================================================
+THIRD-PARTY NOTICE
+================================================================================
+
+This addon is not affiliated with, endorsed by, sponsored by, or in any way 
+officially connected with Blizzard Entertainment, Inc., Activision Blizzard, 
+or any of their subsidiaries or affiliates.
+
+World of Warcraft, Warcraft, and all related trademarks, logos, and brand names 
+are the property of Blizzard Entertainment, Inc.
+
+================================================================================
+ACCEPTANCE
+================================================================================
+
+By downloading, installing, or using this addon, you acknowledge that you have 
+read, understood, and agree to be bound by the terms of this license.
+
+If you do not agree to these terms, do not download, install, or use this addon.
+
+================================================================================
+
+For permissions beyond the scope of this license, please contact the author.
