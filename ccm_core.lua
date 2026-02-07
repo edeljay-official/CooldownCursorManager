@@ -1155,33 +1155,14 @@ addonTable.SetupTooltipIDHooks = function()
     local sid = SafeToNumber(spellID)
     if not sid then return false end
     tt:AddLine(string.format("|cff888888SpellID:|r %d", sid), 0.75, 0.75, 0.75)
-    local spellIconID
-    if C_Spell and C_Spell.GetSpellInfo then
-      local spellInfo = C_Spell.GetSpellInfo(sid)
-      if spellInfo then
-        spellIconID = SafeToNumber(spellInfo.iconID)
-      end
-    end
-    if not spellIconID and GetSpellTexture then
-      spellIconID = SafeToNumber(GetSpellTexture(sid))
-    end
-    if spellIconID then
-      tt:AddLine(string.format("|cff888888Spell IconID:|r %d", spellIconID), 0.75, 0.75, 0.75)
-    end
     return true
   end
   local function AddItemLines(tt, itemIDOrLink)
     if not GetItemInfoInstant then return false end
-    local itemID, _, _, _, itemIconID = GetItemInfoInstant(itemIDOrLink)
+    local itemID = GetItemInfoInstant(itemIDOrLink)
     local iid = SafeToNumber(itemID)
-    local iconID = SafeToNumber(itemIconID)
-    if not iid and not iconID then return false end
-    if iid then
-      tt:AddLine(string.format("|cff888888ItemID:|r %d", iid), 0.75, 0.75, 0.75)
-    end
-    if iconID then
-      tt:AddLine(string.format("|cff888888Item IconID:|r %d", iconID), 0.75, 0.75, 0.75)
-    end
+    if not iid then return false end
+    tt:AddLine(string.format("|cff888888ItemID:|r %d", iid), 0.75, 0.75, 0.75)
     return true
   end
   local function AddTooltipIDs(tt, tooltipData)
@@ -1926,6 +1907,11 @@ addonTable.ApplyUnitFrameCustomization = function()
   ApplyBorderTextureColor(FocusFrame, borderR, borderG, borderB)
   ApplyBorderTextureColor(_G.TargetFrameToT, borderR, borderG, borderB)
   ApplyBorderTextureColor(_G.TargetFrameToTFrame, borderR, borderG, borderB)
+  ApplyBorderTextureColor(_G.PetFrame, borderR, borderG, borderB)
+  local petFrameTex = _G["PetFrameTexture"]
+  if petFrameTex and petFrameTex.SetVertexColor then
+    petFrameTex:SetVertexColor(borderR, borderG, borderB, 1)
+  end
   for i = 1, 5 do
     ApplyBorderTextureColor(_G["Boss" .. i .. "TargetFrame"], borderR, borderG, borderB)
   end
@@ -2585,12 +2571,13 @@ addonTable.ApplyUnitFrameCustomization = function()
       return orig.ufFontObjects[key]
     end
     local function ApplyGlobalFontToUFs()
+      local gf, go = GetGlobalFont()
+      local oFlag = (go and go ~= "") and go or "OUTLINE"
       local function afs(fs)
-        if not fs or not fs.GetFont or not fs.SetFontObject then return end
+        if not fs or not fs.GetFont or not fs.SetFont then return end
         local _, sz = fs:GetFont()
         if not sz or sz <= 0 then sz = 12 end
-        local fontObj = GetOrCreateFontObject(sz)
-        pcall(fs.SetFontObject, fs, fontObj)
+        pcall(fs.SetFont, fs, gf, sz, oFlag)
       end
       afs(_G["PlayerName"])
       afs(_G["PlayerLevelText"])
@@ -2603,6 +2590,13 @@ addonTable.ApplyUnitFrameCustomization = function()
       afs(_G["PlayerFrameHealthBarTextLeft"])
       afs(_G["PlayerFrameHealthBarTextRight"])
       afs(_G["PlayerFrameManaBarText"])
+      afs(_G["PlayerFrameManaBarTextLeft"])
+      afs(_G["PlayerFrameManaBarTextRight"])
+      if powerBar then
+        afs(powerBar.TextString)
+        afs(powerBar.LeftText)
+        afs(powerBar.RightText)
+      end
       local function afsUnit(unitFrame)
         if not unitFrame then return end
         local tMain = unitFrame.TargetFrameContent and unitFrame.TargetFrameContent.TargetFrameContentMain
@@ -2618,8 +2612,45 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
       afsUnit(TargetFrame)
       afsUnit(FocusFrame)
+      local prof = addonTable.GetProfile and addonTable.GetProfile()
+      if prof then
+        local nr = prof.ufNameColorR or 1
+        local ng = prof.ufNameColorG or 1
+        local nb = prof.ufNameColorB or 1
+        local function setNameColor(fs)
+          if fs and fs.SetTextColor then pcall(fs.SetTextColor, fs, nr, ng, nb) end
+        end
+        setNameColor(_G["PlayerName"])
+        setNameColor(_G["PlayerLevelText"])
+        local function setUnitNameColor(unitFrame)
+          if not unitFrame then return end
+          local tMain = unitFrame.TargetFrameContent and unitFrame.TargetFrameContent.TargetFrameContentMain
+          if tMain then
+            setNameColor(tMain.Name)
+            setNameColor(tMain.LevelText)
+          end
+        end
+        setUnitNameColor(TargetFrame)
+        setUnitNameColor(FocusFrame)
+        local tot = _G.TargetFrameToT or _G.TargetFrameToTFrame
+        if tot then
+          local totMain = tot.TargetFrameContent and tot.TargetFrameContent.TargetFrameContentMain
+          if totMain then setNameColor(totMain.Name) end
+          if tot.Name then setNameColor(tot.Name) end
+        end
+        for i = 1, 5 do
+          setUnitNameColor(_G["Boss" .. i .. "TargetFrame"])
+        end
+        local petFrame = _G.PetFrame
+        if petFrame then
+          local petMain = petFrame.TargetFrameContent and petFrame.TargetFrameContent.TargetFrameContentMain
+          if petMain and petMain.Name then setNameColor(petMain.Name) end
+          if petFrame.Name then setNameColor(petFrame.Name) end
+        end
+        setNameColor(_G["PetName"])
+      end
     end
-    ApplyGlobalFontToUFs()
+    orig.ApplyGlobalFontToUFs = ApplyGlobalFontToUFs
     hooksecurefunc("UnitFrameHealthBar_Update", function() ApplyGlobalFontToUFs() end)
     if type(UnitFrameManaBar_Update) == "function" then
       hooksecurefunc("UnitFrameManaBar_Update", function() ApplyGlobalFontToUFs() end)
@@ -2631,6 +2662,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     fontEventFrame:RegisterEvent("PLAYER_LEVEL_UP")
     fontEventFrame:SetScript("OnEvent", function() ApplyGlobalFontToUFs() end)
   end
+  if orig.ApplyGlobalFontToUFs then orig.ApplyGlobalFontToUFs() end
 end
 local function UpdatePRB()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
@@ -3876,9 +3908,13 @@ function addonTable.UpdateCRTimer()
     if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
     return
   end
+  local scale = type(profile.crTimerScale) == "number" and profile.crTimerScale or 1
+  frame:SetScale(scale)
   frame:ClearAllPoints()
   local centered = profile.crTimerCentered == true
-  frame:SetPoint("CENTER", UIParent, "CENTER", centered and 0 or (profile.crTimerX or 0), profile.crTimerY or 150)
+  local ox = centered and 0 or (profile.crTimerX or 0)
+  local oy = profile.crTimerY or 150
+  frame:SetPoint("CENTER", UIParent, "CENTER", ox / scale, oy / scale)
   local vertical = profile.crTimerLayout ~= "horizontal"
   frame.crText:ClearAllPoints()
   if frame.blText then
@@ -7034,6 +7070,9 @@ local function GetProfile()
   if profile.ufCustomBorderColorB == nil then
     profile.ufCustomBorderColorB = profile.ufBorderPlayerColorB or defaults.profiles.Default.ufCustomBorderColorB
   end
+  if profile.ufNameColorR == nil then profile.ufNameColorR = defaults.profiles.Default.ufNameColorR end
+  if profile.ufNameColorG == nil then profile.ufNameColorG = defaults.profiles.Default.ufNameColorG end
+  if profile.ufNameColorB == nil then profile.ufNameColorB = defaults.profiles.Default.ufNameColorB end
   if profile.combatTimerEnabled == nil then
     profile.combatTimerEnabled = defaults.profiles.Default.combatTimerEnabled
   end
@@ -7068,6 +7107,7 @@ local function GetProfile()
   if profile.crTimerCentered == nil then profile.crTimerCentered = defaults.profiles.Default.crTimerCentered end
   if profile.crTimerX == nil then profile.crTimerX = defaults.profiles.Default.crTimerX end
   if profile.crTimerY == nil then profile.crTimerY = defaults.profiles.Default.crTimerY end
+  if profile.crTimerScale == nil then profile.crTimerScale = defaults.profiles.Default.crTimerScale end
   if profile.standaloneEssentialSecondRowSize == nil then profile.standaloneEssentialSecondRowSize = defaults.profiles.Default.standaloneEssentialSecondRowSize end
   if profile.standaloneEssentialIconsPerRow == nil then profile.standaloneEssentialIconsPerRow = defaults.profiles.Default.standaloneEssentialIconsPerRow end
   if profile.standaloneEssentialMaxRows == nil then profile.standaloneEssentialMaxRows = defaults.profiles.Default.standaloneEssentialMaxRows end

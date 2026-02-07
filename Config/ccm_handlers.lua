@@ -518,6 +518,9 @@ local function UpdateAllControls()
   if addonTable.ufBorderColorSwatch then
     addonTable.ufBorderColorSwatch:SetBackdropColor(num(profile.ufCustomBorderColorR, 0), num(profile.ufCustomBorderColorG, 0), num(profile.ufCustomBorderColorB, 0), 1)
   end
+  if addonTable.ufNameColorSwatch then
+    addonTable.ufNameColorSwatch:SetBackdropColor(num(profile.ufNameColorR, 1), num(profile.ufNameColorG, 1), num(profile.ufNameColorB, 1), 1)
+  end
   if addonTable.autoRepairCB then addonTable.autoRepairCB:SetChecked(profile.autoRepair == true) end
   if addonTable.showTooltipIDsCB then addonTable.showTooltipIDsCB:SetChecked(profile.showTooltipIDs == true) end
   if addonTable.compactMinimapIconsCB then addonTable.compactMinimapIconsCB:SetChecked(profile.compactMinimapIcons == true) end
@@ -548,6 +551,7 @@ local function UpdateAllControls()
   if addonTable.crTimerCenteredCB then addonTable.crTimerCenteredCB:SetChecked(crCentered); addonTable.crTimerCenteredCB:SetEnabled(crEnabled) end
   if addonTable.crTimerXSlider then addonTable.crTimerXSlider:SetValue(num(profile.crTimerX, 0)); addonTable.crTimerXSlider.valueText:SetText(math.floor(num(profile.crTimerX, 0))); addonTable.crTimerXSlider:SetEnabled(crEnabled and (not crCentered)) end
   if addonTable.crTimerYSlider then addonTable.crTimerYSlider:SetValue(num(profile.crTimerY, 150)); addonTable.crTimerYSlider.valueText:SetText(math.floor(num(profile.crTimerY, 150))); addonTable.crTimerYSlider:SetEnabled(crEnabled) end
+  if addonTable.crTimerScaleSlider then addonTable.crTimerScaleSlider:SetValue(num(profile.crTimerScale, 1)); addonTable.crTimerScaleSlider.valueText:SetText(string.format("%.2f", num(profile.crTimerScale, 1))); addonTable.crTimerScaleSlider:SetEnabled(crEnabled) end
   local combatStatusEnabled = profile.combatStatusEnabled == true
   if addonTable.combatStatusCB then addonTable.combatStatusCB:SetChecked(combatStatusEnabled) end
   local combatStatusCentered = profile.combatStatusCentered == true
@@ -1031,6 +1035,7 @@ local function InitHandlers()
         if addonTable.UpdateCastbar then addonTable.UpdateCastbar() end
         if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
         if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
       end
     end
   end
@@ -1044,6 +1049,7 @@ local function InitHandlers()
         if addonTable.UpdateCastbar then addonTable.UpdateCastbar() end
         if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
         if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
       end
     end
   end
@@ -1105,6 +1111,27 @@ local function InitHandlers()
       local function OnCancel(prev)
         p.ufCustomBorderColorR, p.ufCustomBorderColorG, p.ufCustomBorderColorB = prev.r, prev.g, prev.b
         if addonTable.ufBorderColorSwatch then addonTable.ufBorderColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      end
+      ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
+    end)
+  end
+  if addonTable.ufNameColorBtn then
+    addonTable.ufNameColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r = p.ufNameColorR or 1
+      local g = p.ufNameColorG or 1
+      local b = p.ufNameColorB or 1
+      local function OnColorChanged()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.ufNameColorR, p.ufNameColorG, p.ufNameColorB = nr, ng, nb
+        if addonTable.ufNameColorSwatch then addonTable.ufNameColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      end
+      local function OnCancel(prev)
+        p.ufNameColorR, p.ufNameColorG, p.ufNameColorB = prev.r, prev.g, prev.b
+        if addonTable.ufNameColorSwatch then addonTable.ufNameColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
         if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
       end
       ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
@@ -1191,6 +1218,7 @@ local function InitHandlers()
   if addonTable.crTimerCenteredCB then addonTable.crTimerCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then p.crTimerCentered = s:GetChecked(); if p.crTimerCentered then p.crTimerX = 0 end end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end; if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end end end
   if addonTable.crTimerXSlider then addonTable.crTimerXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.crTimerX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end end end) end
   if addonTable.crTimerYSlider then addonTable.crTimerYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.crTimerY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end end end) end
+  if addonTable.crTimerScaleSlider then addonTable.crTimerScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.crTimerScale = v; s.valueText:SetText(string.format("%.2f", v)); if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end end end) end
   addonTable.UpdateCRTimerSliders = function(x, y)
     if addonTable.crTimerXSlider then addonTable.crTimerXSlider:SetValue(x or 0); addonTable.crTimerXSlider.valueText:SetText(math.floor(x or 0)) end
     if addonTable.crTimerYSlider then addonTable.crTimerYSlider:SetValue(y or 150); addonTable.crTimerYSlider.valueText:SetText(math.floor(y or 150)) end
@@ -1953,7 +1981,7 @@ local function InitHandlers()
              "combatTimerX", "combatTimerY", "combatTimerScale",
               "combatTimerTextColorR", "combatTimerTextColorG", "combatTimerTextColorB",
               "combatTimerBgColorR", "combatTimerBgColorG", "combatTimerBgColorB", "combatTimerBgAlpha",
-              "crTimerEnabled", "crTimerMode", "crTimerLayout", "crTimerCentered", "crTimerX", "crTimerY",
+              "crTimerEnabled", "crTimerMode", "crTimerLayout", "crTimerCentered", "crTimerX", "crTimerY", "crTimerScale",
               "combatStatusEnabled", "combatStatusCentered", "combatStatusX", "combatStatusY", "combatStatusScale",
               "combatStatusEnterColorR", "combatStatusEnterColorG", "combatStatusEnterColorB",
               "combatStatusLeaveColorR", "combatStatusLeaveColorG", "combatStatusLeaveColorB",
@@ -2014,6 +2042,7 @@ local function InitHandlers()
                "ufDisableGlows", "ufDisableCombatText",
                "disableTargetFocusBuffs", "hideEliteTexture",
                "useCustomBorderColor", "ufCustomBorderColorR", "ufCustomBorderColorG", "ufCustomBorderColorB",
+               "ufNameColorR", "ufNameColorG", "ufNameColorB",
                },
   }
   local keyToCategory = {}
