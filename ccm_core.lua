@@ -1905,6 +1905,14 @@ addonTable.ApplyUnitFrameCustomization = function()
   ApplyBorderTextureColor(PlayerFrame, borderR, borderG, borderB)
   ApplyBorderTextureColor(TargetFrame, borderR, borderG, borderB)
   ApplyBorderTextureColor(FocusFrame, borderR, borderG, borderB)
+  local tMain = TargetFrame and TargetFrame.TargetFrameContent and TargetFrame.TargetFrameContent.TargetFrameContentMain
+  if tMain and tMain.ReputationColor and tMain.ReputationColor.SetVertexColor then
+    tMain.ReputationColor:SetVertexColor(borderR, borderG, borderB, 1)
+  end
+  local fMain = FocusFrame and FocusFrame.TargetFrameContent and FocusFrame.TargetFrameContent.TargetFrameContentMain
+  if fMain and fMain.ReputationColor and fMain.ReputationColor.SetVertexColor then
+    fMain.ReputationColor:SetVertexColor(borderR, borderG, borderB, 1)
+  end
   ApplyBorderTextureColor(_G.TargetFrameToT, borderR, borderG, borderB)
   ApplyBorderTextureColor(_G.TargetFrameToTFrame, borderR, borderG, borderB)
   ApplyBorderTextureColor(_G.PetFrame, borderR, borderG, borderB)
