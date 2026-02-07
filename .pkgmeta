@@ -1,0 +1,9 @@
+package-as: CooldownCursorManager
+
+ignore:
+  - dev
+  - .pkgmeta
+  - .github
+  - .gitignore
+  - README.md
+  - CHANGELOG.md

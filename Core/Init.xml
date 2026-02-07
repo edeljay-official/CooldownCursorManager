@@ -1,0 +1,5 @@
+<Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<!-- Core namespace and utilities -->
+	<Script file="ccm_globals.lua"/>
+	<Script file="ccm_defaults.lua"/>
+</Ui>

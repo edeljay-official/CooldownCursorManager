@@ -1,0 +1,26 @@
+## Interface: 120000
+## Title: |cffffffffCooldown|r |cff00ff00Cursor|r |cffffffffManager|r
+## Notes: Display spell and item cooldowns near your cursor with extensive customization
+## Author: Edeljay
+## Version: 3.2.4
+## SavedVariables: CooldownCursorManagerDB
+## IconTexture: Interface\AddOns\CooldownCursorManager\media\icon.tga
+## OptionalDeps: Masque, LibSharedMedia-3.0
+## X-Category: Combat
+## X-Website: https://www.curseforge.com/wow/addons/cooldowncursormanager
+## X-Curse-Project-ID: 1444617
+
+# Libraries
+Libraries\Init.xml
+
+# Core (Globals, Defaults, Utilities)
+Core\Init.xml
+
+# Main Addon Logic
+ccm_core.lua
+
+# Modules (Feature-specific code)
+Modules\Init.xml
+
+# Configuration UI
+Config\Init.xml
