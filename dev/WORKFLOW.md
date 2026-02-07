@@ -32,6 +32,8 @@ Version in `CooldownCursorManager.toc` hochsetzen:
 ```bash
 git checkout main
 git merge dev
+git rm -r --cached dev/
+git commit -m "Remove dev/ from public release"
 git push public main
 ```
 > GitHub Action erstellt automatisch GitHub Release `vX.Y.Z` aus der TOC-Version.
