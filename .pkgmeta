@@ -1,5 +1,4 @@
 package-as: CooldownCursorManager
-enable-changelog: no
 
 ignore:
   - dev
