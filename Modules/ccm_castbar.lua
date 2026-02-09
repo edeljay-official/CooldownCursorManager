@@ -284,7 +284,7 @@ local function UpdateCastbar()
     local textR = profile.castbarTextColorR or 1
     local textG = profile.castbarTextColorG or 1
     local textB = profile.castbarTextColorB or 1
-    local texturePath = castbarTextures[profile.castbarTexture] or castbarTextures.solid
+    local texturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(profile.castbarTexture) or castbarTextures[profile.castbarTexture] or castbarTextures.solid
     castbarFrame.bar:SetStatusBarTexture(texturePath)
     local r, g, b
     if profile.castbarUseClassColor then
@@ -496,7 +496,7 @@ local function UpdateCastbar()
   local textR = profile.castbarTextColorR or 1
   local textG = profile.castbarTextColorG or 1
   local textB = profile.castbarTextColorB or 1
-  local texturePath = castbarTextures[profile.castbarTexture] or castbarTextures.solid
+  local texturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(profile.castbarTexture) or castbarTextures[profile.castbarTexture] or castbarTextures.solid
   local castIconShown = showIcon and texture
   local r, g, b
   if profile.castbarUseClassColor then
@@ -509,14 +509,25 @@ local function UpdateCastbar()
   local bgR = profile.castbarBgColorR or 0.1
   local bgG = profile.castbarBgColorG or 0.1
   local bgB = profile.castbarBgColorB or 0.1
-  local layoutKey = table.concat({
-    width, height, posX, posY, autoWidthSource, borderSize, castIconShown and 1 or 0, iconSize,
-    texturePath, r, g, b, bgR, bgG, bgB, bgAlpha,
-    showSpellName and 1 or 0, spellNameScale, spellNameX, spellNameY,
-    showTime and 1 or 0, timeScale, timeX, timeY, timePrecision, textR, textG, textB
-  }, "|")
-  if State.castbarLayoutKey ~= layoutKey then
-    State.castbarLayoutKey = layoutKey
+  local lk = State.castbarLayoutCache
+  local layoutChanged = not lk
+    or lk.w ~= width or lk.h ~= height or lk.px ~= posX or lk.py ~= posY
+    or lk.aws ~= autoWidthSource or lk.bs ~= borderSize
+    or lk.ci ~= castIconShown or lk.is ~= iconSize or lk.tp ~= texturePath
+    or lk.r ~= r or lk.g ~= g or lk.b ~= b
+    or lk.bgR ~= bgR or lk.bgG ~= bgG or lk.bgB ~= bgB or lk.bgA ~= bgAlpha
+    or lk.sn ~= showSpellName or lk.sns ~= spellNameScale or lk.snx ~= spellNameX or lk.sny ~= spellNameY
+    or lk.st ~= showTime or lk.sts ~= timeScale or lk.stx ~= timeX or lk.sty ~= timeY
+    or lk.stp ~= timePrecision or lk.tr ~= textR or lk.tg ~= textG or lk.tb ~= textB
+  if layoutChanged then
+    if not lk then State.castbarLayoutCache = {} end
+    lk = State.castbarLayoutCache
+    lk.w=width; lk.h=height; lk.px=posX; lk.py=posY; lk.aws=autoWidthSource; lk.bs=borderSize
+    lk.ci=castIconShown; lk.is=iconSize; lk.tp=texturePath; lk.r=r; lk.g=g; lk.b=b
+    lk.bgR=bgR; lk.bgG=bgG; lk.bgB=bgB; lk.bgA=bgAlpha
+    lk.sn=showSpellName; lk.sns=spellNameScale; lk.snx=spellNameX; lk.sny=spellNameY
+    lk.st=showTime; lk.sts=timeScale; lk.stx=timeX; lk.sty=timeY
+    lk.stp=timePrecision; lk.tr=textR; lk.tg=textG; lk.tb=textB
     castbarFrame.bar:SetStatusBarTexture(texturePath)
     castbarFrame.bar:SetStatusBarColor(r, g, b)
     PixelUtil.SetSize(castbarFrame, width, height)
@@ -641,9 +652,12 @@ local function UpdateCastbar()
     local numTicks = channelTickData[spellID]
     local barWidth = castbarFrame:GetWidth()
     local barHeight = castbarFrame:GetHeight()
-    local tickKey = table.concat({spellID, numTicks, barWidth, barHeight}, "|")
-    if State.castbarTickKey ~= tickKey then
-      State.castbarTickKey = tickKey
+    local tk = State.castbarTickCache
+    local tickChanged = not tk or tk.id ~= spellID or tk.n ~= numTicks or tk.w ~= barWidth or tk.h ~= barHeight
+    if tickChanged then
+      if not tk then State.castbarTickCache = {} end
+      tk = State.castbarTickCache
+      tk.id=spellID; tk.n=numTicks; tk.w=barWidth; tk.h=barHeight
       for i = 1, 10 do
         if i <= numTicks then
           local tickPos = (i / numTicks) * barWidth
@@ -658,8 +672,8 @@ local function UpdateCastbar()
       end
     end
   else
-    if State.castbarTickKey ~= nil then
-      State.castbarTickKey = nil
+    if State.castbarTickCache ~= nil then
+      State.castbarTickCache = nil
       for i = 1, 10 do
         castbarFrame.ticks[i]:Hide()
       end
@@ -887,7 +901,7 @@ local function ShowCastbarPreview()
   local textR = profile.castbarTextColorR or 1
   local textG = profile.castbarTextColorG or 1
   local textB = profile.castbarTextColorB or 1
-  local texturePath = castbarTextures[profile.castbarTexture] or castbarTextures.solid
+  local texturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(profile.castbarTexture) or castbarTextures[profile.castbarTexture] or castbarTextures.solid
   castbarFrame.bar:SetStatusBarTexture(texturePath)
   local r, g, b
   if profile.castbarUseClassColor then

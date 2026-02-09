@@ -34,14 +34,14 @@ cfg:SetPoint("CENTER")
 cfg:SetMovable(true)
 cfg:EnableMouse(true)
 cfg:SetClampedToScreen(true)
-cfg:SetFrameStrata("TOOLTIP")
+cfg:SetFrameStrata("FULLSCREEN_DIALOG")
 cfg:SetFrameLevel(1000)
 cfg:SetToplevel(true)
 cfg:RegisterForDrag("LeftButton")
 cfg:SetScript("OnDragStart", cfg.StartMoving)
 cfg:SetScript("OnDragStop", cfg.StopMovingOrSizing)
 cfg:SetScript("OnShow", function(self)
-  self:SetFrameStrata("TOOLTIP")
+  self:SetFrameStrata("FULLSCREEN_DIALOG")
   self:SetFrameLevel(1000)
   self:Raise()
 end)
@@ -890,6 +890,8 @@ local function CreateTab(idx, txt, w)
         addonTable.ShowDebuffPreview()
       end
     end
+    if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+    if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
     if addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(idx) end
   end)
   t.Upd = Upd

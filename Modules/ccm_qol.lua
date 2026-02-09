@@ -32,7 +32,7 @@ local function UpdateSelfHighlight()
   selfHighlightFrame:ClearAllPoints()
   selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, yOffset)
   if shape == "cross" then
-    local lineThickness = thickness == "thin" and 1 or (thickness == "thick" and 6 or 3)
+    local lineThickness = thickness == "thin" and 2 or (thickness == "thick" and 6 or 3)
     local halfSize = size / 2
     if outline then
       local outlineThickness = lineThickness + 2
@@ -122,19 +122,20 @@ addonTable.CombatTimerFrame:RegisterForDrag("LeftButton")
 addonTable.CombatTimerFrame:SetScript("OnDragStart", function(self)
   local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
   local activeTab = addonTable.activeTab and addonTable.activeTab()
-  if not guiOpen or activeTab ~= 11 then return end
+  local qolTab = addonTable.TAB_QOL or 12
+  if not guiOpen or activeTab ~= qolTab then return end
   self:StartMoving()
 end)
 addonTable.CombatTimerFrame:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
+  local scale = self:GetScale() or 1
   local centerX, centerY = self:GetCenter()
   local parentCenterX, parentCenterY = UIParent:GetCenter()
   if centerX and centerY and parentCenterX and parentCenterY then
-    local scale = UIParent:GetEffectiveScale() or 1
-    local rx = (centerX - parentCenterX) * scale
-    local ry = (centerY - parentCenterY) * scale
+    local rx = centerX * scale - parentCenterX
+    local ry = centerY * scale - parentCenterY
     local centered = profile.combatTimerCentered == true
     profile.combatTimerX = centered and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
     profile.combatTimerY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
@@ -188,8 +189,8 @@ function addonTable.UpdateCombatTimer()
   local bb = type(profile.combatTimerBgColorB) == "number" and profile.combatTimerBgColorB or 0.12
   local ba = type(profile.combatTimerBgAlpha) == "number" and profile.combatTimerBgAlpha or 0.85
   frame:ClearAllPoints()
-  frame:SetPoint("CENTER", UIParent, "CENTER", centered and 0 or x, y)
   frame:SetScale(scale)
+  frame:SetPoint("CENTER", UIParent, "CENTER", (centered and 0 or x) / scale, y / scale)
   local style = profile.combatTimerStyle == "minimal" and "minimal" or "boxed"
   ApplyCombatTimerStyle(style)
   if style == "minimal" then
@@ -205,7 +206,7 @@ function addonTable.UpdateCombatTimer()
   local qolTab = addonTable.TAB_QOL or 11
   local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
   frame:EnableMouse(draggable)
-  if shouldShow then
+  if shouldShow or draggable then
     frame:Show()
     if addonTable.StartCombatTimerTicker then addonTable.StartCombatTimerTicker() end
   else
@@ -228,7 +229,7 @@ function addonTable.RefreshCombatTimerText()
 end
 function addonTable.StartCombatTimerTicker()
   if State.combatTimerTicker then return end
-  State.combatTimerTicker = C_Timer.NewTicker(0.05, function()
+  State.combatTimerTicker = C_Timer.NewTicker(0.1, function()
     if addonTable.RefreshCombatTimerText then addonTable.RefreshCombatTimerText() end
   end)
 end
@@ -275,19 +276,20 @@ addonTable.crTimerFrame.blText:SetTextColor(1, 1, 1, 1)
 addonTable.crTimerFrame:SetScript("OnDragStart", function(self)
   local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
   local activeTab = addonTable.activeTab and addonTable.activeTab()
-  if not guiOpen or activeTab ~= 11 then return end
+  local qolTab = addonTable.TAB_QOL or 12
+  if not guiOpen or activeTab ~= qolTab then return end
   self:StartMoving()
 end)
 addonTable.crTimerFrame:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
+  local scale = self:GetScale() or 1
   local centerX, centerY = self:GetCenter()
   local parentCenterX, parentCenterY = UIParent:GetCenter()
   if centerX and centerY and parentCenterX and parentCenterY then
-    local scale = UIParent:GetEffectiveScale() or 1
-    local rx = (centerX - parentCenterX) * scale
-    local ry = (centerY - parentCenterY) * scale
+    local rx = centerX * scale - parentCenterX
+    local ry = centerY * scale - parentCenterY
     profile.crTimerX = (profile.crTimerCentered == true) and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
     profile.crTimerY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
     if addonTable.UpdateCRTimerSliders then addonTable.UpdateCRTimerSliders(profile.crTimerX, profile.crTimerY) end
@@ -311,19 +313,20 @@ addonTable.CombatStatusFrame.text:SetText("* Entering Combat *")
 addonTable.CombatStatusFrame:SetScript("OnDragStart", function(self)
   local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
   local activeTab = addonTable.activeTab and addonTable.activeTab()
-  if not guiOpen or activeTab ~= 11 then return end
+  local qolTab = addonTable.TAB_QOL or 12
+  if not guiOpen or activeTab ~= qolTab then return end
   self:StartMoving()
 end)
 addonTable.CombatStatusFrame:SetScript("OnDragStop", function(self)
   self:StopMovingOrSizing()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
+  local scale = self:GetScale() or 1
   local centerX, centerY = self:GetCenter()
   local parentCenterX, parentCenterY = UIParent:GetCenter()
   if centerX and centerY and parentCenterX and parentCenterY then
-    local scale = UIParent:GetEffectiveScale() or 1
-    local rx = (centerX - parentCenterX) * scale
-    local ry = (centerY - parentCenterY) * scale
+    local rx = centerX * scale - parentCenterX
+    local ry = centerY * scale - parentCenterY
     profile.combatStatusX = (profile.combatStatusCentered == true) and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
     profile.combatStatusY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
     if addonTable.UpdateCombatStatusSliders then addonTable.UpdateCombatStatusSliders(profile.combatStatusX, profile.combatStatusY) end
@@ -358,9 +361,12 @@ function addonTable.UpdateCombatStatus()
     frame:Hide()
     return
   end
+  local csScale = type(profile.combatStatusScale) == "number" and profile.combatStatusScale or 1
   frame:ClearAllPoints()
-  frame:SetPoint("CENTER", UIParent, "CENTER", profile.combatStatusCentered == true and 0 or (profile.combatStatusX or 0), profile.combatStatusY or 280)
-  frame:SetScale(type(profile.combatStatusScale) == "number" and profile.combatStatusScale or 1)
+  frame:SetScale(csScale)
+  local csX = profile.combatStatusCentered == true and 0 or (profile.combatStatusX or 0)
+  local csY = profile.combatStatusY or 280
+  frame:SetPoint("CENTER", UIParent, "CENTER", csX / csScale, csY / csScale)
   SetCombatStatusText(State.combatStatusLastEntering ~= false)
   local qolTab = addonTable.TAB_QOL or 11
   local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
@@ -434,7 +440,13 @@ function addonTable.RefreshCRTimerText()
       if rem > 0 then crTimeText = FormatMMSS(rem) end
     end
   end
-  frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r / |cffFFFFFF%s|r", charges, crTimeText))
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local displayMode = profile and profile.crTimerDisplay or "timer"
+  if displayMode == "count" then
+    frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r", charges))
+  else
+    frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r / |cffFFFFFF%s|r", charges, crTimeText))
+  end
   if frame.blText then
     frame.blText:Hide()
   end
@@ -448,16 +460,18 @@ function addonTable.UpdateCRTimer()
     if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
     return
   end
+  local qolTab = addonTable.TAB_QOL or 11
+  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
   local mode = profile.crTimerMode == "always" and "always" or "combat"
   local shouldShow = (mode == "always") or UnitAffectingCombat("player")
-  if not shouldShow then
+  if not shouldShow and not draggable then
     frame:Hide()
     if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
     return
   end
   local scale = type(profile.crTimerScale) == "number" and profile.crTimerScale or 1
-  frame:SetScale(scale)
   frame:ClearAllPoints()
+  frame:SetScale(scale)
   local centered = profile.crTimerCentered == true
   local ox = centered and 0 or (profile.crTimerX or 0)
   local oy = profile.crTimerY or 150
@@ -475,8 +489,6 @@ function addonTable.UpdateCRTimer()
     frame.crText:SetPoint("LEFT", frame, "LEFT", 0, 0)
     frame:SetSize(190, 26)
   end
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
   frame:EnableMouse(draggable)
   if addonTable.RefreshCRTimerText then addonTable.RefreshCRTimerText() end
   frame:Show()
@@ -679,15 +691,14 @@ local function SetPetBarAlpha(alpha)
     if btn and btn.SetAlpha then btn:SetAlpha(alpha) end
   end
 end
-local function SetActionBars2to8Alpha(alpha)
-  local barNames = {
-    "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
-    "MultiBar5", "MultiBar6", "MultiBar7",
-  }
-  for _, name in ipairs(barNames) do
-    local bar = _G[name]
-    if bar and bar.SetAlpha then bar:SetAlpha(alpha) end
-  end
+local AB_BAR_FRAMES = {
+  [2] = "MultiBarBottomLeft", [3] = "MultiBarBottomRight",
+  [4] = "MultiBarRight", [5] = "MultiBarLeft",
+  [6] = "MultiBar5", [7] = "MultiBar6", [8] = "MultiBar7",
+}
+local function SetABAlpha(barNum, alpha)
+  local name = AB_BAR_FRAMES[barNum]
+  if name then local bar = _G[name]; if bar and bar.SetAlpha then bar:SetAlpha(alpha) end end
 end
 local ab1MouseoverFrame = CreateFrame("Frame", "CCMAB1MouseoverFrame", UIParent)
 ab1MouseoverFrame:SetFrameStrata("BACKGROUND")
@@ -758,18 +769,15 @@ local function UpdateMouseoverDetectionFrames()
   end
 end
 C_Timer.After(2, UpdateMouseoverDetectionFrames)
-local function IsMouseOverAB2to8DetectionFrames()
-  for _, df in pairs(ab2to8DetectionFrames) do
-    if df and df:IsShown() and df:IsMouseOver() then
-      return true
-    end
-  end
+local function IsMouseOverABBar(barNum)
+  local name = AB_BAR_FRAMES[barNum]
+  if not name then return false end
+  local bar = _G[name]
+  if bar and bar:IsShown() and bar:IsMouseOver() then return true end
+  local df = ab2to8DetectionFrames[name]
+  if df and df:IsShown() and df:IsMouseOver() then return true end
   return false
 end
-local ab2to8BarsConst = {
-  "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
-  "MultiBar5", "MultiBar6", "MultiBar7",
-}
 local function IsMouseOverFrameOrChildren(frame)
   if not frame then return false end
   if frame:IsMouseOver() then return true end
@@ -786,31 +794,35 @@ local function StartMouseCheck()
   State.mouseCheckTicker = C_Timer.NewTicker(0.15, function()
     local profile = addonTable.GetProfile and addonTable.GetProfile()
     if not profile then return end
-    if not InCombatLockdown() then
-      if State.actionBar1Hidden then
-        SetActionBar1Alpha(1)
-        State.actionBar1Hidden = false
+    local ab1Always = profile.hideActionBar1Always == true
+    local stanceAlways = profile.hideStanceBarAlways == true
+    local petAlways = profile.hidePetBarAlways == true
+    local anyABAlways = false
+    for n = 2, 8 do if profile["hideAB"..n.."Always"] then anyABAlways = true; break end end
+    local anyAlways = ab1Always or anyABAlways or stanceAlways or petAlways
+    local inCombat = InCombatLockdown()
+    if not inCombat then
+      if State.actionBar1Hidden and not ab1Always then
+        SetActionBar1Alpha(1); State.actionBar1Hidden = false
       end
-      if State.actionBars2to8Hidden then
-        SetActionBars2to8Alpha(1)
-        State.actionBars2to8Hidden = false
+      for n = 2, 8 do
+        if State["actionBar"..n.."Hidden"] and not (profile["hideAB"..n.."Always"] == true) then
+          SetABAlpha(n, 1); State["actionBar"..n.."Hidden"] = false
+        end
       end
-      if State.stanceBarHidden then
-        SetStanceBarAlpha(1)
-        State.stanceBarHidden = false
+      if State.stanceBarHidden and not stanceAlways then
+        SetStanceBarAlpha(1); State.stanceBarHidden = false
       end
-      if State.petBarHidden then
-        SetPetBarAlpha(1)
-        State.petBarHidden = false
+      if State.petBarHidden and not petAlways then
+        SetPetBarAlpha(1); State.petBarHidden = false
       end
-      return
+      if not anyAlways then return end
     end
     local mouseOverAB1 = false
-    local mouseOverAB2to8 = false
+    local mouseOverAB = {}
     local mouseOverStance = false
     local mouseOverPet = false
     local ab1Mouseover = profile.hideActionBar1Mouseover == true
-    local ab2to8Mouseover = profile.hideActionBars2to8Mouseover == true
     local stanceMouseover = profile.hideStanceBarMouseover == true
     local petMouseover = profile.hidePetBarMouseover == true
     local mouseOverCCMFrames = false
@@ -825,8 +837,7 @@ local function StartMouseCheck()
     end
     for _, overlay in pairs(State.blizzBarDragOverlays) do
       if overlay and overlay:IsMouseOver() then
-        mouseOverCCMFrames = true
-        break
+        mouseOverCCMFrames = true; break
       end
     end
     if customBarFrame and customBarFrame:IsShown() and IsMouseOverFrameOrChildren(customBarFrame) then
@@ -841,11 +852,7 @@ local function StartMouseCheck()
     if prbFrame and prbFrame:IsShown() and IsMouseOverFrameOrChildren(prbFrame) then
       mouseOverCCMFrames = true
     end
-    if mouseOverCCMFrames then
-      mouseOverAB1 = false
-      mouseOverAB2to8 = false
-      mouseOverStance = false
-    else
+    if not mouseOverCCMFrames then
       local isOverExcludedFrame = false
       local spellOverlay = SpellActivationOverlayFrame
       if spellOverlay and spellOverlay:IsShown() and spellOverlay:IsMouseOver() then
@@ -856,21 +863,16 @@ local function StartMouseCheck()
         isOverExcludedFrame = true
       end
       if not isOverExcludedFrame then
-        for _, name in ipairs(ab2to8BarsConst) do
-          local bar = _G[name]
-          if bar and bar:IsShown() and bar:IsMouseOver() then
-            mouseOverAB2to8 = true
-            break
+        local anyABMouseOver = false
+        for n = 2, 8 do
+          if IsMouseOverABBar(n) then
+            mouseOverAB[n] = true; anyABMouseOver = true
           end
         end
-        if not mouseOverAB2to8 and IsMouseOverAB2to8DetectionFrames() then
-          mouseOverAB2to8 = true
-        end
-        if not mouseOverAB2to8 then
+        if not anyABMouseOver then
           for _, btn in ipairs(GetActionButtons()) do
             if btn and btn:IsShown() and btn:IsMouseOver() then
-              mouseOverAB1 = true
-              break
+              mouseOverAB1 = true; break
             end
           end
         end
@@ -879,14 +881,12 @@ local function StartMouseCheck()
         end
         for _, btn in ipairs(GetStanceButtons()) do
           if btn and btn:IsShown() and btn:IsMouseOver() then
-            mouseOverStance = true
-            break
+            mouseOverStance = true; break
           end
         end
         for _, f in ipairs(GetStanceBarFrames()) do
           if f and f:IsShown() and f:IsMouseOver() then
-            mouseOverStance = true
-            break
+            mouseOverStance = true; break
           end
         end
         if not mouseOverStance and stanceMouseoverFrame and stanceMouseoverFrame:IsMouseOver() then
@@ -894,39 +894,45 @@ local function StartMouseCheck()
         end
         for _, btn in ipairs(GetPetButtons()) do
           if btn and btn:IsShown() and btn:IsMouseOver() then
-            mouseOverPet = true
-            break
+            mouseOverPet = true; break
           end
         end
         if not mouseOverPet then
           for _, f in ipairs(GetPetBarFrames()) do
             if f and f:IsShown() and f:IsMouseOver() then
-              mouseOverPet = true
-              break
+              mouseOverPet = true; break
             end
           end
         end
       end
     end
+    local ab1ShouldHide = (inCombat and profile.hideActionBar1InCombat) or ab1Always
+    local stanceShouldHide = (inCombat and profile.hideStanceBarInCombat) or stanceAlways
+    local petShouldHide = (inCombat and profile.hidePetBarInCombat) or petAlways
     local mouseOverAnyHiddenBar = false
-    if profile.hideActionBar1InCombat and ab1Mouseover and mouseOverAB1 then mouseOverAnyHiddenBar = true end
-    if profile.hideActionBars2to8InCombat and ab2to8Mouseover and mouseOverAB2to8 then mouseOverAnyHiddenBar = true end
-    if profile.hideStanceBarInCombat and stanceMouseover and mouseOverStance then mouseOverAnyHiddenBar = true end
-    if profile.hidePetBarInCombat and petMouseover and mouseOverPet then mouseOverAnyHiddenBar = true end
+    if ab1ShouldHide and ab1Mouseover and mouseOverAB1 then mouseOverAnyHiddenBar = true end
+    for n = 2, 8 do
+      local abAlways = profile["hideAB"..n.."Always"] == true
+      local abShouldHide = (inCombat and profile["hideAB"..n.."InCombat"]) or abAlways
+      local abMouseover = profile["hideAB"..n.."Mouseover"] == true
+      if abShouldHide and abMouseover and mouseOverAB[n] then mouseOverAnyHiddenBar = true end
+    end
+    if stanceShouldHide and stanceMouseover and mouseOverStance then mouseOverAnyHiddenBar = true end
+    if petShouldHide and petMouseover and mouseOverPet then mouseOverAnyHiddenBar = true end
     local ab1HiddenByBlizz = false
-    local ab2to8HiddenByBlizz = false
     local stanceHiddenByBlizz = false
     local petHiddenByBlizz = false
     local mainBar = _G["MainMenuBar"]
     if mainBar and (not mainBar:IsShown() or mainBar:GetAlpha() < 0.1) then
       ab1HiddenByBlizz = true
     end
-    for _, name in ipairs(ab2to8BarsConst) do
+    if ab1Mouseover and mouseOverAB1 and ab1HiddenByBlizz then mouseOverAnyHiddenBar = true end
+    for n = 2, 8 do
+      local name = AB_BAR_FRAMES[n]
       local bar = _G[name]
-      if bar and (not bar:IsShown() or bar:GetAlpha() < 0.1) then
-        ab2to8HiddenByBlizz = true
-        break
-      end
+      local abMouseover = profile["hideAB"..n.."Mouseover"] == true
+      local hiddenByBlizz = bar and (not bar:IsShown() or bar:GetAlpha() < 0.1)
+      if abMouseover and mouseOverAB[n] and hiddenByBlizz then mouseOverAnyHiddenBar = true end
     end
     local stanceBar = _G["StanceBar"]
     if stanceBar and (not stanceBar:IsShown() or stanceBar:GetAlpha() < 0.1) then
@@ -936,63 +942,56 @@ local function StartMouseCheck()
     if petBar and (not petBar:IsShown() or petBar:GetAlpha() < 0.1) then
       petHiddenByBlizz = true
     end
-    if ab1Mouseover and mouseOverAB1 and ab1HiddenByBlizz then mouseOverAnyHiddenBar = true end
-    if ab2to8Mouseover and mouseOverAB2to8 and ab2to8HiddenByBlizz then mouseOverAnyHiddenBar = true end
     if stanceMouseover and mouseOverStance and stanceHiddenByBlizz then mouseOverAnyHiddenBar = true end
     if petMouseover and mouseOverPet and petHiddenByBlizz then mouseOverAnyHiddenBar = true end
-    if profile.hideActionBar1InCombat or ab1HiddenByBlizz then
-      local showAB1 = mouseOverAnyHiddenBar
-      if showAB1 then
+    if ab1ShouldHide or ab1HiddenByBlizz then
+      if mouseOverAnyHiddenBar then
         if State.actionBar1Hidden or ab1HiddenByBlizz then
-          SetActionBar1Alpha(1)
-          State.actionBar1Hidden = false
+          SetActionBar1Alpha(1); State.actionBar1Hidden = false
         end
       else
-        if profile.hideActionBar1InCombat and not State.actionBar1Hidden then
-          SetActionBar1Alpha(0)
-          State.actionBar1Hidden = true
+        if ab1ShouldHide and not State.actionBar1Hidden then
+          SetActionBar1Alpha(0); State.actionBar1Hidden = true
         end
       end
     end
-    if profile.hideActionBars2to8InCombat or ab2to8HiddenByBlizz then
-      local showAB2to8 = mouseOverAnyHiddenBar
-      if showAB2to8 then
-        if State.actionBars2to8Hidden or ab2to8HiddenByBlizz then
-          SetActionBars2to8Alpha(1)
-          State.actionBars2to8Hidden = false
-        end
-      else
-        if profile.hideActionBars2to8InCombat and not State.actionBars2to8Hidden then
-          SetActionBars2to8Alpha(0)
-          State.actionBars2to8Hidden = true
+    for n = 2, 8 do
+      local name = AB_BAR_FRAMES[n]
+      local bar = _G[name]
+      local abAlways = profile["hideAB"..n.."Always"] == true
+      local abShouldHide = (inCombat and profile["hideAB"..n.."InCombat"]) or abAlways
+      local hiddenByBlizz = bar and (not bar:IsShown() or bar:GetAlpha() < 0.1)
+      if abShouldHide or hiddenByBlizz then
+        if mouseOverAnyHiddenBar then
+          if State["actionBar"..n.."Hidden"] or hiddenByBlizz then
+            SetABAlpha(n, 1); State["actionBar"..n.."Hidden"] = false
+          end
+        else
+          if abShouldHide and not State["actionBar"..n.."Hidden"] then
+            SetABAlpha(n, 0); State["actionBar"..n.."Hidden"] = true
+          end
         end
       end
     end
-    if profile.hideStanceBarInCombat or stanceHiddenByBlizz then
-      local showStance = mouseOverAnyHiddenBar
-      if showStance then
+    if stanceShouldHide or stanceHiddenByBlizz then
+      if mouseOverAnyHiddenBar then
         if State.stanceBarHidden or stanceHiddenByBlizz then
-          SetStanceBarAlpha(1)
-          State.stanceBarHidden = false
+          SetStanceBarAlpha(1); State.stanceBarHidden = false
         end
       else
-        if profile.hideStanceBarInCombat and not State.stanceBarHidden then
-          SetStanceBarAlpha(0)
-          State.stanceBarHidden = true
+        if stanceShouldHide and not State.stanceBarHidden then
+          SetStanceBarAlpha(0); State.stanceBarHidden = true
         end
       end
     end
-    if profile.hidePetBarInCombat or petHiddenByBlizz then
-      local showPet = mouseOverAnyHiddenBar
-      if showPet then
+    if petShouldHide or petHiddenByBlizz then
+      if mouseOverAnyHiddenBar then
         if State.petBarHidden or petHiddenByBlizz then
-          SetPetBarAlpha(1)
-          State.petBarHidden = false
+          SetPetBarAlpha(1); State.petBarHidden = false
         end
       else
-        if profile.hidePetBarInCombat and not State.petBarHidden then
-          SetPetBarAlpha(0)
-          State.petBarHidden = true
+        if petShouldHide and not State.petBarHidden then
+          SetPetBarAlpha(0); State.petBarHidden = true
         end
       end
     end
@@ -1007,48 +1006,81 @@ end
 local function SetupActionBarHiding()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
+  -- Migrate old grouped keys to per-bar
+  if profile.hideActionBars2to8InCombat ~= nil or profile.hideActionBars2to8Mouseover ~= nil or profile.hideActionBars2to8Always ~= nil then
+    for n = 2, 8 do
+      if profile.hideActionBars2to8InCombat then profile["hideAB"..n.."InCombat"] = true end
+      if profile.hideActionBars2to8Mouseover then profile["hideAB"..n.."Mouseover"] = true end
+      if profile.hideActionBars2to8Always then profile["hideAB"..n.."Always"] = true end
+    end
+    profile.hideActionBars2to8InCombat = nil
+    profile.hideActionBars2to8Mouseover = nil
+    profile.hideActionBars2to8Always = nil
+  end
   local hideAB1 = profile.hideActionBar1InCombat == true
-  local hideAB2to8 = profile.hideActionBars2to8InCombat == true
   local hideStance = profile.hideStanceBarInCombat == true
   local hidePet = profile.hidePetBarInCombat == true
-  local anyMouseover = profile.hideActionBar1Mouseover or profile.hideActionBars2to8Mouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
-  if hideAB1 or hideAB2to8 or hideStance or hidePet or anyMouseover then
-    if InCombatLockdown() then
+  local ab1Always = profile.hideActionBar1Always == true
+  local stanceAlways = profile.hideStanceBarAlways == true
+  local petAlways = profile.hidePetBarAlways == true
+  local anyABHide, anyABAlways, anyABMouseover = false, false, false
+  for n = 2, 8 do
+    if profile["hideAB"..n.."InCombat"] then anyABHide = true end
+    if profile["hideAB"..n.."Always"] then anyABAlways = true end
+    if profile["hideAB"..n.."Mouseover"] then anyABMouseover = true end
+  end
+  local anyAlways = ab1Always or anyABAlways or stanceAlways or petAlways
+  local anyMouseover = profile.hideActionBar1Mouseover or anyABMouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
+  local anyHide = hideAB1 or anyABHide or hideStance or hidePet or anyAlways
+  if anyHide or anyMouseover then
+    if anyAlways or InCombatLockdown() then
       StartMouseCheck()
-      if hideAB1 then
-        SetActionBar1Alpha(0)
-        State.actionBar1Hidden = true
+    end
+    if ab1Always and not State.actionBar1Hidden then
+      SetActionBar1Alpha(0); State.actionBar1Hidden = true
+    end
+    for n = 2, 8 do
+      if profile["hideAB"..n.."Always"] and not State["actionBar"..n.."Hidden"] then
+        SetABAlpha(n, 0); State["actionBar"..n.."Hidden"] = true
       end
-      if hideAB2to8 then
-        SetActionBars2to8Alpha(0)
-        State.actionBars2to8Hidden = true
+    end
+    if stanceAlways and not State.stanceBarHidden then
+      SetStanceBarAlpha(0); State.stanceBarHidden = true
+    end
+    if petAlways and not State.petBarHidden then
+      SetPetBarAlpha(0); State.petBarHidden = true
+    end
+    if InCombatLockdown() then
+      if hideAB1 and not State.actionBar1Hidden then
+        SetActionBar1Alpha(0); State.actionBar1Hidden = true
       end
-      if hideStance then
-        SetStanceBarAlpha(0)
-        State.stanceBarHidden = true
+      for n = 2, 8 do
+        if profile["hideAB"..n.."InCombat"] and not State["actionBar"..n.."Hidden"] then
+          SetABAlpha(n, 0); State["actionBar"..n.."Hidden"] = true
+        end
       end
-      if hidePet then
-        SetPetBarAlpha(0)
-        State.petBarHidden = true
+      if hideStance and not State.stanceBarHidden then
+        SetStanceBarAlpha(0); State.stanceBarHidden = true
+      end
+      if hidePet and not State.petBarHidden then
+        SetPetBarAlpha(0); State.petBarHidden = true
       end
     end
   else
     StopMouseCheck()
     if State.actionBar1Hidden then
-      SetActionBar1Alpha(1)
-      State.actionBar1Hidden = false
+      SetActionBar1Alpha(1); State.actionBar1Hidden = false
     end
-    if State.actionBars2to8Hidden then
-      SetActionBars2to8Alpha(1)
-      State.actionBars2to8Hidden = false
+    for n = 2, 8 do
+      if State["actionBar"..n.."Hidden"] then
+        SetABAlpha(n, 1); State["actionBar"..n.."Hidden"] = false
+      end
     end
     if State.stanceBarHidden then
-      SetStanceBarAlpha(1)
-      State.stanceBarHidden = false
+      SetStanceBarAlpha(1); State.stanceBarHidden = false
     end
     if State.petBarHidden then
-      SetPetBarAlpha(1)
-      State.petBarHidden = false
+      SetPetBarAlpha(1); State.petBarHidden = false
     end
   end
 end
@@ -1057,67 +1089,48 @@ local function UpdateActionBarVisibility()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
   local inCombat = InCombatLockdown()
-  if inCombat then
-    if profile.hideActionBar1InCombat then
-      if not State.actionBar1Hidden then
-        SetActionBar1Alpha(0)
-        State.actionBar1Hidden = true
-      end
-    else
-      if State.actionBar1Hidden then
-        SetActionBar1Alpha(1)
-        State.actionBar1Hidden = false
-      end
-    end
-    if profile.hideActionBars2to8InCombat then
-      if not State.actionBars2to8Hidden then
-        SetActionBars2to8Alpha(0)
-        State.actionBars2to8Hidden = true
-      end
-    else
-      if State.actionBars2to8Hidden then
-        SetActionBars2to8Alpha(1)
-        State.actionBars2to8Hidden = false
-      end
-    end
-    if profile.hideStanceBarInCombat then
-      if not State.stanceBarHidden then
-        SetStanceBarAlpha(0)
-        State.stanceBarHidden = true
-      end
-    else
-      if State.stanceBarHidden then
-        SetStanceBarAlpha(1)
-        State.stanceBarHidden = false
-      end
-    end
-    if profile.hidePetBarInCombat then
-      if not State.petBarHidden then
-        SetPetBarAlpha(0)
-        State.petBarHidden = true
-      end
-    else
-      if State.petBarHidden then
-        SetPetBarAlpha(1)
-        State.petBarHidden = false
-      end
-    end
-    local anyHideInCombat = profile.hideActionBar1InCombat or profile.hideActionBars2to8InCombat or profile.hideStanceBarInCombat or profile.hidePetBarInCombat
-    local anyMouseover = profile.hideActionBar1Mouseover or profile.hideActionBars2to8Mouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
-    if anyHideInCombat or anyMouseover then
-      StartMouseCheck()
-    else
-      StopMouseCheck()
-    end
+  local ab1Always = profile.hideActionBar1Always == true
+  local stanceAlways = profile.hideStanceBarAlways == true
+  local petAlways = profile.hidePetBarAlways == true
+  local ab1Hide = (inCombat and profile.hideActionBar1InCombat) or ab1Always
+  local stanceHide = (inCombat and profile.hideStanceBarInCombat) or stanceAlways
+  local petHide = (inCombat and profile.hidePetBarInCombat) or petAlways
+  if ab1Hide then
+    if not State.actionBar1Hidden then SetActionBar1Alpha(0); State.actionBar1Hidden = true end
   else
-    SetActionBar1Alpha(1)
-    SetActionBars2to8Alpha(1)
-    SetStanceBarAlpha(1)
-    SetPetBarAlpha(1)
-    State.actionBar1Hidden = false
-    State.actionBars2to8Hidden = false
-    State.stanceBarHidden = false
-    State.petBarHidden = false
+    if State.actionBar1Hidden then SetActionBar1Alpha(1); State.actionBar1Hidden = false end
+  end
+  local anyABHide = false
+  local anyABAlways = false
+  local anyABMouseover = false
+  for n = 2, 8 do
+    local abAlways = profile["hideAB"..n.."Always"] == true
+    local abHide = (inCombat and profile["hideAB"..n.."InCombat"]) or abAlways
+    if abHide then
+      if not State["actionBar"..n.."Hidden"] then SetABAlpha(n, 0); State["actionBar"..n.."Hidden"] = true end
+      anyABHide = true
+    else
+      if State["actionBar"..n.."Hidden"] then SetABAlpha(n, 1); State["actionBar"..n.."Hidden"] = false end
+    end
+    if abAlways then anyABAlways = true end
+    if profile["hideAB"..n.."Mouseover"] then anyABMouseover = true end
+  end
+  if stanceHide then
+    if not State.stanceBarHidden then SetStanceBarAlpha(0); State.stanceBarHidden = true end
+  else
+    if State.stanceBarHidden then SetStanceBarAlpha(1); State.stanceBarHidden = false end
+  end
+  if petHide then
+    if not State.petBarHidden then SetPetBarAlpha(0); State.petBarHidden = true end
+  else
+    if State.petBarHidden then SetPetBarAlpha(1); State.petBarHidden = false end
+  end
+  local anyAlways = ab1Always or anyABAlways or stanceAlways or petAlways
+  local anyHide = ab1Hide or anyABHide or stanceHide or petHide
+  local anyMouseover = profile.hideActionBar1Mouseover or anyABMouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
+  if anyHide or anyMouseover or anyAlways then
+    StartMouseCheck()
+  else
     StopMouseCheck()
   end
 end
@@ -1128,44 +1141,56 @@ actionBarHideFrame:SetScript("OnEvent", function(self, event)
   if event == "PLAYER_REGEN_DISABLED" then
     if addonTable.HideBlizzBarPreviews then addonTable.HideBlizzBarPreviews() end
     if UpdateMouseoverDetectionFrames then UpdateMouseoverDetectionFrames() end
-    local anyHideInCombat = profile.hideActionBar1InCombat or profile.hideActionBars2to8InCombat or profile.hideStanceBarInCombat or profile.hidePetBarInCombat
-    local anyMouseover = profile.hideActionBar1Mouseover or profile.hideActionBars2to8Mouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
+    local anyABHideInCombat = false
+    local anyABMouseover = false
+    for n = 2, 8 do
+      if profile["hideAB"..n.."InCombat"] then anyABHideInCombat = true end
+      if profile["hideAB"..n.."Mouseover"] then anyABMouseover = true end
+    end
+    local anyHideInCombat = profile.hideActionBar1InCombat or anyABHideInCombat or profile.hideStanceBarInCombat or profile.hidePetBarInCombat
+    local anyMouseover = profile.hideActionBar1Mouseover or anyABMouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
     if anyHideInCombat or anyMouseover then
       StartMouseCheck()
     end
     if profile.hideActionBar1InCombat then
-      SetActionBar1Alpha(0)
-      State.actionBar1Hidden = true
+      SetActionBar1Alpha(0); State.actionBar1Hidden = true
     end
-    if profile.hideActionBars2to8InCombat then
-      SetActionBars2to8Alpha(0)
-      State.actionBars2to8Hidden = true
+    for n = 2, 8 do
+      if profile["hideAB"..n.."InCombat"] then
+        SetABAlpha(n, 0); State["actionBar"..n.."Hidden"] = true
+      end
     end
     if profile.hideStanceBarInCombat then
-      SetStanceBarAlpha(0)
-      State.stanceBarHidden = true
+      SetStanceBarAlpha(0); State.stanceBarHidden = true
     end
     if profile.hidePetBarInCombat then
-      SetPetBarAlpha(0)
-      State.petBarHidden = true
+      SetPetBarAlpha(0); State.petBarHidden = true
     end
   elseif event == "PLAYER_REGEN_ENABLED" then
-    StopMouseCheck()
-    if State.actionBar1Hidden then
-      SetActionBar1Alpha(1)
-      State.actionBar1Hidden = false
+    local ab1Always = profile.hideActionBar1Always == true
+    local stanceAlways = profile.hideStanceBarAlways == true
+    local petAlways = profile.hidePetBarAlways == true
+    local anyABAlways = false
+    for n = 2, 8 do if profile["hideAB"..n.."Always"] then anyABAlways = true; break end end
+    local anyAlways = ab1Always or anyABAlways or stanceAlways or petAlways
+    if State.actionBar1Hidden and not ab1Always then
+      SetActionBar1Alpha(1); State.actionBar1Hidden = false
     end
-    if State.actionBars2to8Hidden then
-      SetActionBars2to8Alpha(1)
-      State.actionBars2to8Hidden = false
+    for n = 2, 8 do
+      if State["actionBar"..n.."Hidden"] and not (profile["hideAB"..n.."Always"] == true) then
+        SetABAlpha(n, 1); State["actionBar"..n.."Hidden"] = false
+      end
     end
-    if State.stanceBarHidden then
-      SetStanceBarAlpha(1)
-      State.stanceBarHidden = false
+    if State.stanceBarHidden and not stanceAlways then
+      SetStanceBarAlpha(1); State.stanceBarHidden = false
     end
-    if State.petBarHidden then
-      SetPetBarAlpha(1)
-      State.petBarHidden = false
+    if State.petBarHidden and not petAlways then
+      SetPetBarAlpha(1); State.petBarHidden = false
+    end
+    if anyAlways then
+      StartMouseCheck()
+    else
+      StopMouseCheck()
     end
     C_Timer.After(0.5, function()
       if not InCombatLockdown() and UpdateMouseoverDetectionFrames then
@@ -1188,3 +1213,1029 @@ actionBarHideFrame:SetScript("OnEvent", function(self, event)
   end
 end)
 C_Timer.After(2, SetupActionBarHiding)
+
+-- ============================================================
+-- Fade Micro Menu
+-- ============================================================
+local microMenuFadeTimer = nil
+local microMenuFaded = false
+
+local function FadeMicroMenuIn()
+  local mm = MicroMenuContainer or MicroMenu
+  if not mm then return end
+  microMenuFaded = false
+  UIFrameFadeIn(mm, 0.3, mm:GetAlpha(), 1)
+end
+
+local function FadeMicroMenuOut()
+  local mm = MicroMenuContainer or MicroMenu
+  if not mm then return end
+  microMenuFaded = true
+  UIFrameFadeOut(mm, 0.5, mm:GetAlpha(), 0)
+end
+
+local function StartMicroMenuFadeTimer()
+  if microMenuFadeTimer then microMenuFadeTimer:Cancel() end
+  microMenuFadeTimer = C_Timer.NewTimer(5, FadeMicroMenuOut)
+end
+
+addonTable.SetupFadeMicroMenu = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.fadeMicroMenu then
+    if microMenuFadeTimer then microMenuFadeTimer:Cancel(); microMenuFadeTimer = nil end
+    if State.microMenuTicker then State.microMenuTicker:Cancel(); State.microMenuTicker = nil end
+    FadeMicroMenuIn()
+    return
+  end
+  if State.microMenuTicker then return end
+  StartMicroMenuFadeTimer()
+  State.microMenuTicker = C_Timer.NewTicker(0.15, function()
+    local p = addonTable.GetProfile and addonTable.GetProfile()
+    if not p or not p.fadeMicroMenu then return end
+    local mm = MicroMenuContainer or MicroMenu
+    if not mm then return end
+    local isOver = mm:IsMouseOver()
+    if isOver and microMenuFaded then
+      FadeMicroMenuIn()
+      if microMenuFadeTimer then microMenuFadeTimer:Cancel(); microMenuFadeTimer = nil end
+    elseif not isOver and not microMenuFaded and not microMenuFadeTimer then
+      StartMicroMenuFadeTimer()
+    end
+  end)
+end
+C_Timer.After(2, function() if addonTable.SetupFadeMicroMenu then addonTable.SetupFadeMicroMenu() end end)
+
+-- ============================================================
+-- Hide Action Bar Borders / Skin Action Bars
+-- ============================================================
+local abSkinState = {}
+
+-- Helper: hide all non-icon textures on a button (used by SkinActionButton and hooks)
+local function ApplyButtonSkin(btn)
+  local iconTex = btn.icon or btn.Icon
+  -- Hide NormalTexture
+  if btn.NormalTexture then btn.NormalTexture:SetAlpha(0) end
+  local nt = btn:GetNormalTexture()
+  if nt then nt:SetAlpha(0) end
+  -- Hide known decorative elements
+  if btn.FloatingBG then btn.FloatingBG:Hide() end
+  if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
+  if btn.SlotArt then btn.SlotArt:Hide() end
+  if btn.SlotBackground then btn.SlotBackground:Hide() end
+  -- Hide ALL non-icon textures (any draw layer)
+  local regions = {btn:GetRegions()}
+  for _, region in ipairs(regions) do
+    if region:IsObjectType("Texture") and region ~= iconTex and not region._ccmIsBorder then
+      if not region._ccmSkinSavedAlpha then
+        region._ccmSkinSavedAlpha = region:GetAlpha()
+      end
+      region:SetAlpha(0)
+    end
+  end
+  -- Ensure icon is visible and cropped, apply border
+  if iconTex then
+    local profile = addonTable.GetProfile and addonTable.GetProfile()
+    local borderSize = profile and type(profile.iconBorderSize) == "number" and profile.iconBorderSize or 1
+    iconTex:ClearAllPoints()
+    iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", borderSize, -borderSize)
+    iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -borderSize, borderSize)
+    iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    iconTex:SetAlpha(1)
+    if borderSize > 0 then
+      if not btn._ccmBorderTop then
+        btn._ccmBorderTop = btn:CreateTexture(nil, "OVERLAY")
+        btn._ccmBorderTop:SetColorTexture(0, 0, 0, 1)
+        btn._ccmBorderTop._ccmIsBorder = true
+        btn._ccmBorderBottom = btn:CreateTexture(nil, "OVERLAY")
+        btn._ccmBorderBottom:SetColorTexture(0, 0, 0, 1)
+        btn._ccmBorderBottom._ccmIsBorder = true
+        btn._ccmBorderLeft = btn:CreateTexture(nil, "OVERLAY")
+        btn._ccmBorderLeft:SetColorTexture(0, 0, 0, 1)
+        btn._ccmBorderLeft._ccmIsBorder = true
+        btn._ccmBorderRight = btn:CreateTexture(nil, "OVERLAY")
+        btn._ccmBorderRight:SetColorTexture(0, 0, 0, 1)
+        btn._ccmBorderRight._ccmIsBorder = true
+      end
+      btn._ccmBorderTop:ClearAllPoints()
+      btn._ccmBorderTop:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+      btn._ccmBorderTop:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
+      btn._ccmBorderTop:SetHeight(borderSize)
+      btn._ccmBorderTop:Show()
+      btn._ccmBorderBottom:ClearAllPoints()
+      btn._ccmBorderBottom:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+      btn._ccmBorderBottom:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+      btn._ccmBorderBottom:SetHeight(borderSize)
+      btn._ccmBorderBottom:Show()
+      btn._ccmBorderLeft:ClearAllPoints()
+      btn._ccmBorderLeft:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+      btn._ccmBorderLeft:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+      btn._ccmBorderLeft:SetWidth(borderSize)
+      btn._ccmBorderLeft:Show()
+      btn._ccmBorderRight:ClearAllPoints()
+      btn._ccmBorderRight:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
+      btn._ccmBorderRight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+      btn._ccmBorderRight:SetWidth(borderSize)
+      btn._ccmBorderRight:Show()
+    else
+      if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
+      if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
+      if btn._ccmBorderLeft then btn._ccmBorderLeft:Hide() end
+      if btn._ccmBorderRight then btn._ccmBorderRight:Hide() end
+    end
+  end
+end
+
+local function SkinActionButton(btn, hide)
+  if not btn then return end
+  local key = btn:GetName() or tostring(btn)
+  local iconTex = btn.icon or btn.Icon
+  if hide then
+    if not abSkinState[key] then
+      abSkinState[key] = { skinned = false }
+    end
+    local s = abSkinState[key]
+    if not s.skinned then
+      s.skinned = true
+      if iconTex and iconTex.GetTexCoord then
+        s.origTexCoords = {iconTex:GetTexCoord()}
+      end
+      if iconTex and iconTex.GetNumPoints and iconTex:GetNumPoints() > 0 then
+        s.origIconPoints = {}
+        for i = 1, iconTex:GetNumPoints() do
+          s.origIconPoints[i] = {iconTex:GetPoint(i)}
+        end
+      end
+    end
+    -- Apply the skin
+    ApplyButtonSkin(btn)
+    -- For empty slots: hide keybind text and make button fully invisible
+    local hasAction = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
+    if not hasAction then
+      if btn.HotKey then btn.HotKey:SetAlpha(0) end
+      if btn.Name then btn.Name:SetAlpha(0) end
+      s.emptyHidden = true
+    else
+      if btn.HotKey then btn.HotKey:SetAlpha(1) end
+      if btn.Name then btn.Name:SetAlpha(1) end
+      s.emptyHidden = false
+    end
+    -- Hook SetNormalTexture to keep it hidden (Blizzard re-applies on bar swap etc.)
+    if not btn._ccmSkinHooked then
+      btn._ccmSkinHooked = true
+      hooksecurefunc(btn, "SetNormalTexture", function(self)
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        if not p or not p.hideActionBarBorders then return end
+        local st = abSkinState[self:GetName() or tostring(self)]
+        if st and st.skinned then
+          local tex = self:GetNormalTexture()
+          if tex then tex:SetAlpha(0) end
+        end
+      end)
+    end
+    -- Hook UpdateButtonArt to re-apply after Blizzard redraws
+    if not btn._ccmUpdateArtHooked and btn.UpdateButtonArt then
+      btn._ccmUpdateArtHooked = true
+      hooksecurefunc(btn, "UpdateButtonArt", function(self)
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        if not p or not p.hideActionBarBorders then return end
+        local st = abSkinState[self:GetName() or tostring(self)]
+        if st and st.skinned then
+          ApplyButtonSkin(self)
+        end
+      end)
+    end
+    -- Hook Show on SlotBackground to prevent Blizzard re-showing it
+    if btn.SlotBackground and not btn.SlotBackground._ccmShowHooked then
+      btn.SlotBackground._ccmShowHooked = true
+      hooksecurefunc(btn.SlotBackground, "Show", function(self)
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        if not p or not p.hideActionBarBorders then return end
+        local st = abSkinState[key]
+        if st and st.skinned then self:Hide() end
+      end)
+      hooksecurefunc(btn.SlotBackground, "SetShown", function(self, shown)
+        if not shown then return end
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        if not p or not p.hideActionBarBorders then return end
+        local st = abSkinState[key]
+        if st and st.skinned then self:Hide() end
+      end)
+    end
+    -- Hook Show on NormalTexture to prevent Blizzard re-showing it
+    local ntHook = btn:GetNormalTexture()
+    if ntHook and not ntHook._ccmShowHooked then
+      ntHook._ccmShowHooked = true
+      hooksecurefunc(ntHook, "Show", function(self)
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        if not p or not p.hideActionBarBorders then return end
+        local st = abSkinState[key]
+        if st and st.skinned then self:Hide() end
+      end)
+    end
+    -- Hook action updates to show/hide empty slots dynamically
+    if not btn._ccmActionUpdateHooked and btn.Update and type(btn.Update) == "function" then
+      btn._ccmActionUpdateHooked = true
+      hooksecurefunc(btn, "Update", function(self)
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        if not p or not p.hideActionBarBorders then return end
+        local st = abSkinState[self:GetName() or tostring(self)]
+        if not st or not st.skinned then return end
+        local has = self.HasAction and self:HasAction() or (self.action and HasAction(self.action))
+        if not has then
+          if self.HotKey then self.HotKey:SetAlpha(0) end
+          if self.Name then self.Name:SetAlpha(0) end
+          st.emptyHidden = true
+          ApplyButtonSkin(self)
+        else
+          if self.HotKey then self.HotKey:SetAlpha(1) end
+          if self.Name then self.Name:SetAlpha(1) end
+          st.emptyHidden = false
+          ApplyButtonSkin(self)
+        end
+      end)
+    end
+  else
+    -- Restore
+    local s = abSkinState[key]
+    if s then s.skinned = false; s.emptyHidden = false end
+    if btn.HotKey then btn.HotKey:SetAlpha(1) end
+    if btn.Name then btn.Name:SetAlpha(1) end
+    if btn.NormalTexture then btn.NormalTexture:SetAlpha(1) end
+    local nt = btn:GetNormalTexture()
+    if nt then nt:SetAlpha(1) end
+    if btn.FloatingBG then btn.FloatingBG:Show() end
+    if btn.IconBorder then btn.IconBorder:SetAlpha(1) end
+    if btn.SlotArt then btn.SlotArt:Show() end
+    if btn.SlotBackground then btn.SlotBackground:Show() end
+    -- Restore ALL texture regions
+    local regions = {btn:GetRegions()}
+    for _, region in ipairs(regions) do
+      if region:IsObjectType("Texture") then
+        if region._ccmSkinSavedAlpha then
+          region:SetAlpha(region._ccmSkinSavedAlpha)
+          region._ccmSkinSavedAlpha = nil
+        end
+      end
+    end
+    if iconTex and s and s.origTexCoords then
+      iconTex:SetTexCoord(unpack(s.origTexCoords))
+    elseif iconTex then
+      iconTex:SetTexCoord(0, 1, 0, 1)
+    end
+    -- Restore icon anchors
+    if iconTex and s and s.origIconPoints then
+      iconTex:ClearAllPoints()
+      for _, pt in ipairs(s.origIconPoints) do
+        iconTex:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5])
+      end
+    end
+    -- Hide border textures
+    if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
+    if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
+    if btn._ccmBorderLeft then btn._ccmBorderLeft:Hide() end
+    if btn._ccmBorderRight then btn._ccmBorderRight:Hide() end
+    -- Force Blizzard to redraw the button art (instant restore without reload)
+    if btn.UpdateButtonArt then
+      pcall(btn.UpdateButtonArt, btn)
+    end
+  end
+end
+
+local function SkinBarButtons(barName, prefix, hide, numButtons)
+  local bar = _G[barName]
+  if not bar then return end
+  numButtons = numButtons or 12
+  -- Hide bar border art and background
+  if bar.BorderArt then bar.BorderArt:SetShown(not hide) end
+  -- Hide bar-level background regions
+  if hide then
+    local barRegions = {bar:GetRegions()}
+    for _, region in ipairs(barRegions) do
+      if region:IsObjectType("Texture") then
+        if not region._ccmBarSavedAlpha then
+          region._ccmBarSavedAlpha = region:GetAlpha()
+        end
+        region:SetAlpha(0)
+      end
+    end
+  else
+    local barRegions = {bar:GetRegions()}
+    for _, region in ipairs(barRegions) do
+      if region._ccmBarSavedAlpha then
+        region:SetAlpha(region._ccmBarSavedAlpha)
+        region._ccmBarSavedAlpha = nil
+      end
+    end
+  end
+  -- Skin each button
+  for i = 1, numButtons do
+    local btn = _G[prefix .. i]
+    SkinActionButton(btn, hide)
+  end
+  -- Compact spacing: reposition buttons with 0 gap
+  if not InCombatLockdown() then
+    local btn1 = _G[prefix .. "1"]
+    local btn2 = _G[prefix .. "2"]
+    if not btn1 or not btn2 then return end
+    local x1, y1 = btn1:GetCenter()
+    local x2, y2 = btn2:GetCenter()
+    if not x1 or not x2 then return end
+    local isVertical = math.abs(y2 - y1) > math.abs(x2 - x1)
+    if hide then
+      for i = 2, numButtons do
+        local btn = _G[prefix .. i]
+        if btn then
+          if not btn._ccmOrigPoint then
+            local point, relativeTo, relativePoint, ofsx, ofsy = btn:GetPoint(1)
+            if point then
+              btn._ccmOrigPoint = {point, relativeTo, relativePoint, ofsx, ofsy}
+            end
+          end
+          btn:ClearAllPoints()
+          local prevBtn = _G[prefix .. (i - 1)]
+          if prevBtn then
+            if isVertical then
+              btn:SetPoint("TOP", prevBtn, "BOTTOM", 0, 0)
+            else
+              btn:SetPoint("LEFT", prevBtn, "RIGHT", 0, 0)
+            end
+          end
+        end
+      end
+    else
+      for i = 2, numButtons do
+        local btn = _G[prefix .. i]
+        if btn and btn._ccmOrigPoint then
+          btn:ClearAllPoints()
+          btn:SetPoint(btn._ccmOrigPoint[1], btn._ccmOrigPoint[2], btn._ccmOrigPoint[3], btn._ccmOrigPoint[4], btn._ccmOrigPoint[5])
+          btn._ccmOrigPoint = nil
+        end
+      end
+    end
+  end
+end
+
+local abSkinEverApplied = false
+
+local function RestoreAllActionBars()
+  -- Restore EndCaps on both MainMenuBar and MainActionBar
+  local mainBar = MainMenuBar
+  if mainBar and mainBar.EndCaps then
+    if mainBar.EndCaps.LeftEndCap then mainBar.EndCaps.LeftEndCap:SetShown(true) end
+    if mainBar.EndCaps.RightEndCap then mainBar.EndCaps.RightEndCap:SetShown(true) end
+  end
+  local mainActionBar = _G["MainActionBar"]
+  if mainActionBar and mainActionBar ~= mainBar and mainActionBar.EndCaps then
+    if mainActionBar.EndCaps.LeftEndCap then mainActionBar.EndCaps.LeftEndCap:SetShown(true) end
+    if mainActionBar.EndCaps.RightEndCap then mainActionBar.EndCaps.RightEndCap:SetShown(true) end
+  end
+  local bar1Name = mainActionBar and "MainActionBar" or "MainMenuBar"
+  SkinBarButtons(bar1Name, "ActionButton", false, 12)
+  -- Also restore MainMenuBar bar-level regions if different from bar1
+  if mainBar and bar1Name ~= "MainMenuBar" then
+    local barRegions = {mainBar:GetRegions()}
+    for _, region in ipairs(barRegions) do
+      if region._ccmBarSavedAlpha then
+        region:SetAlpha(region._ccmBarSavedAlpha)
+        region._ccmBarSavedAlpha = nil
+      end
+    end
+  end
+  SkinBarButtons("MultiBarBottomLeft", "MultiBarBottomLeftButton", false, 12)
+  SkinBarButtons("MultiBarBottomRight", "MultiBarBottomRightButton", false, 12)
+  SkinBarButtons("MultiBarRight", "MultiBarRightButton", false, 12)
+  SkinBarButtons("MultiBarLeft", "MultiBarLeftButton", false, 12)
+  SkinBarButtons("MultiBar5", "MultiBar5Button", false, 12)
+  SkinBarButtons("MultiBar6", "MultiBar6Button", false, 12)
+  SkinBarButtons("MultiBar7", "MultiBar7Button", false, 12)
+  SkinBarButtons("StanceBar", "StanceButton", false, 10)
+  local petBarName = PetActionBar and "PetActionBar" or "PetActionBarFrame"
+  SkinBarButtons(petBarName, "PetActionButton", false, 10)
+end
+
+addonTable.SetupHideABBorders = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  local hide = profile.hideActionBarBorders == true
+  -- When disabled: only restore if we ever applied skinning, then do nothing
+  if not hide then
+    if abSkinEverApplied then
+      abSkinEverApplied = false
+      RestoreAllActionBars()
+    end
+    return
+  end
+  abSkinEverApplied = true
+  -- Hide EndCaps
+  local mainBar = MainMenuBar
+  if mainBar and mainBar.EndCaps then
+    if mainBar.EndCaps.LeftEndCap then mainBar.EndCaps.LeftEndCap:SetShown(false) end
+    if mainBar.EndCaps.RightEndCap then mainBar.EndCaps.RightEndCap:SetShown(false) end
+  end
+  local mainActionBar = _G["MainActionBar"]
+  if mainActionBar and mainActionBar ~= mainBar and mainActionBar.EndCaps then
+    if mainActionBar.EndCaps.LeftEndCap then mainActionBar.EndCaps.LeftEndCap:SetShown(false) end
+    if mainActionBar.EndCaps.RightEndCap then mainActionBar.EndCaps.RightEndCap:SetShown(false) end
+  end
+  -- Skin all action bars
+  local bar1Name = mainActionBar and "MainActionBar" or "MainMenuBar"
+  SkinBarButtons(bar1Name, "ActionButton", true, 12)
+  -- Also skin MainMenuBar bar-level regions if different from bar1
+  if mainBar and bar1Name ~= "MainMenuBar" then
+    local barRegions = {mainBar:GetRegions()}
+    for _, region in ipairs(barRegions) do
+      if region:IsObjectType("Texture") then
+        if not region._ccmBarSavedAlpha then
+          region._ccmBarSavedAlpha = region:GetAlpha()
+        end
+        region:SetAlpha(0)
+      end
+    end
+  end
+  SkinBarButtons("MultiBarBottomLeft", "MultiBarBottomLeftButton", true, 12)
+  SkinBarButtons("MultiBarBottomRight", "MultiBarBottomRightButton", true, 12)
+  SkinBarButtons("MultiBarRight", "MultiBarRightButton", true, 12)
+  SkinBarButtons("MultiBarLeft", "MultiBarLeftButton", true, 12)
+  SkinBarButtons("MultiBar5", "MultiBar5Button", true, 12)
+  SkinBarButtons("MultiBar6", "MultiBar6Button", true, 12)
+  SkinBarButtons("MultiBar7", "MultiBar7Button", true, 12)
+  SkinBarButtons("StanceBar", "StanceButton", true, 10)
+  local petBarName = PetActionBar and "PetActionBar" or "PetActionBarFrame"
+  SkinBarButtons(petBarName, "PetActionButton", true, 10)
+end
+C_Timer.After(2, function()
+  local p = addonTable.GetProfile and addonTable.GetProfile()
+  if p and p.hideActionBarBorders then
+    if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end
+  end
+end)
+
+-- Re-skin pet bar when it becomes available (pet summoned/dismissed/loaded late)
+do
+  local petSkinFrame = CreateFrame("Frame")
+  petSkinFrame:RegisterEvent("PET_BAR_UPDATE")
+  petSkinFrame:RegisterEvent("PET_BAR_UPDATE_COOLDOWN")
+  petSkinFrame:SetScript("OnEvent", function()
+    local p = addonTable.GetProfile and addonTable.GetProfile()
+    if not p or not p.hideActionBarBorders then return end
+    local petBarName = PetActionBar and "PetActionBar" or "PetActionBarFrame"
+    local bar = _G[petBarName]
+    if not bar then return end
+    SkinBarButtons(petBarName, "PetActionButton", true, 10)
+  end)
+end
+-- Re-skin stance bar when shapeshift forms update (spec change, late load)
+do
+  local stanceSkinFrame = CreateFrame("Frame")
+  stanceSkinFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
+  stanceSkinFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+  stanceSkinFrame:SetScript("OnEvent", function()
+    local p = addonTable.GetProfile and addonTable.GetProfile()
+    if not p or not p.hideActionBarBorders then return end
+    local bar = _G["StanceBar"]
+    if not bar then return end
+    SkinBarButtons("StanceBar", "StanceButton", true, 10)
+  end)
+end
+
+-- ============================================================
+-- Fade Objective Tracker
+-- ============================================================
+local objTrackerFadeTimer = nil
+local objTrackerFaded = false
+
+local function FadeObjTrackerIn()
+  local ot = ObjectiveTrackerFrame
+  if not ot then return end
+  objTrackerFaded = false
+  UIFrameFadeIn(ot, 0.3, ot:GetAlpha(), 1)
+end
+
+local function FadeObjTrackerOut()
+  local ot = ObjectiveTrackerFrame
+  if not ot then return end
+  objTrackerFaded = true
+  UIFrameFadeOut(ot, 0.5, ot:GetAlpha(), 0)
+end
+
+local function StartObjTrackerFadeTimer()
+  if objTrackerFadeTimer then objTrackerFadeTimer:Cancel() end
+  objTrackerFadeTimer = C_Timer.NewTimer(5, FadeObjTrackerOut)
+end
+
+addonTable.SetupFadeObjectiveTracker = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.fadeObjectiveTracker then
+    if objTrackerFadeTimer then objTrackerFadeTimer:Cancel(); objTrackerFadeTimer = nil end
+    if State.objTrackerTicker then State.objTrackerTicker:Cancel(); State.objTrackerTicker = nil end
+    FadeObjTrackerIn()
+    return
+  end
+  if State.objTrackerTicker then return end
+  StartObjTrackerFadeTimer()
+  State.objTrackerTicker = C_Timer.NewTicker(0.15, function()
+    local p = addonTable.GetProfile and addonTable.GetProfile()
+    if not p or not p.fadeObjectiveTracker then return end
+    local ot = ObjectiveTrackerFrame
+    if not ot then return end
+    local isOver = ot:IsMouseOver()
+    if isOver and objTrackerFaded then
+      FadeObjTrackerIn()
+      if objTrackerFadeTimer then objTrackerFadeTimer:Cancel(); objTrackerFadeTimer = nil end
+    elseif not isOver and not objTrackerFaded and not objTrackerFadeTimer then
+      StartObjTrackerFadeTimer()
+    end
+  end)
+end
+C_Timer.After(2, function() if addonTable.SetupFadeObjectiveTracker then addonTable.SetupFadeObjectiveTracker() end end)
+
+-- ============================================================
+-- Fade Bag Bar
+-- ============================================================
+local bagBarFadeTimer = nil
+local bagBarFaded = false
+
+local function FadeBagBarIn()
+  local bb = BagsBar
+  if not bb then return end
+  bagBarFaded = false
+  UIFrameFadeIn(bb, 0.3, bb:GetAlpha(), 1)
+end
+
+local function FadeBagBarOut()
+  local bb = BagsBar
+  if not bb then return end
+  bagBarFaded = true
+  UIFrameFadeOut(bb, 0.5, bb:GetAlpha(), 0)
+end
+
+local function StartBagBarFadeTimer()
+  if bagBarFadeTimer then bagBarFadeTimer:Cancel() end
+  bagBarFadeTimer = C_Timer.NewTimer(5, FadeBagBarOut)
+end
+
+addonTable.SetupFadeBagBar = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.fadeBagBar then
+    if bagBarFadeTimer then bagBarFadeTimer:Cancel(); bagBarFadeTimer = nil end
+    if State.bagBarTicker then State.bagBarTicker:Cancel(); State.bagBarTicker = nil end
+    FadeBagBarIn()
+    return
+  end
+  if State.bagBarTicker then return end
+  StartBagBarFadeTimer()
+  State.bagBarTicker = C_Timer.NewTicker(0.15, function()
+    local p = addonTable.GetProfile and addonTable.GetProfile()
+    if not p or not p.fadeBagBar then return end
+    local bb = BagsBar
+    if not bb then return end
+    local isOver = bb:IsMouseOver()
+    if isOver and bagBarFaded then
+      FadeBagBarIn()
+      if bagBarFadeTimer then bagBarFadeTimer:Cancel(); bagBarFadeTimer = nil end
+    elseif not isOver and not bagBarFaded and not bagBarFadeTimer then
+      StartBagBarFadeTimer()
+    end
+  end)
+end
+C_Timer.After(2, function() if addonTable.SetupFadeBagBar then addonTable.SetupFadeBagBar() end end)
+
+-- ============================================================
+-- Character Panel Enhancement
+-- ============================================================
+
+-- Hidden tooltip for scanning enchant/gem info
+local scanTip = CreateFrame("GameTooltip", "CCMCharScanTip", nil, "GameTooltipTemplate")
+scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
+
+-- Equipment slot definitions: {frameName, slotID, side, canEnchant}
+local EQUIP_SLOTS = {
+  {"CharacterHeadSlot", 1, "left", false},
+  {"CharacterNeckSlot", 2, "left", false},
+  {"CharacterShoulderSlot", 3, "left", false},
+  {"CharacterBackSlot", 15, "left", true},
+  {"CharacterChestSlot", 5, "left", true},
+  {"CharacterWristSlot", 9, "left", true},
+  {"CharacterHandsSlot", 10, "right", false},
+  {"CharacterWaistSlot", 6, "right", false},
+  {"CharacterLegsSlot", 7, "right", true},
+  {"CharacterFeetSlot", 8, "right", true},
+  {"CharacterFinger0Slot", 11, "right", true},
+  {"CharacterFinger1Slot", 12, "right", true},
+  {"CharacterTrinket0Slot", 13, "right", false},
+  {"CharacterTrinket1Slot", 14, "right", false},
+  {"CharacterMainHandSlot", 16, "bottom", true},
+  {"CharacterSecondaryHandSlot", 17, "bottom", true},
+}
+
+local QUALITY_COLORS = {
+  [0] = {0.62, 0.62, 0.62}, [1] = {1, 1, 1}, [2] = {0.12, 1, 0},
+  [3] = {0, 0.44, 0.87}, [4] = {0.64, 0.21, 0.93}, [5] = {1, 0.5, 0},
+  [6] = {0.9, 0.8, 0.5}, [7] = {0, 0.8, 1}, [8] = {0, 0.8, 1},
+}
+
+local slotOverlays = {}
+local gemPanel = nil
+
+-- Helper: Get enchant name from tooltip
+local function GetEnchantText(slotID)
+  scanTip:ClearLines()
+  scanTip:SetInventoryItem("player", slotID)
+  for i = 2, scanTip:NumLines() do
+    local line = _G["CCMCharScanTipTextLeft" .. i]
+    if line then
+      local text = line:GetText()
+      if text then
+        local name = text:match("Enchanted:%s*(.+)") or text:match("Verzaubert:%s*(.+)")
+        if name then
+          name = name:gsub("%s*|.+$", "")
+          return name
+        end
+      end
+    end
+  end
+  return nil
+end
+
+-- Helper: Check enchant from item link
+local function HasEnchant(itemLink)
+  if not itemLink then return false end
+  local parts = {strsplit(":", itemLink:match("item:([%-?%d:]+)") or "")}
+  return (tonumber(parts[2]) or 0) > 0
+end
+
+-- Slots that are always enchantable regardless of item type
+local ALWAYS_ENCHANTABLE = {
+  [5] = true, [7] = true, [8] = true, [9] = true,   -- chest, legs, feet, wrist
+  [11] = true, [12] = true, [15] = true, [16] = true, -- rings, back, main hand
+}
+
+-- Helper: Check if equipped item in slot can actually be enchanted
+local function CanItemBeEnchanted(slotID)
+  if ALWAYS_ENCHANTABLE[slotID] then return true end
+  -- Off-hand (slot 17): only weapons can be enchanted, not shields/offhand frills
+  if slotID == 17 then
+    local itemID = GetInventoryItemID("player", slotID)
+    if itemID then
+      local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemID)
+      return classID == 2 -- LE_ITEM_CLASS_WEAPON
+    end
+  end
+  return false
+end
+
+-- Helper: Get socket info (total sockets, filled count)
+local function GetSocketInfo(itemLink, slotID)
+  if not itemLink then return 0, 0 end
+  local parts = {strsplit(":", itemLink:match("item:([%-?%d:]+)") or "")}
+  local filled = 0
+  for i = 3, 6 do
+    if (tonumber(parts[i]) or 0) > 0 then filled = filled + 1 end
+  end
+  -- Count empty sockets via tooltip scanning (GetItemStats removed in 12.0)
+  local empty = 0
+  if slotID then
+    scanTip:ClearLines()
+    scanTip:SetInventoryItem("player", slotID)
+    for i = 2, scanTip:NumLines() do
+      local line = _G["CCMCharScanTipTextLeft" .. i]
+      if line then
+        local text = line:GetText()
+        if text and text:match("[Ss]ocket") and not text:match("Socketed") then
+          local r, g, b = line:GetTextColor()
+          if r and r < 0.7 and g < 0.7 and b < 0.7 then
+            empty = empty + 1
+          end
+        end
+      end
+    end
+  end
+  return filled + empty, filled
+end
+
+
+-- Create overlay for a slot
+local function CreateSlotOverlay(slotFrame, side)
+  local overlay = CreateFrame("Frame", nil, slotFrame)
+  overlay:SetSize(140, 40)
+  overlay:SetFrameStrata("HIGH")
+  if side == "left" then
+    overlay:SetPoint("LEFT", slotFrame, "RIGHT", 2, 0)
+  elseif side == "right" then
+    overlay:SetPoint("RIGHT", slotFrame, "LEFT", -2, 0)
+  else
+    overlay:SetPoint("TOP", slotFrame, "BOTTOM", 0, -2)
+  end
+  overlay.side = side
+  local justify = (side == "right") and "RIGHT" or "LEFT"
+  local anchor = (side == "right") and "TOPRIGHT" or "TOPLEFT"
+  -- Item level text (centered inside the icon)
+  overlay.ilvlText = slotFrame:CreateFontString(nil, "OVERLAY")
+  overlay.ilvlText:SetFont(STANDARD_TEXT_FONT, 13, "OUTLINE")
+  overlay.ilvlText:SetPoint("CENTER", slotFrame, "CENTER", 0, 0)
+  overlay.ilvlText:SetJustifyH("CENTER")
+  -- Enchant text (beside the icon)
+  overlay.enchantText = overlay:CreateFontString(nil, "OVERLAY")
+  overlay.enchantText:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
+  local enchantXOff = (side == "right") and -5 or 5
+  overlay.enchantText:SetPoint(anchor, overlay, anchor, enchantXOff, 0)
+  overlay.enchantText:SetJustifyH(justify)
+  -- Socket icons (below enchant text, same side as overlay)
+  overlay.socketIcons = {}
+  for i = 1, 3 do
+    local btn = CreateFrame("Button", nil, overlay)
+    btn:SetSize(18, 18)
+    btn.icon = btn:CreateTexture(nil, "ARTWORK")
+    btn.icon:SetAllPoints()
+    btn.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+    btn:RegisterForDrag("LeftButton")
+    btn:SetScript("OnEnter", function(self)
+      GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+      if self.gemID then
+        GameTooltip:SetItemByID(self.gemID)
+      else
+        GameTooltip:SetText("Drop gem to socket", 1, 1, 1)
+      end
+      GameTooltip:Show()
+    end)
+    btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+    btn:SetScript("OnReceiveDrag", function(self)
+      if self.slotID and not InCombatLockdown() then SocketInventoryItem(self.slotID) end
+    end)
+    btn:Hide()
+    overlay.socketIcons[i] = btn
+  end
+  overlay:Hide()
+  return overlay
+end
+
+-- Update a single slot overlay
+local function UpdateSlotOverlay(slotInfo)
+  local frameName, slotID, side = slotInfo[1], slotInfo[2], slotInfo[3]
+  local slotFrame = _G[frameName]
+  if not slotFrame then return end
+  if not slotOverlays[slotID] then
+    slotOverlays[slotID] = CreateSlotOverlay(slotFrame, side)
+  end
+  local ov = slotOverlays[slotID]
+  local itemLink = GetInventoryItemLink("player", slotID)
+  if not itemLink then
+    ov:Hide()
+    if ov.ilvlText then ov.ilvlText:Hide() end
+    return
+  end
+  -- Item level
+  local ilvl
+  if GetDetailedItemLevelInfo then
+    ilvl = GetDetailedItemLevelInfo(itemLink)
+  end
+  local quality = GetInventoryItemQuality("player", slotID) or 1
+  local qc = QUALITY_COLORS[quality] or QUALITY_COLORS[1]
+  if ilvl then
+    ov.ilvlText:SetText(tostring(ilvl))
+    ov.ilvlText:SetTextColor(qc[1], qc[2], qc[3])
+  else
+    ov.ilvlText:SetText("")
+  end
+  -- Enchant info
+  if CanItemBeEnchanted(slotID) then
+    if HasEnchant(itemLink) then
+      local enchName = GetEnchantText(slotID) or "Enchanted"
+      if #enchName > 22 then enchName = enchName:sub(1, 20) .. ".." end
+      ov.enchantText:SetText(enchName)
+      ov.enchantText:SetTextColor(0, 1, 0)
+    else
+      ov.enchantText:SetText("Enchant Missing")
+      ov.enchantText:SetTextColor(1, 0, 0)
+    end
+    ov.enchantText:Show()
+  else
+    ov.enchantText:SetText("")
+    ov.enchantText:Hide()
+  end
+  -- Socket icons (horizontal, below enchant text, anchored to overlay)
+  local totalSockets, filledGems = GetSocketInfo(itemLink, slotID)
+  if totalSockets > 0 then
+    local parts = {strsplit(":", itemLink:match("item:([%-?%d:]+)") or "")}
+    local sockets = {}
+    for i = 3, 6 do
+      local gid = tonumber(parts[i]) or 0
+      if gid > 0 then table.insert(sockets, gid) end
+    end
+    local emptyCount = totalSockets - filledGems
+    for i = 1, emptyCount do table.insert(sockets, 0) end
+    local n = #sockets
+    local isRight = (ov.side == "right")
+    local iconSize = 18
+    local pad = 2
+    -- Calculate Y offset: below enchant text if visible, otherwise at top
+    local socketY = 0
+    if ov.enchantText:IsShown() and ov.enchantText:GetText() ~= "" then
+      socketY = -(ov.enchantText:GetStringHeight() + 3)
+    end
+    for i = 1, math.min(n, 3) do
+      local btn = ov.socketIcons[i]
+      btn:ClearAllPoints()
+      local xOff = (i - 1) * (iconSize + pad)
+      if isRight then
+        btn:SetPoint("TOPRIGHT", ov, "TOPRIGHT", -xOff - 10, socketY)
+      else
+        btn:SetPoint("TOPLEFT", ov, "TOPLEFT", xOff + 10, socketY)
+      end
+      local gid = sockets[i]
+      btn.slotID = slotID
+      btn:SetScript("OnClick", function(self)
+        if not InCombatLockdown() then SocketInventoryItem(self.slotID) end
+      end)
+      if gid > 0 then
+        local _, _, _, _, texID = C_Item.GetItemInfoInstant(gid)
+        btn.icon:SetTexture(texID)
+        btn.gemID = gid
+      else
+        btn.icon:SetTexture("Interface\\ItemSocketingFrame\\UI-EmptySocket-Prismatic")
+        btn.gemID = nil
+      end
+      btn:Show()
+    end
+    for i = n + 1, 3 do ov.socketIcons[i]:Hide() end
+  else
+    for i = 1, 3 do ov.socketIcons[i]:Hide() end
+  end
+  if ov.ilvlText then ov.ilvlText:Show() end
+  ov:Show()
+end
+
+-- Update all slot overlays
+local function UpdateAllSlotOverlays()
+  for _, slotInfo in ipairs(EQUIP_SLOTS) do
+    UpdateSlotOverlay(slotInfo)
+  end
+end
+
+-- Hide all overlays
+local function HideAllSlotOverlays()
+  for _, ov in pairs(slotOverlays) do
+    ov:Hide()
+    if ov.ilvlText then ov.ilvlText:Hide() end
+  end
+end
+
+-- ===== Bag Gems Panel =====
+local function ScanBagsForGems()
+  local gems = {}
+  for bag = 0, 4 do
+    local numSlots = C_Container.GetContainerNumSlots(bag)
+    for slot = 1, numSlots do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if info and info.itemID then
+        local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(info.itemID)
+        if classID == 3 then
+          table.insert(gems, {
+            bag = bag, slot = slot, itemID = info.itemID,
+            icon = info.iconFileID, link = info.hyperlink,
+            count = info.stackCount or 1,
+          })
+        end
+      end
+    end
+  end
+  return gems
+end
+
+local function CreateGemPanel()
+  if gemPanel then return gemPanel end
+  gemPanel = CreateFrame("Frame", "CCMGemPanel", CharacterFrame, "BackdropTemplate")
+  gemPanel:SetPoint("TOPRIGHT", CharacterFrame, "BOTTOMRIGHT", 0, -2)
+  gemPanel:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+  gemPanel:SetBackdropColor(0.05, 0.05, 0.07, 0.9)
+  gemPanel:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+  gemPanel:SetFrameStrata("HIGH")
+  gemPanel.title = gemPanel:CreateFontString(nil, "OVERLAY")
+  gemPanel.title:SetFont(STANDARD_TEXT_FONT, 10, "OUTLINE")
+  gemPanel.title:SetPoint("TOPLEFT", 6, -5)
+  gemPanel.title:SetText("|cffaaaaaaAvailable Gems|r")
+  gemPanel.icons = {}
+  gemPanel:Hide()
+  return gemPanel
+end
+
+local function UpdateGemPanel()
+  local panel = CreateGemPanel()
+  local gems = ScanBagsForGems()
+  for _, btn in ipairs(panel.icons) do btn:Hide() end
+  if #gems == 0 then panel:Hide(); return end
+  local iconSize, pad, maxPerRow = 24, 2, 10
+  local rows = math.ceil(math.min(#gems, 30) / maxPerRow)
+  panel:SetSize(6 * 2 + math.min(#gems, maxPerRow) * (iconSize + pad), 18 + rows * (iconSize + pad) + 4)
+  for i = 1, math.min(#gems, 30) do
+    local gem = gems[i]
+    if not panel.icons[i] then
+      local btn = CreateFrame("Button", nil, panel)
+      btn:SetSize(iconSize, iconSize)
+      btn.icon = btn:CreateTexture(nil, "ARTWORK")
+      btn.icon:SetAllPoints()
+      btn.icon:SetTexCoord(0.07, 0.93, 0.07, 0.93)
+      btn.count = btn:CreateFontString(nil, "OVERLAY")
+      btn.count:SetFont(STANDARD_TEXT_FONT, 9, "OUTLINE")
+      btn.count:SetPoint("BOTTOMRIGHT", -1, 1)
+      btn:SetScript("OnEnter", function(self)
+        if self.gemLink then
+          GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+          GameTooltip:SetHyperlink(self.gemLink)
+          GameTooltip:Show()
+        end
+      end)
+      btn:SetScript("OnLeave", function() GameTooltip:Hide() end)
+      btn:SetScript("OnClick", function(self)
+        if self.gemBag and self.gemSlot then
+          C_Container.PickupContainerItem(self.gemBag, self.gemSlot)
+        end
+      end)
+      panel.icons[i] = btn
+    end
+    local btn = panel.icons[i]
+    local row = math.floor((i - 1) / maxPerRow)
+    local col = (i - 1) % maxPerRow
+    btn:SetPoint("TOPLEFT", panel, "TOPLEFT", 6 + col * (iconSize + pad), -18 - row * (iconSize + pad))
+    btn.icon:SetTexture(gem.icon)
+    btn.gemLink = gem.link
+    btn.gemBag = gem.bag
+    btn.gemSlot = gem.slot
+    btn.count:SetText(gem.count > 1 and gem.count or "")
+    btn:Show()
+  end
+  panel:Show()
+end
+
+-- ===== Better Item Level =====
+addonTable.SetupBetterItemLevel = function()
+  if not addonTable._betterIlvlHooked and PaperDollFrame_SetItemLevel then
+    addonTable._betterIlvlHooked = true
+    hooksecurefunc("PaperDollFrame_SetItemLevel", function(statFrame, unit)
+      if unit ~= "player" then return end
+      local profile = addonTable.GetProfile and addonTable.GetProfile()
+      if not profile or not profile.betterItemLevel then return end
+      local _, avgEquipped = GetAverageItemLevel()
+      if statFrame and statFrame.Value then
+        statFrame.Value:SetText(format("%.2f", avgEquipped))
+      end
+    end)
+  end
+  -- Force update if character frame is open
+  if CharacterFrame and CharacterFrame:IsShown() and PaperDollFrame_UpdateStats then
+    pcall(PaperDollFrame_UpdateStats)
+  end
+end
+
+-- ===== Equipment Details Setup =====
+addonTable.SetupEquipmentDetails = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.showEquipmentDetails then
+    HideAllSlotOverlays()
+    if gemPanel then gemPanel:Hide() end
+    return
+  end
+  if CharacterFrame and CharacterFrame:IsShown() then
+    UpdateAllSlotOverlays()
+    UpdateGemPanel()
+  end
+end
+
+-- ===== Events & Hooks =====
+local charPanelFrame = CreateFrame("Frame")
+charPanelFrame:RegisterEvent("PLAYER_EQUIPMENT_CHANGED")
+charPanelFrame:RegisterEvent("BAG_UPDATE")
+charPanelFrame:RegisterEvent("SOCKET_INFO_UPDATE")
+charPanelFrame:SetScript("OnEvent", function(self, event)
+  if not CharacterFrame or not CharacterFrame:IsShown() then return end
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  if profile.showEquipmentDetails then
+    UpdateAllSlotOverlays()
+    if event == "BAG_UPDATE" then UpdateGemPanel() end
+  end
+end)
+
+C_Timer.After(2, function()
+  if addonTable.SetupBetterItemLevel then addonTable.SetupBetterItemLevel() end
+  -- Hook character frame show/hide
+  if CharacterFrame then
+    CharacterFrame:HookScript("OnShow", function()
+      local profile = addonTable.GetProfile and addonTable.GetProfile()
+      if not profile then return end
+      if profile.betterItemLevel and PaperDollFrame_UpdateStats then
+        pcall(PaperDollFrame_UpdateStats)
+      end
+      if profile.showEquipmentDetails then
+        C_Timer.After(0.1, function()
+          UpdateAllSlotOverlays()
+          UpdateGemPanel()
+        end)
+      end
+    end)
+    CharacterFrame:HookScript("OnHide", function()
+      HideAllSlotOverlays()
+      if gemPanel then gemPanel:Hide() end
+    end)
+  end
+end)

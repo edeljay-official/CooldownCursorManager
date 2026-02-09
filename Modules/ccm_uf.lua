@@ -6,6 +6,19 @@ local FitTextToBar = addonTable.FitTextToBar
 local IsRealNumber = addonTable.IsRealNumber
 local GetClassPowerConfig = addonTable.GetClassPowerConfig
 local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
+local texturePaths = {
+  solid = "Interface\\Buttons\\WHITE8x8",
+  flat = "Interface\\Buttons\\WHITE8x8",
+  blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
+  blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+  normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
+  gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
+  melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
+  mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
+  betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
+  skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
+  dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
+}
 local function SetBlizzardPlayerPowerBarsVisibility(showPower, showClassPower)
   local classPowerFrames = {
     ClassPowerBar,
@@ -187,22 +200,9 @@ addonTable.ApplyUnitFrameCustomization = function()
   end
   State.playerFrameOriginal = State.playerFrameOriginal or {}
   local orig = State.playerFrameOriginal
-  local texturePaths = {
-    solid = "Interface\\Buttons\\WHITE8x8",
-    flat = "Interface\\Buttons\\WHITE8x8",
-    blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
-    blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
-    normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
-    gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
-    melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
-    mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
-    betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
-    skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
-    dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
-  }
   local useCustomTex = ufEnabled and profile.ufUseCustomTextures == true
   local selectedTexture = useCustomTex and (profile.ufHealthTexture or "solid") or "blizzard"
-  local selectedTexturePath = texturePaths[selectedTexture] or texturePaths.blizzard
+  local selectedTexturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(selectedTexture) or texturePaths[selectedTexture] or texturePaths.blizzard
   local function ResolveUnitHealthColor(unitToken, useClassColor)
     local r, g, b
     if useClassColor and unitToken and UnitExists(unitToken) and UnitIsPlayer(unitToken) then
@@ -907,24 +907,45 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     return nil
   end
+  local function SafeUTF8Len(s)
+    if strlenutf8 then return strlenutf8(s) end
+    local count = 0
+    local i = 1
+    local len = #s
+    while i <= len do
+      local b = string.byte(s, i)
+      if b < 128 then i = i + 1
+      elseif b < 224 then i = i + 2
+      elseif b < 240 then i = i + 3
+      else i = i + 4 end
+      count = count + 1
+    end
+    return count
+  end
+  local function SafeUTF8Sub(s, startChar, endChar)
+    local i = 1
+    local charIdx = 0
+    local len = #s
+    local startByte, endByte
+    while i <= len do
+      charIdx = charIdx + 1
+      if charIdx == startChar then startByte = i end
+      local b = string.byte(s, i)
+      if b < 128 then i = i + 1
+      elseif b < 224 then i = i + 2
+      elseif b < 240 then i = i + 3
+      else i = i + 4 end
+      if charIdx == endChar then endByte = i - 1; break end
+    end
+    if not startByte then return "" end
+    return string.sub(s, startByte, endByte or len)
+  end
   local function TrimUFBigHBName(name, maxChars)
     if type(name) ~= "string" or name == "" then return name end
     if type(maxChars) ~= "number" or maxChars <= 0 then return name end
-    local charCount = nil
-    if type(utf8len) == "function" then
-      charCount = utf8len(name)
-    end
-    if type(charCount) ~= "number" then
-      charCount = string.len(name)
-    end
+    local charCount = SafeUTF8Len(name)
     if charCount <= maxChars then return name end
-    local base
-    if type(utf8sub) == "function" then
-      base = utf8sub(name, 1, maxChars)
-    else
-      base = string.sub(name, 1, maxChars)
-    end
-    return (base or name) .. "..."
+    return SafeUTF8Sub(name, 1, maxChars) .. "..."
   end
   local function ApplyUFBigHBNameTransforms(name, unitToken, prof)
     if type(name) ~= "string" or name == "" then return name end
@@ -1942,6 +1963,12 @@ addonTable.ApplyUnitFrameCustomization = function()
           o.dmgAbsorbTex:SetBlendMode("ADD")
         end
       end
+      o.dmgAbsorbStripe = o.dmgAbsorbFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+      o.dmgAbsorbStripe:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\textures\\stripe_overlay", "REPEAT", "REPEAT")
+      o.dmgAbsorbStripe:SetAllPoints(o.dmgAbsorbTex)
+      o.dmgAbsorbStripe:SetVertexColor(1, 1, 1, 0.35)
+      if o.dmgAbsorbStripe.SetHorizTile then o.dmgAbsorbStripe:SetHorizTile(true) end
+      if o.dmgAbsorbStripe.SetVertTile then o.dmgAbsorbStripe:SetVertTile(true) end
       o.dmgAbsorbFrame:Hide()
     end
     if not o.dmgAbsorbGlow then
@@ -1990,6 +2017,12 @@ addonTable.ApplyUnitFrameCustomization = function()
       if o.healAbsorbFrame.SetReverseFill then o.healAbsorbFrame:SetReverseFill(true) end
       o.healAbsorbTex = o.healAbsorbFrame:GetStatusBarTexture()
       if o.healAbsorbTex then o.healAbsorbTex:SetVertexColor(1.0, 0.0, 0.0, 1.0) end
+      o.healAbsorbStripe = o.healAbsorbFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+      o.healAbsorbStripe:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\textures\\stripe_overlay", "REPEAT", "REPEAT")
+      o.healAbsorbStripe:SetAllPoints(o.healAbsorbTex)
+      o.healAbsorbStripe:SetVertexColor(1, 1, 1, 0.4)
+      if o.healAbsorbStripe.SetHorizTile then o.healAbsorbStripe:SetHorizTile(true) end
+      if o.healAbsorbStripe.SetVertTile then o.healAbsorbStripe:SetVertTile(true) end
       o.healAbsorbFrame:Hide()
     end
     o.key = key
@@ -2222,8 +2255,17 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     local o = EnsureUFBigHBOverlay(key, parent)
     if not o or not o.bgFrame or not o.healthFrame then return end
-    local healthPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_health_player"
+    local shapePath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_health_player"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_health_other"
+    local fillPath = shapePath
+    if profile.ufUseCustomTextures and profile.ufHealthTexture then
+      local lsmPath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(profile.ufHealthTexture)
+      if lsmPath then
+        fillPath = lsmPath
+      elseif texturePaths[profile.ufHealthTexture] then
+        fillPath = texturePaths[profile.ufHealthTexture]
+      end
+    end
     local bgPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_bg_player"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_bg_other"
     local dmgAbsorbPathPrimary = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_player"
@@ -2637,10 +2679,14 @@ addonTable.ApplyUnitFrameCustomization = function()
       o.bgTex:SetDrawLayer("ARTWORK", 1)
     end
     o.bgTex:SetVertexColor(bigHBBorderR, bigHBBorderG, bigHBBorderB, 1)
-    o.healthTex:SetTexture(healthPath)
-    if o.healthFrame.SetStatusBarTexture then
-      o.healthFrame:SetStatusBarTexture(healthPath)
+    o.healthFrame:SetStatusBarTexture(fillPath)
+    o.healthTex = o.healthFrame:GetStatusBarTexture() or o.healthTex
+    if not o.shapeMask then
+      o.shapeMask = o.healthFrame:CreateMaskTexture()
+      o.shapeMask:SetAllPoints(o.healthFrame)
     end
+    o.shapeMask:SetTexture(shapePath)
+    o.healthTex:AddMaskTexture(o.shapeMask)
     if o.dmgAbsorbTex then
       if o.dmgAbsorbFrame and o.dmgAbsorbFrame.SetStatusBarTexture then
         o.dmgAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathPrimary)
@@ -2648,7 +2694,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           o.dmgAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
         end
         if not (o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
-          o.dmgAbsorbFrame:SetStatusBarTexture(healthPath)
+          o.dmgAbsorbFrame:SetStatusBarTexture(fillPath)
         end
       end
       o.dmgAbsorbTex = o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture() or o.dmgAbsorbTex
@@ -2657,7 +2703,7 @@ addonTable.ApplyUnitFrameCustomization = function()
         o.dmgAbsorbTex:SetTexture(dmgAbsorbPathLegacy)
       end
       if not (o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
-        o.dmgAbsorbTex:SetTexture(healthPath)
+        o.dmgAbsorbTex:SetTexture(fillPath)
       end
       if o.dmgAbsorbTex.SetTexCoord then
         o.dmgAbsorbTex:SetTexCoord(0, 1, 0, 1)
@@ -2693,7 +2739,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           o.healAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
         end
         if not (o.healAbsorbFrame.GetStatusBarTexture and o.healAbsorbFrame:GetStatusBarTexture()) then
-          o.healAbsorbFrame:SetStatusBarTexture(healthPath)
+          o.healAbsorbFrame:SetStatusBarTexture(fillPath)
         end
       end
       o.healAbsorbTex = o.healAbsorbFrame.GetStatusBarTexture and o.healAbsorbFrame:GetStatusBarTexture() or o.healAbsorbTex
@@ -2708,6 +2754,21 @@ addonTable.ApplyUnitFrameCustomization = function()
     o.healthTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or o.healthTex
     if o.healthTex and o.healthTex.SetDrawLayer then
       o.healthTex:SetDrawLayer("ARTWORK", 2)
+    end
+    -- Apply shape mask to sub-bars (absorb, heal prediction) so they clip to the BigHB silhouette
+    local subBars = {o.dmgAbsorbFrame, o.myHealPredFrame, o.otherHealPredFrame, o.healAbsorbFrame}
+    for _, bar in ipairs(subBars) do
+      if bar and bar.GetStatusBarTexture then
+        local barTex = bar:GetStatusBarTexture()
+        if barTex then
+          if not bar._ccmShapeMask then
+            bar._ccmShapeMask = bar:CreateMaskTexture()
+            bar._ccmShapeMask:SetAllPoints(bar)
+          end
+          bar._ccmShapeMask:SetTexture(shapePath)
+          barTex:AddMaskTexture(bar._ccmShapeMask)
+        end
+      end
     end
     local maskFixPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_player_mask_fix"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_other_mask_fix"
@@ -2724,6 +2785,8 @@ addonTable.ApplyUnitFrameCustomization = function()
         o.maskFixTex:SetAlpha(maskFixA)
       end
     end
+    o.shapePath = shapePath
+    o.fillPath = fillPath
     o.skipTexCoordSync = not isPlayerFrame
     o.fillScale = nil
     o.origHP = hp
@@ -2858,9 +2921,12 @@ addonTable.ApplyUnitFrameCustomization = function()
     local maxNameChars = tonumber(profile.ufBigHBNameMaxChars) or 0
     local function ApplyUFBigHBScaledFont(fontString, baseFont, baseSize, baseFlags, scale)
       if not fontString or not fontString.SetFont then return end
-      local fontPath = baseFont
+      -- Use global font to match HP/power bar text styling
+      local gf, go = GetGlobalFont()
+      local fontPath = gf or baseFont
       local fontSize = baseSize
-      local fontFlags = baseFlags
+      local fontFlags = go or baseFlags
+      if (type(fontPath) ~= "string" or fontPath == "") then fontPath = baseFont end
       if (type(fontPath) ~= "string" or fontPath == "") or type(fontSize) ~= "number" or fontSize <= 0 then
         if fontString.GetFont then
           local f, s, fl = fontString:GetFont()
@@ -2975,7 +3041,9 @@ addonTable.ApplyUnitFrameCustomization = function()
             o.targetLevelFont, o.targetLevelFontSize, o.targetLevelFontFlags = levelEl:GetFont()
           end
         end
-        if profile.ufBigHBHideTargetLevel then
+        local targetLevelMode = profile.ufBigHBTargetLevelMode or "always"
+        local hideTargetLevel = targetLevelMode == "hide" or (targetLevelMode == "hidemax" and UnitLevel("target") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+        if hideTargetLevel then
           if levelEl.Hide then levelEl:Hide() end
         else
           if levelEl.Show then levelEl:Show() end
@@ -2983,6 +3051,18 @@ addonTable.ApplyUnitFrameCustomization = function()
             levelEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
           ApplyUFBigHBScaledFont(levelEl, o.targetLevelFont, o.targetLevelFontSize, o.targetLevelFontFlags, profile.ufBigHBTargetLevelTextScale or profile.ufBigHBTargetTextScale)
+        end
+        if not o.targetLevelHooked and type(hooksecurefunc) == "function" then
+          o.targetLevelHooked = true
+          hooksecurefunc(levelEl, "Show", function(self)
+            local ov = State.ufBigHBOverlays["target"]
+            if not ov or not ov.targetLevelSaved then return end
+            local p = addonTable.GetProfile and addonTable.GetProfile()
+            if not p then return end
+            local m = p.ufBigHBTargetLevelMode or "always"
+            local shouldHide = m == "hide" or (m == "hidemax" and UnitLevel("target") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+            if shouldHide then self:Hide() end
+          end)
         end
         local lx = (profile.ufBigHBTargetLevelX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.levelX
         local ly = (profile.ufBigHBTargetLevelY or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.levelY
@@ -3092,7 +3172,9 @@ addonTable.ApplyUnitFrameCustomization = function()
             o.levelOrigFont, o.levelOrigFontSize, o.levelOrigFontFlags = levelEl:GetFont()
           end
         end
-        if profile.ufBigHBHideFocusLevel then
+        local focusLevelMode = profile.ufBigHBFocusLevelMode or "always"
+        local hideFocusLevel = focusLevelMode == "hide" or (focusLevelMode == "hidemax" and UnitLevel("focus") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+        if hideFocusLevel then
           if levelEl.Hide then levelEl:Hide() end
         else
           if levelEl.Show then levelEl:Show() end
@@ -3100,6 +3182,18 @@ addonTable.ApplyUnitFrameCustomization = function()
             levelEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
           ApplyUFBigHBScaledFont(levelEl, o.levelOrigFont, o.levelOrigFontSize, o.levelOrigFontFlags, profile.ufBigHBFocusLevelTextScale or profile.ufBigHBFocusTextScale)
+        end
+        if not o.focusLevelHooked and type(hooksecurefunc) == "function" then
+          o.focusLevelHooked = true
+          hooksecurefunc(levelEl, "Show", function(self)
+            local ov = State.ufBigHBOverlays["focus"]
+            if not ov or not ov.levelColorSaved then return end
+            local p = addonTable.GetProfile and addonTable.GetProfile()
+            if not p then return end
+            local m = p.ufBigHBFocusLevelMode or "always"
+            local shouldHide = m == "hide" or (m == "hidemax" and UnitLevel("focus") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+            if shouldHide then self:Hide() end
+          end)
         end
         local lx = (profile.ufBigHBFocusLevelX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.focus.levelX
         local ly = (profile.ufBigHBFocusLevelY or 0) + addonTable.UF_BIG_HB_TEXT_BASE.focus.levelY
@@ -3162,7 +3256,9 @@ addonTable.ApplyUnitFrameCustomization = function()
             o.levelOrigFont, o.levelOrigFontSize, o.levelOrigFontFlags = levelEl:GetFont()
           end
         end
-        if profile.ufBigHBHidePlayerLevel then
+        local playerLevelMode = profile.ufBigHBPlayerLevelMode or "always"
+        local hidePlayerLevel = playerLevelMode == "hide" or (playerLevelMode == "hidemax" and UnitLevel("player") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+        if hidePlayerLevel then
           if levelEl.SetAlpha then levelEl:SetAlpha(0) end
           if levelEl.Hide then levelEl:Hide() end
         else
@@ -3181,6 +3277,13 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
       end
     end
+    local stripesOn = true
+    if key == "player" then stripesOn = profile.ufBigHBPlayerAbsorbStripes ~= false
+    elseif key == "target" then stripesOn = profile.ufBigHBTargetAbsorbStripes ~= false
+    elseif key == "focus" then stripesOn = profile.ufBigHBFocusAbsorbStripes ~= false
+    end
+    if o.dmgAbsorbStripe then if stripesOn then o.dmgAbsorbStripe:Show() else o.dmgAbsorbStripe:Hide() end end
+    if o.healAbsorbStripe then if stripesOn then o.healAbsorbStripe:Show() else o.healAbsorbStripe:Hide() end end
     o.bgFrame:Show()
     o.healthFrame:Show()
     if o.maskFixFrame then o.maskFixFrame:Show() end

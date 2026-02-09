@@ -7,6 +7,50 @@ local IsRealNumber = addonTable.IsRealNumber
 local GetClassPowerConfig = addonTable.GetClassPowerConfig
 local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
 local SetBlizzardPlayerPowerBarsVisibility = addonTable.SetBlizzardPlayerPowerBarsVisibility
+local TEXTURE_PATHS = {
+  solid = "Interface\\Buttons\\WHITE8x8",
+  flat = "Interface\\Buttons\\WHITE8x8",
+  blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
+  blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
+  smooth = "Interface\\TargetingFrame\\UI-StatusBar-Glow",
+  minimalist = "Interface\\ChatFrame\\ChatFrameBackground",
+  cilo = "Interface\\TARGETINGFRAME\\UI-TargetingFrame-BarFill",
+  glaze = "Interface\\TargetingFrame\\BarFill2",
+  steel = "Interface\\TargetingFrame\\UI-TargetingFrame-Fill",
+  aluminium = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
+  metal = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
+  amber = "Interface\\UNITPOWERBARALT\\Amber_Horizontal_Fill",
+  arcane = "Interface\\UNITPOWERBARALT\\Arcane_Horizontal_Fill",
+  fire = "Interface\\UNITPOWERBARALT\\Fire_Horizontal_Fill",
+  water = "Interface\\UNITPOWERBARALT\\Water_Horizontal_Fill",
+  waterdark = "Interface\\UNITPOWERBARALT\\WaterDark_Horizontal_Fill",
+  generic = "Interface\\UNITPOWERBARALT\\Generic_Horizontal_Fill",
+  round = "Interface\\AchievementFrame\\UI-Achievement-ProgressBar-Fill",
+  diagonal = "Interface\\ACHIEVEMENTFRAME\\UI-Achievement-HorizontalShadow",
+  striped = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
+  armory = "Interface\\PaperDollInfoFrame\\UI-Character-Tab-Highlight",
+  gradient = "Interface\\CHARACTERFRAME\\UI-Player-Status-Left",
+  otravi = "Interface\\Tooltips\\UI-Tooltip-Background",
+  rocks = "Interface\\FrameGeneral\\UI-Background-Rock",
+  highlight = "Interface\\QuestFrame\\UI-QuestLogTitleHighlight",
+  inner = "Interface\\BUTTONS\\UI-Listbox-Highlight2",
+  lite = "Interface\\LFGFRAME\\UI-LFG-SEPARATOR",
+  spark = "Interface\\CastingBar\\UI-CastingBar-Spark",
+  normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
+  gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
+  melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
+  mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
+  betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
+  skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
+  dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
+}
+local prbBarOrder = {}
+local prbBarEntries = {
+  {type = "health", order = 1},
+  {type = "power", order = 2},
+  {type = "mana", order = 3},
+  {type = "classpower", order = 4},
+}
 local prbFrame = CreateFrame("Frame", "CCMPersonalResourceBar", UIParent, "BackdropTemplate")
 prbFrame:SetSize(220, 40)
 prbFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -180)
@@ -205,46 +249,9 @@ local function UpdatePRB()
     local healthTexture = profile.prbHealthTexture or "solid"
     local powerTexture = profile.prbPowerTexture or "solid"
     local manaTexture = profile.prbManaTexture or "solid"
-    local texturePaths = {
-      solid = "Interface\\Buttons\\WHITE8x8",
-      flat = "Interface\\Buttons\\WHITE8x8",
-      blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
-      blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
-      smooth = "Interface\\TargetingFrame\\UI-StatusBar-Glow",
-      minimalist = "Interface\\ChatFrame\\ChatFrameBackground",
-      cilo = "Interface\\TARGETINGFRAME\\UI-TargetingFrame-BarFill",
-      glaze = "Interface\\TargetingFrame\\BarFill2",
-      steel = "Interface\\TargetingFrame\\UI-TargetingFrame-Fill",
-      aluminium = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
-      metal = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
-      amber = "Interface\\UNITPOWERBARALT\\Amber_Horizontal_Fill",
-      arcane = "Interface\\UNITPOWERBARALT\\Arcane_Horizontal_Fill",
-      fire = "Interface\\UNITPOWERBARALT\\Fire_Horizontal_Fill",
-      water = "Interface\\UNITPOWERBARALT\\Water_Horizontal_Fill",
-      waterdark = "Interface\\UNITPOWERBARALT\\WaterDark_Horizontal_Fill",
-      generic = "Interface\\UNITPOWERBARALT\\Generic_Horizontal_Fill",
-      round = "Interface\\AchievementFrame\\UI-Achievement-ProgressBar-Fill",
-      diagonal = "Interface\\ACHIEVEMENTFRAME\\UI-Achievement-HorizontalShadow",
-      striped = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
-      armory = "Interface\\PaperDollInfoFrame\\UI-Character-Tab-Highlight",
-      gradient = "Interface\\CHARACTERFRAME\\UI-Player-Status-Left",
-      otravi = "Interface\\Tooltips\\UI-Tooltip-Background",
-      rocks = "Interface\\FrameGeneral\\UI-Background-Rock",
-      highlight = "Interface\\QuestFrame\\UI-QuestLogTitleHighlight",
-      inner = "Interface\\BUTTONS\\UI-Listbox-Highlight2",
-      lite = "Interface\\LFGFRAME\\UI-LFG-SEPARATOR",
-      spark = "Interface\\CastingBar\\UI-CastingBar-Spark",
-      normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
-      gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
-      melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
-      mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
-      betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
-      skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
-      dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
-    }
-    local healthTexturePath = texturePaths[healthTexture] or texturePaths.solid
-    local powerTexturePath = texturePaths[powerTexture] or texturePaths.solid
-    local manaTexturePath = texturePaths[manaTexture] or texturePaths.solid
+    local healthTexturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(healthTexture) or TEXTURE_PATHS[healthTexture] or TEXTURE_PATHS.solid
+    local powerTexturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(powerTexture) or TEXTURE_PATHS[powerTexture] or TEXTURE_PATHS.solid
+    local manaTexturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(manaTexture) or TEXTURE_PATHS[manaTexture] or TEXTURE_PATHS.solid
     local showManaBarOption = profile.prbShowManaBar == true
     local _, playerClass = UnitClass("player")
     local currentPowerType = UnitPowerType("player")
@@ -258,13 +265,15 @@ local function UpdatePRB()
     local cpHeight = profile.prbClassPowerHeight or 6
     local cpYOffset = profile.prbClassPowerY or 20
     local clampAnchor = (profile.prbClampAnchor == "bottom") and "bottom" or "top"
-    local barOrder = {}
+    local barOrder = prbBarOrder
     local clampTotalHeight = nil
     if clampBars then
-      table.insert(barOrder, {type = "health", priority = healthYOffset, height = healthHeight, order = 1, active = showHealth})
-      table.insert(barOrder, {type = "power", priority = powerYOffset, height = powerHeight, order = 2, active = showPower})
-      table.insert(barOrder, {type = "mana", priority = manaYOffset, height = manaHeight, order = 3, active = showManaBar})
-      table.insert(barOrder, {type = "classpower", priority = cpYOffset, height = cpHeight, order = 4, active = (showClassPower and hasClassPower)})
+      for i = 1, #barOrder do barOrder[i] = nil end
+      prbBarEntries[1].priority = healthYOffset; prbBarEntries[1].height = healthHeight; prbBarEntries[1].active = showHealth; prbBarEntries[1].yPos = nil
+      prbBarEntries[2].priority = powerYOffset; prbBarEntries[2].height = powerHeight; prbBarEntries[2].active = showPower; prbBarEntries[2].yPos = nil
+      prbBarEntries[3].priority = manaYOffset; prbBarEntries[3].height = manaHeight; prbBarEntries[3].active = showManaBar; prbBarEntries[3].yPos = nil
+      prbBarEntries[4].priority = cpYOffset; prbBarEntries[4].height = cpHeight; prbBarEntries[4].active = (showClassPower and hasClassPower); prbBarEntries[4].yPos = nil
+      barOrder[1] = prbBarEntries[1]; barOrder[2] = prbBarEntries[2]; barOrder[3] = prbBarEntries[3]; barOrder[4] = prbBarEntries[4]
       table.sort(barOrder, function(a, b)
         if a.priority == b.priority then
           return (a.order or 99) < (b.order or 99)

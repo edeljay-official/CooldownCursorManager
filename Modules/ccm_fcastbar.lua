@@ -144,7 +144,7 @@ addonTable.UpdateFocusCastbar = function()
   if not name and not State.focusCastbarPreviewMode then
     frame:Hide()
     State.focusCastbarActive = false
-    State.focusCastbarTickKey = nil
+    State.focusCastbarTickCache = nil
     frame._fallbackSpellID = nil
     frame._fallbackChanneling = nil
     frame._fallbackStart = nil
@@ -172,28 +172,16 @@ addonTable.UpdateFocusCastbar = function()
   local timeX = type(profile.focusCastbarTimeXOffset) == "number" and profile.focusCastbarTimeXOffset or 0
   local timeY = type(profile.focusCastbarTimeYOffset) == "number" and profile.focusCastbarTimeYOffset or 0
   local timePrecision = profile.focusCastbarTimePrecision or "1"
+  local timeFormat = timePrecision == "0" and "%.0f" or (timePrecision == "2" and "%.2f" or "%.1f")
   local function FormatFocusTimeValue(rawValue)
-    local num = nil
-    if type(rawValue) == "number" then
-      num = rawValue
-    else
-      local rawText = tostring(rawValue or "")
-      num = tonumber(rawText)
-      if not num then
-        local parsedText = string.match(rawText, "[-+]?%d*%.?%d+")
-        num = tonumber(parsedText)
-      end
-    end
-    if num ~= nil then
-      local timeFormat = timePrecision == "0" and "%.0f" or (timePrecision == "2" and "%.2f" or "%.1f")
-      return string.format(timeFormat, num)
-    end
+    local num = tonumber(rawValue)
+    if num then return string.format(timeFormat, num) end
     return tostring(rawValue or "")
   end
   local textR = profile.focusCastbarTextColorR or 1
   local textG = profile.focusCastbarTextColorG or 1
   local textB = profile.focusCastbarTextColorB or 1
-  frame.bar:SetStatusBarTexture(castbarTextures[profile.focusCastbarTexture] or castbarTextures.solid)
+  frame.bar:SetStatusBarTexture(addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(profile.focusCastbarTexture) or castbarTextures[profile.focusCastbarTexture] or castbarTextures.solid)
   local r = profile.focusCastbarColorR or 1
   local g = profile.focusCastbarColorG or 0.7
   local b = profile.focusCastbarColorB or 0
@@ -228,15 +216,19 @@ addonTable.UpdateFocusCastbar = function()
     frame.border:Hide()
   end
   local globalFont, globalOutline = GetGlobalFont()
-  local focusTextStyleKey = table.concat({
-    showSpellName and 1 or 0, showTime and 1 or 0,
-    spellNameScale, spellNameX, spellNameY,
-    timeScale, timeX, timeY,
-    textR, textG, textB,
-    globalFont, globalOutline or "OUTLINE"
-  }, "|")
-  if frame._textStyleKey ~= focusTextStyleKey then
-    frame._textStyleKey = focusTextStyleKey
+  local fk = frame._textStyleCache
+  local styleChanged = not fk
+    or fk.sn ~= showSpellName or fk.st ~= showTime
+    or fk.sns ~= spellNameScale or fk.snx ~= spellNameX or fk.sny ~= spellNameY
+    or fk.ts ~= timeScale or fk.tx ~= timeX or fk.ty ~= timeY
+    or fk.tr ~= textR or fk.tg ~= textG or fk.tb ~= textB
+    or fk.gf ~= globalFont or fk.go ~= globalOutline
+  if styleChanged then
+    if not fk then frame._textStyleCache = {} end
+    fk = frame._textStyleCache
+    fk.sn=showSpellName; fk.st=showTime; fk.sns=spellNameScale; fk.snx=spellNameX; fk.sny=spellNameY
+    fk.ts=timeScale; fk.tx=timeX; fk.ty=timeY; fk.tr=textR; fk.tg=textG; fk.tb=textB
+    fk.gf=globalFont; fk.go=globalOutline
     frame.spellText:ClearAllPoints()
     frame.spellText:SetPoint("LEFT", frame, "LEFT", 5 + spellNameX, spellNameY)
     frame.spellText:SetTextColor(textR, textG, textB)
@@ -302,9 +294,12 @@ addonTable.UpdateFocusCastbar = function()
         local numTicks = channelTickData[spellID]
         local barWidth = frame:GetWidth()
         local barHeight = frame:GetHeight()
-        local tickKey = table.concat({spellID, numTicks, barWidth, barHeight}, "|")
-        if State.focusCastbarTickKey ~= tickKey then
-          State.focusCastbarTickKey = tickKey
+        local ftk = State.focusCastbarTickCache
+        local fTickChanged = not ftk or ftk.id ~= spellID or ftk.n ~= numTicks or ftk.w ~= barWidth or ftk.h ~= barHeight
+        if fTickChanged then
+          if not ftk then State.focusCastbarTickCache = {} end
+          ftk = State.focusCastbarTickCache
+          ftk.id=spellID; ftk.n=numTicks; ftk.w=barWidth; ftk.h=barHeight
           for i = 1, 10 do
             if i <= numTicks then
               local tickPos = (i / numTicks) * barWidth
@@ -319,7 +314,7 @@ addonTable.UpdateFocusCastbar = function()
           end
         end
       else
-        State.focusCastbarTickKey = nil
+        State.focusCastbarTickCache = nil
         for i = 1, 10 do frame.ticks[i]:Hide() end
       end
       frame:Show()
@@ -405,9 +400,12 @@ addonTable.UpdateFocusCastbar = function()
       local numTicks = channelTickData[spellID]
       local barWidth = frame:GetWidth()
       local barHeight = frame:GetHeight()
-      local tickKey = table.concat({spellID, numTicks, barWidth, barHeight}, "|")
-      if State.focusCastbarTickKey ~= tickKey then
-        State.focusCastbarTickKey = tickKey
+      local ftk = State.focusCastbarTickCache
+      local fTickChanged = not ftk or ftk.id ~= spellID or ftk.n ~= numTicks or ftk.w ~= barWidth or ftk.h ~= barHeight
+      if fTickChanged then
+        if not ftk then State.focusCastbarTickCache = {} end
+        ftk = State.focusCastbarTickCache
+        ftk.id=spellID; ftk.n=numTicks; ftk.w=barWidth; ftk.h=barHeight
         for i = 1, 10 do
           if i <= numTicks then
             local tickPos = (i / numTicks) * barWidth
@@ -422,7 +420,7 @@ addonTable.UpdateFocusCastbar = function()
         end
       end
     else
-      State.focusCastbarTickKey = nil
+      State.focusCastbarTickCache = nil
       for i = 1, 10 do frame.ticks[i]:Hide() end
     end
   else
@@ -453,7 +451,7 @@ addonTable.StopFocusCastbarTicker = function()
     State.focusCastbarTicker = nil
   end
   State.focusCastbarActive = false
-  State.focusCastbarTickKey = nil
+  State.focusCastbarTickCache = nil
   if not State.focusCastbarPreviewMode and addonTable.FocusCastbarFrame then
     addonTable.FocusCastbarFrame:Hide()
   end
@@ -497,7 +495,7 @@ addonTable.ShowFocusCastbarPreview = function()
 end
 addonTable.StopFocusCastbarPreview = function()
   State.focusCastbarPreviewMode = false
-  State.focusCastbarTickKey = nil
+  State.focusCastbarTickCache = nil
   if addonTable.FocusCastbarFrame then
     for i = 1, 10 do addonTable.FocusCastbarFrame.ticks[i]:Hide() end
   end

@@ -29,11 +29,9 @@ local State = {
   prbDragging = false,
   prbTicker = nil,
   actionBar1Hidden = false,
-  actionBars2to8Hidden = false,
   stanceBarHidden = false,
   petBarHidden = false,
   actionBar1Mouseover = false,
-  actionBars2to8Mouseover = false,
   actionButtonsHooked = false,
   actionBars2to8Hooked = {},
   stanceBarHooked = false,
@@ -527,7 +525,7 @@ local defaults = {
       uiScale = nil,
       customBarsCount = 1,
       iconBorderSize = 0,
-      iconStrata = "TOOLTIP",
+      iconStrata = "FULLSCREEN",
       showRadialCircle = true,
       showGCD = true,
       radialRadius = 20,
@@ -655,8 +653,13 @@ local defaults = {
       standaloneUtilityY = -50,
       hideActionBar1InCombat = false,
       hideActionBar1Mouseover = false,
-      hideActionBars2to8InCombat = false,
-      hideActionBars2to8Mouseover = false,
+      hideAB2InCombat = false, hideAB2Mouseover = false,
+      hideAB3InCombat = false, hideAB3Mouseover = false,
+      hideAB4InCombat = false, hideAB4Mouseover = false,
+      hideAB5InCombat = false, hideAB5Mouseover = false,
+      hideAB6InCombat = false, hideAB6Mouseover = false,
+      hideAB7InCombat = false, hideAB7Mouseover = false,
+      hideAB8InCombat = false, hideAB8Mouseover = false,
       hideStanceBarInCombat = false,
       hideStanceBarMouseover = false,
       hidePetBarInCombat = false,
@@ -1451,6 +1454,48 @@ addonTable.SetupTooltipIDHooks = function()
   end
   addonTable.tooltipIDHooksInstalled = true
 end
+addonTable.SetupEnhancedTooltipHook = function()
+  if addonTable.enhancedTooltipHookInstalled then return end
+  addonTable.enhancedTooltipHookInstalled = true
+  if TooltipDataProcessor and TooltipDataProcessor.AddTooltipPostCall and Enum and Enum.TooltipDataType then
+    TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Unit, function(tooltip)
+      local profile = addonTable.GetProfile and addonTable.GetProfile()
+      if not profile or not profile.enhancedTooltip then return end
+      if tooltip ~= GameTooltip then return end
+      local _, unit = tooltip:GetUnit()
+      if not unit or not UnitIsPlayer(unit) then return end
+      local _, classToken = UnitClass(unit)
+      if not classToken then return end
+      local color = RAID_CLASS_COLORS[classToken]
+      if not color then return end
+      local nameText = GameTooltipTextLeft1
+      if nameText then
+        nameText:SetTextColor(color.r, color.g, color.b)
+      end
+      local engFaction, locFaction = UnitFactionGroup(unit)
+      local numLines = tooltip:NumLines()
+      for i = 2, numLines do
+        local line = _G["GameTooltipTextLeft" .. i]
+        if line then
+          local text = line:GetText()
+          if text then
+            if locFaction and text == locFaction then
+              if engFaction == "Alliance" then
+                line:SetTextColor(0.3, 0.5, 1.0)
+              elseif engFaction == "Horde" then
+                line:SetTextColor(0.9, 0.2, 0.2)
+              end
+            end
+            local guildName, guildRank = GetGuildInfo(unit)
+            if guildName and guildRank and text:find(guildName, 1, true) then
+              line:SetText("<" .. guildName .. "> " .. guildRank)
+            end
+          end
+        end
+      end
+    end)
+  end
+end
 addonTable.TryAutoRepair = function()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile or profile.autoRepair ~= true then return end
@@ -1511,9 +1556,9 @@ local function IsRealNumber(value)
   return ok
 end
 addonTable.IsRealNumber = IsRealNumber
-local function IsShowModeActive(mode)
+local function IsShowModeActive(mode, skipCombatOverride)
   if not mode or mode == "always" then return true end
-  if UnitAffectingCombat("player") then return true end
+  if not skipCombatOverride and UnitAffectingCombat("player") then return true end
   local inInstance, instanceType = IsInInstance()
   if mode == "raid" then return inInstance and instanceType == "raid" end
   if mode == "dungeon" then return inInstance and instanceType == "party" end
@@ -2788,7 +2833,7 @@ local function ResolveTrackedSpellID(spellID)
 end
 local ringFrame = CreateFrame("Frame", "CCMRadialCircle", UIParent)
 ringFrame:SetSize(120, 120)
-ringFrame:SetFrameStrata("TOOLTIP")
+ringFrame:SetFrameStrata("FULLSCREEN")
 ringFrame:SetFrameLevel(200)
 ringFrame:Hide()
 addonTable.ringFrame = ringFrame
@@ -2831,18 +2876,16 @@ local function UpdateRadialCircle()
     State.ringEnabled = false
     return
   end
-  if State.guiIsOpen then
-    local cfg = addonTable.ConfigFrame
-    if cfg then
-      ringFrame:SetFrameStrata(cfg:GetFrameStrata() or "TOOLTIP")
-      ringFrame:SetFrameLevel((cfg:GetFrameLevel() or 1) + 50)
-    else
-      ringFrame:SetFrameStrata("TOOLTIP")
-      ringFrame:SetFrameLevel(5000)
-    end
+  local iconStrata = profile.iconStrata or "FULLSCREEN"
+  local onQolTab = State.guiIsOpen and addonTable.activeTab and addonTable.activeTab() == 12
+  if onQolTab then
+    ringFrame:SetFrameStrata("TOOLTIP")
+    ringFrame:SetFrameLevel(9999)
+  else
+    ringFrame:SetFrameStrata(iconStrata)
   end
   State.ringCombatOnly = profile.cursorCombatOnly or profile.showInCombatOnly
-  if State.ringCombatOnly and not UnitAffectingCombat("player") then
+  if State.ringCombatOnly and not UnitAffectingCombat("player") and not onQolTab then
     ringFrame:Hide()
     return
   end
@@ -3051,7 +3094,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
   local buffBarOffset = type(profile.buffBarIconSizeOffset) == "number" and profile.buffBarIconSizeOffset or 0
   local targetSize = baseIconSize + buffBarOffset
   buffs:SetScale(1)
-  local iconStrata = profile.iconStrata or "TOOLTIP"
+  local iconStrata = profile.iconStrata or "FULLSCREEN"
   buffs:SetFrameStrata(iconStrata)
   buffs:SetFrameLevel(200)
   local posX = (cursorX / uiScale) + profile.offsetX
@@ -3321,7 +3364,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
   State.essentialBarSpacing = spacing
   local targetSize = type(profile.iconSize) == "number" and profile.iconSize or 23
   main:SetScale(1)
-  local iconStrata = profile.iconStrata or "TOOLTIP"
+  local iconStrata = profile.iconStrata or "FULLSCREEN"
   main:SetFrameStrata(iconStrata)
   main:SetFrameLevel(200)
   local posX = (cursorX / uiScale) + profile.offsetX
@@ -4479,7 +4522,7 @@ local function CreateCustomBarIcons()
     if entriesEnabled[i] == nil or entriesEnabled[i] ~= false then
       local icon = CreateFrame("Button", "CCMCustomBarIcon" .. i, customBarFrame, "BackdropTemplate")
       icon:SetSize(iconSize, iconSize)
-      icon:SetFrameStrata(profile.iconStrata or "TOOLTIP")
+      icon:SetFrameStrata(profile.iconStrata or "FULLSCREEN")
       icon:SetFrameLevel(10)
       icon:EnableMouse(false)
       icon.Icon = icon:CreateTexture(nil, "BACKGROUND")
@@ -4547,9 +4590,11 @@ local function UpdateCustomBar()
     customBarFrame:Hide()
     return
   end
-  if not IsShowModeActive(profile.customBarShowMode) then
-    customBarFrame:Hide()
-    return
+  if not IsShowModeActive(profile.customBarShowMode, true) then
+    if not customBarFrame.highlightVisible then
+      customBarFrame:Hide()
+      return
+    end
   end
   if profile.customBarOutOfCombat == false and not InCombatLockdown() then
     if not customBarFrame.highlightVisible then
@@ -4869,7 +4914,8 @@ local function UpdateCustomBar()
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
       local oFlag = go or ""
-      for _, region in ipairs({icon.cooldown:GetRegions()}) do
+      for i = 1, select("#", icon.cooldown:GetRegions()) do
+        local region = select(i, icon.cooldown:GetRegions())
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
           if sz then pcall(region.SetFont, region, gf, sz, oFlag) end
@@ -5011,7 +5057,7 @@ local function CreateCustomBar2Icons()
     if entriesEnabled[i] == nil or entriesEnabled[i] ~= false then
       local icon = CreateFrame("Button", "CCMCustomBar2Icon" .. i, customBar2Frame, "BackdropTemplate")
       icon:SetSize(iconSize, iconSize)
-      icon:SetFrameStrata(profile.iconStrata or "TOOLTIP")
+      icon:SetFrameStrata(profile.iconStrata or "FULLSCREEN")
       icon:SetFrameLevel(10)
       icon:EnableMouse(false)
       icon.Icon = icon:CreateTexture(nil, "BACKGROUND")
@@ -5079,9 +5125,11 @@ local function UpdateCustomBar2()
     customBar2Frame:Hide()
     return
   end
-  if not IsShowModeActive(profile.customBar2ShowMode) then
-    customBar2Frame:Hide()
-    return
+  if not IsShowModeActive(profile.customBar2ShowMode, true) then
+    if not customBar2Frame.highlightVisible then
+      customBar2Frame:Hide()
+      return
+    end
   end
   if profile.customBar2OutOfCombat == false and not InCombatLockdown() then
     if not customBar2Frame.highlightVisible then
@@ -5401,7 +5449,8 @@ local function UpdateCustomBar2()
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
       local oFlag = go or ""
-      for _, region in ipairs({icon.cooldown:GetRegions()}) do
+      for i = 1, select("#", icon.cooldown:GetRegions()) do
+        local region = select(i, icon.cooldown:GetRegions())
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
           if sz then pcall(region.SetFont, region, gf, sz, oFlag) end
@@ -5543,7 +5592,7 @@ local function CreateCustomBar3Icons()
     if entriesEnabled[i] == nil or entriesEnabled[i] ~= false then
       local icon = CreateFrame("Button", "CCMCustomBar3Icon" .. i, customBar3Frame, "BackdropTemplate")
       icon:SetSize(iconSize, iconSize)
-      icon:SetFrameStrata(profile.iconStrata or "TOOLTIP")
+      icon:SetFrameStrata(profile.iconStrata or "FULLSCREEN")
       icon:SetFrameLevel(10)
       icon:EnableMouse(false)
       icon.Icon = icon:CreateTexture(nil, "BACKGROUND")
@@ -5611,9 +5660,11 @@ local function UpdateCustomBar3()
     customBar3Frame:Hide()
     return
   end
-  if not IsShowModeActive(profile.customBar3ShowMode) then
-    customBar3Frame:Hide()
-    return
+  if not IsShowModeActive(profile.customBar3ShowMode, true) then
+    if not customBar3Frame.highlightVisible then
+      customBar3Frame:Hide()
+      return
+    end
   end
   if profile.customBar3OutOfCombat == false and not InCombatLockdown() then
     if not customBar3Frame.highlightVisible then
@@ -5933,7 +5984,8 @@ local function UpdateCustomBar3()
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
       local oFlag = go or ""
-      for _, region in ipairs({icon.cooldown:GetRegions()}) do
+      for i = 1, select("#", icon.cooldown:GetRegions()) do
+        local region = select(i, icon.cooldown:GetRegions())
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
           if sz then pcall(region.SetFont, region, gf, sz, oFlag) end
@@ -6043,6 +6095,41 @@ addonTable.CreateCustomBar3Icons = CreateCustomBar3Icons
 addonTable.UpdateCustomBar3 = UpdateCustomBar3
 addonTable.UpdateCustomBar3Position = UpdateCustomBar3Position
 addonTable.UpdateCustomBar3StackTextPositions = UpdateCustomBar3StackTextPositions
+local cursorIconContainer = CreateFrame("Frame", "CCMCursorIconContainer", UIParent)
+cursorIconContainer:SetSize(1, 1)
+cursorIconContainer:EnableMouse(false)
+cursorIconContainer:Show()
+local function UpdateCursorIconAnchors()
+  local cache = State.cursorLayoutCache
+  local row, col = 0, 0
+  for _, icon in ipairs(State.cursorIcons) do
+    if icon:IsShown() then
+      local xPos, yPos
+      if cache.isHorizontal then
+        xPos = col * (cache.iconSize + cache.iconSpacing)
+        yPos = row * (cache.iconSize + cache.iconSpacing)
+        col = col + 1
+        if col >= cache.iconsPerRow then
+          col = 0
+          row = row + 1
+          if cache.numColumns > 1 and row >= cache.numColumns then break end
+        end
+      else
+        xPos = col * (cache.iconSize + cache.iconSpacing)
+        yPos = row * (cache.iconSize + cache.iconSpacing)
+        row = row + 1
+        if row >= cache.iconsPerRow then
+          row = 0
+          col = col + 1
+          if cache.numColumns > 1 and col >= cache.numColumns then break end
+        end
+      end
+      icon:ClearAllPoints()
+      icon:SetPoint("BOTTOMLEFT", cursorIconContainer, "BOTTOMLEFT", xPos, yPos)
+    end
+  end
+end
+addonTable.UpdateCursorIconAnchors = UpdateCursorIconAnchors
 local UpdateSpellIcon
 local function ClearIcons()
   if Masque and MasqueGroups.CursorIcons then
@@ -6076,7 +6163,7 @@ local function CreateIcons()
     if profile.spellsEnabled[i] then
       local isItem = entryID < 0
       local actualID = math.abs(entryID)
-      local iconStrata = profile.iconStrata or "TOOLTIP"
+      local iconStrata = profile.iconStrata or "FULLSCREEN"
       local icon = CreateFrame("Button", "CCMIcon" .. i, UIParent, "BackdropTemplate")
       icon:SetFrameStrata(iconStrata)
       icon:SetFrameLevel(200)
@@ -6126,24 +6213,43 @@ local function CreateIcons()
   for _, icon in ipairs(State.cursorIcons) do
     UpdateSpellIcon(icon)
   end
+  UpdateCursorIconAnchors()
   C_Timer.After(0.1, function()
     for _, icon in ipairs(State.cursorIcons) do
       UpdateSpellIcon(icon)
     end
+    UpdateCursorIconAnchors()
   end)
   C_Timer.After(0.5, function()
     for _, icon in ipairs(State.cursorIcons) do
       UpdateSpellIcon(icon)
     end
+    UpdateCursorIconAnchors()
   end)
 end
-addonTable.CreateIcons = CreateIcons
+addonTable.CreateIcons = function()
+  CreateIcons()
+  if State.cursorIconPreviewActive then
+    for _, icon in ipairs(State.cursorIcons) do
+      icon._ccmPreviewSaved = true
+      icon._ccmPreviewStrata = icon:GetFrameStrata()
+      icon._ccmPreviewLevel = icon:GetFrameLevel()
+      icon._ccmPreviewShown = true
+      icon:SetFrameStrata("TOOLTIP")
+      icon:SetFrameLevel(9999)
+      icon:Show()
+    end
+    UpdateCursorIconAnchors()
+  end
+end
 local onUpdateElapsed = 0
 local cursorTrackElapsed = 0
 local ON_UPDATE_THROTTLE = 0.05
-local CURSOR_TRACK_THROTTLE = 0.02
+local CURSOR_TRACK_THROTTLE = 0
 local cachedProfile = nil
 local lastProfileCheck = 0
+local cachedUIScale = UIParent:GetEffectiveScale()
+local lastScaleCheck = 0
 State.cursorLayoutCache = {
   offsetX = 30,
   offsetY = 45,
@@ -6157,11 +6263,13 @@ State.cursorLayoutCache = {
 local cursorTrackingFrame = CreateFrame("Frame", "CCMCursorTrackingFrame", UIParent)
 addonTable.ShouldRunCursorTracking = function(profile)
   if not profile then return false end
+  if State.guiIsOpen then return true end
   local hasBars = (profile.useBuffBar or profile.useEssentialBar) and profile.disableBlizzCDM ~= true
   return profile.cursorIconsEnabled or hasBars
 end
 addonTable.ShouldRunMainOnUpdate = function(profile)
   if not profile then return false end
+  if State.guiIsOpen then return true end
   local hasBars = (profile.useBuffBar or profile.useEssentialBar) and profile.disableBlizzCDM ~= true
   return profile.cursorIconsEnabled or hasBars or profile.showRadialCircle
 end
@@ -6177,7 +6285,7 @@ addonTable.CursorTrackingOnUpdate = function(self, elapsed)
   end
   local x, y = GetCursorPosition()
   State.lastTrackCursorX, State.lastTrackCursorY = x, y
-  local scale = UIParent:GetEffectiveScale()
+  local scale = cachedUIScale
   local cache = State.cursorLayoutCache
   if profile.useBuffBar then
     UpdateBuffBarPosition(x, y, scale, profile)
@@ -6192,33 +6300,8 @@ addonTable.CursorTrackingOnUpdate = function(self, elapsed)
   if not cursorEnabled and not State.cursorIconPreviewActive then return end
   local baseX = (x / scale) + cache.offsetX + cache.totalBarWidth
   local baseY = (y / scale) + cache.offsetY
-  local row, col = 0, 0
-  for _, icon in ipairs(State.cursorIcons) do
-    if icon:IsShown() then
-      local xPos, yPos
-      if cache.isHorizontal then
-        xPos = baseX + col * (cache.iconSize + cache.iconSpacing)
-        yPos = baseY + row * (cache.iconSize + cache.iconSpacing)
-        col = col + 1
-        if col >= cache.iconsPerRow then
-          col = 0
-          row = row + 1
-          if cache.numColumns > 1 and row >= cache.numColumns then break end
-        end
-      else
-        xPos = baseX + col * (cache.iconSize + cache.iconSpacing)
-        yPos = baseY + row * (cache.iconSize + cache.iconSpacing)
-        row = row + 1
-        if row >= cache.iconsPerRow then
-          row = 0
-          col = col + 1
-          if cache.numColumns > 1 and col >= cache.numColumns then break end
-        end
-      end
-      icon:ClearAllPoints()
-      icon:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", xPos, yPos)
-    end
-  end
+  cursorIconContainer:ClearAllPoints()
+  cursorIconContainer:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", baseX, baseY)
 end
 addonTable.MainOnUpdate = function(self, elapsed)
   onUpdateElapsed = onUpdateElapsed + elapsed
@@ -6228,6 +6311,10 @@ addonTable.MainOnUpdate = function(self, elapsed)
   if not cachedProfile or (now - lastProfileCheck) > 1.0 then
     cachedProfile = GetProfile()
     lastProfileCheck = now
+  end
+  if (now - lastScaleCheck) > 0.5 then
+    cachedUIScale = UIParent:GetEffectiveScale()
+    lastScaleCheck = now
   end
   local profile = cachedProfile
   if not profile then return end
@@ -6241,7 +6328,7 @@ addonTable.MainOnUpdate = function(self, elapsed)
     return
   end
   local x, y = GetCursorPosition()
-  local scale = UIParent:GetEffectiveScale()
+  local scale = cachedUIScale
   local cursorMoved = math.abs(x - State.lastCursorX) > State.cursorMoveThreshold or math.abs(y - State.lastCursorY) > State.cursorMoveThreshold
   local doExpensiveUpdate = (now - State.lastBarUpdateTime) >= State.barUpdateInterval
   if not cursorMoved and not doExpensiveUpdate then
@@ -6310,6 +6397,9 @@ addonTable.MainOnUpdate = function(self, elapsed)
   if masqueEnabled and MasqueGroups.CursorIcons and doExpensiveUpdate then
     MasqueGroups.CursorIcons:ReSkin()
   end
+  if doExpensiveUpdate then
+    UpdateCursorIconAnchors()
+  end
   UpdateRadialCircle()
 end
 addonTable.EvaluateOnUpdateHandlers = function(profile)
@@ -6360,10 +6450,55 @@ UpdateSpellIcon = function(icon)
       end
       icon.icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
       if not itemIcon then C_Item.RequestLoadItemDataByID(spellID) end
+      -- Apply text scales and show text during preview
+      local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
+      icon.cooldown:SetScale(cdTextScale)
+      local cdStart, cdDuration = GetItemCooldown(spellID)
+      if cdStart and cdDuration and cdDuration > 1.5 then
+        icon.cooldown:SetCooldown(cdStart, cdDuration)
+        icon.cooldown:SetHideCountdownNumbers(false)
+      else
+        icon.cooldown:Clear()
+      end
+      local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
+      icon.stackText:SetScale(stackTextScale)
+      local itemCount = GetItemCount(spellID, false, true)
+      if not itemCount or itemCount <= 0 then
+        icon.stackText:SetText("0")
+        icon.stackText:Show()
+      elseif itemCount > 1 then
+        icon.stackText:SetText(itemCount)
+        icon.stackText:Show()
+      else
+        icon.stackText:Hide()
+      end
     else
       local activeSpellID = ResolveTrackedSpellID(spellID)
       local info = C_Spell.GetSpellInfo(activeSpellID)
       icon.icon:SetTexture(info and info.iconID or "Interface\\Icons\\INV_Misc_QuestionMark")
+      -- Apply text scales and show text during preview
+      local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
+      icon.cooldown:SetScale(cdTextScale)
+      local charges = C_Spell.GetSpellCharges(activeSpellID)
+      local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, spellID)
+      local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
+      icon.stackText:SetScale(stackTextScale)
+      if safeCharges ~= nil then
+        icon.stackText:SetText(tostring(safeCharges))
+        icon.stackText:Show()
+      else
+        icon.stackText:Hide()
+      end
+      local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+      if charges and charges.cooldownStartTime and charges.cooldownDuration then
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, charges.cooldownStartTime, charges.cooldownDuration)
+        icon.cooldown:SetHideCountdownNumbers(false)
+      elseif cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 1.5 then
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, cdInfo.startTime, cdInfo.duration)
+        icon.cooldown:SetHideCountdownNumbers(false)
+      else
+        icon.cooldown:Clear()
+      end
     end
     icon:Show()
     return
@@ -6412,7 +6547,8 @@ UpdateSpellIcon = function(icon)
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
       local oFlag = go or ""
-      for _, region in ipairs({icon.cooldown:GetRegions()}) do
+      for i = 1, select("#", icon.cooldown:GetRegions()) do
+        local region = select(i, icon.cooldown:GetRegions())
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
           if sz then pcall(region.SetFont, region, gf, sz, oFlag) end
@@ -6487,7 +6623,8 @@ UpdateSpellIcon = function(icon)
     icon.cooldown._ccmFontApplied = true
     local gf, go = GetGlobalFont()
     local oFlag = go or "OUTLINE"
-    for _, region in ipairs({icon.cooldown:GetRegions()}) do
+    for i = 1, select("#", icon.cooldown:GetRegions()) do
+      local region = select(i, icon.cooldown:GetRegions())
       if region and region.GetObjectType and region:GetObjectType() == "FontString" then
         local _, sz = region:GetFont()
         if sz then pcall(region.SetFont, region, gf, sz, oFlag) end
@@ -6920,6 +7057,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end
+    if addonTable.SetupEnhancedTooltipHook then addonTable.SetupEnhancedTooltipHook() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
     if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
     if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
@@ -6982,6 +7120,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end
+    if addonTable.SetupEnhancedTooltipHook then addonTable.SetupEnhancedTooltipHook() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
     if addonTable.SetCombatTimerActive then addonTable.SetCombatTimerActive(UnitAffectingCombat("player") == true) end
     if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
