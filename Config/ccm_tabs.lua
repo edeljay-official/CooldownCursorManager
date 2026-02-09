@@ -18,6 +18,20 @@ local textureOptions = {
   {text = "Skyline", value = "skyline"},
   {text = "Dragonflight", value = "dragonflight"},
 }
+local function SetSmoothScroll(scrollFrame, step)
+  step = step or 20
+  scrollFrame:EnableMouseWheel(true)
+  scrollFrame:SetScript("OnMouseWheel", function(self, delta)
+    local bar = _G[self:GetName() .. "ScrollBar"]
+    if not bar then return end
+    local cur = bar:GetValue()
+    local mn, mx = bar:GetMinMaxValues()
+    local newVal = cur - (delta * step)
+    if newVal < mn then newVal = mn end
+    if newVal > mx then newVal = mx end
+    bar:SetValue(newVal)
+  end)
+end
 local function InitTabs()
   local tabFrames = addonTable.tabFrames
   local Section = addonTable.Section
@@ -44,6 +58,7 @@ local function InitTabs()
     if up then up:SetAlpha(0); up:EnableMouse(false) end
     if down then down:SetAlpha(0); down:EnableMouse(false) end
   end
+  SetSmoothScroll(generalScrollFrame)
   local gc = generalScrollChild
   addonTable.fontDD, addonTable.fontLbl = StyledDropdown(gc, "Global Font", 15, -15, 260)
   local fontOptions = {
@@ -157,6 +172,7 @@ local function InitTabs()
     {text = "LEFT", value = "LEFT"}, {text = "CENTER", value = "CENTER"}, {text = "RIGHT", value = "RIGHT"},
     {text = "BOTTOMLEFT", value = "BOTTOMLEFT"}, {text = "BOTTOM", value = "BOTTOM"}, {text = "BOTTOMRIGHT", value = "BOTTOMRIGHT"},
   })
+  cur.buffOverlayCB = Checkbox(tab2, "DR Buff Overlay", 320, -380)
   Section(tab2, "Tracked Spells / Items", -420)
   cur.spellBg = CreateFrame("Frame", nil, tab2, "BackdropTemplate")
   cur.spellBg:SetPoint("TOPLEFT", tab2, "TOPLEFT", 15, -455)
@@ -200,6 +216,18 @@ local function InitTabs()
   cur.addSpellBtn:SetPoint("LEFT", cur.addBox, "RIGHT", 8, 0)
   cur.addItemBtn = CreateStyledButton(tab2, "Add Item", 70, 24)
   cur.addItemBtn:SetPoint("LEFT", cur.addSpellBtn, "RIGHT", 5, 0)
+  cur.addSep = tab2:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+  cur.addSep:SetPoint("LEFT", cur.addItemBtn, "RIGHT", 6, 0)
+  cur.addSep:SetText("|")
+  cur.addSep:SetTextColor(0.4, 0.4, 0.45, 1)
+  cur.addTrinketsBtn = CreateStyledButton(tab2, "Add Trinkets", 90, 24)
+  cur.addTrinketsBtn:SetPoint("LEFT", cur.addSep, "RIGHT", 6, 0)
+  cur.addRacialBtn = CreateStyledButton(tab2, "Add Racial", 80, 24)
+  cur.addRacialBtn:SetPoint("LEFT", cur.addTrinketsBtn, "RIGHT", 5, 0)
+  cur.addPotionBtn = CreateStyledButton(tab2, "Add Potion", 80, 24)
+  cur.addPotionBtn:SetPoint("LEFT", cur.addRacialBtn, "RIGHT", 5, 0)
+  cur.addGCSBtn = CreateStyledButton(tab2, "Add GCS", 65, 24)
+  cur.addGCSBtn:SetPoint("LEFT", cur.addPotionBtn, "RIGHT", 5, 0)
   cur.dragDropHint = tab2:CreateFontString(nil, "OVERLAY", "GameFontNormal")
   cur.dragDropHint:SetPoint("BOTTOMLEFT", tab2, "BOTTOMLEFT", 15, 16)
   cur.dragDropHint:SetText("Tip: Drag & drop spells/items directly into this window!")
@@ -223,6 +251,7 @@ local function InitTabs()
     cb.stackXSlider = Slider(tabFrame, "Stack Offset X", 15, -245, -20, 20, 0, 1)
     cb.stackYSlider = Slider(tabFrame, "Stack Offset Y", 280, -245, -20, 20, 0, 1)
     cb.iconsPerRowSlider = Slider(tabFrame, "Icons Per Row", 15, -300, 1, 20, 20, 1)
+    cb.buffOverlayCB = Checkbox(tabFrame, "DR Buff Overlay", 280, -320)
     cb.directionDD, cb.directionLbl = StyledDropdown(tabFrame, "Direction", 15, -360, 100)
     cb.directionDD:SetOptions({{text = "Horizontal", value = "horizontal"}, {text = "Vertical", value = "vertical"}})
     cb.anchorDD, cb.anchorLbl = StyledDropdown(tabFrame, "Anchor", 150, -360, 80)
@@ -292,6 +321,18 @@ local function InitTabs()
     cb.addSpellBtn:SetPoint("LEFT", cb.addBox, "RIGHT", 8, 0)
     cb.addItemBtn = CreateStyledButton(tabFrame, "Add Item", 70, 24)
     cb.addItemBtn:SetPoint("LEFT", cb.addSpellBtn, "RIGHT", 5, 0)
+    cb.addSep = tabFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    cb.addSep:SetPoint("LEFT", cb.addItemBtn, "RIGHT", 6, 0)
+    cb.addSep:SetText("|")
+    cb.addSep:SetTextColor(0.4, 0.4, 0.45, 1)
+    cb.addTrinketsBtn = CreateStyledButton(tabFrame, "Add Trinkets", 90, 24)
+    cb.addTrinketsBtn:SetPoint("LEFT", cb.addSep, "RIGHT", 6, 0)
+    cb.addRacialBtn = CreateStyledButton(tabFrame, "Add Racial", 80, 24)
+    cb.addRacialBtn:SetPoint("LEFT", cb.addTrinketsBtn, "RIGHT", 5, 0)
+    cb.addPotionBtn = CreateStyledButton(tabFrame, "Add Potion", 80, 24)
+    cb.addPotionBtn:SetPoint("LEFT", cb.addRacialBtn, "RIGHT", 5, 0)
+    cb.addGCSBtn = CreateStyledButton(tabFrame, "Add GCS", 65, 24)
+    cb.addGCSBtn:SetPoint("LEFT", cb.addPotionBtn, "RIGHT", 5, 0)
     cb.dragDropHint = tabFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     cb.dragDropHint:SetPoint("BOTTOMLEFT", tabFrame, "BOTTOMLEFT", 15, 16)
     cb.dragDropHint:SetText("Tip: Drag & drop spells/items directly into this window!")
@@ -319,6 +360,7 @@ local function InitTabs()
     if up then up:SetAlpha(0); up:EnableMouse(false) end
     if down then down:SetAlpha(0); down:EnableMouse(false) end
   end
+  SetSmoothScroll(blizzScrollFrame)
   local b6 = blizzScrollChild
   local infoTxt = b6:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   infoTxt:SetPoint("TOPLEFT", b6, "TOPLEFT", 15, -15)
@@ -420,6 +462,7 @@ local function InitTabs()
       if up then up:SetAlpha(0); up:EnableMouse(false) end
       if down then down:SetAlpha(0); down:EnableMouse(false) end
     end
+    SetSmoothScroll(prbScrollFrame)
     addonTable.prb = {}
     local prb = addonTable.prb
     local pc = prbScrollChild
@@ -645,6 +688,7 @@ local function InitTabs()
       if up then up:SetAlpha(0); up:EnableMouse(false) end
       if down then down:SetAlpha(0); down:EnableMouse(false) end
     end
+    SetSmoothScroll(castbarScrollFrame)
     addonTable.castbar = {}
     local cbar = addonTable.castbar
     local cc = castbarScrollChild
@@ -747,6 +791,7 @@ local function InitTabs()
       if up then up:SetAlpha(0); up:EnableMouse(false) end
       if down then down:SetAlpha(0); down:EnableMouse(false) end
     end
+    SetSmoothScroll(focusCastbarScrollFrame)
     addonTable.focusCastbar = {}
     local cbar = addonTable.focusCastbar
     local cc = focusCastbarScrollChild
@@ -846,6 +891,7 @@ local function InitTabs()
       if up9 then up9:SetAlpha(0); up9:EnableMouse(false) end
       if down9 then down9:SetAlpha(0); down9:EnableMouse(false) end
     end
+    SetSmoothScroll(debuffsScrollFrame)
     local dc = debuffsScrollChild
     addonTable.debuffs = {}
     local db = addonTable.debuffs
@@ -873,7 +919,7 @@ local function InitTabs()
     ufScrollFrame:SetPoint("TOPLEFT", tab11, "TOPLEFT", 0, 0)
     ufScrollFrame:SetPoint("BOTTOMRIGHT", tab11, "BOTTOMRIGHT", -22, 0)
     local ufScrollChild = CreateFrame("Frame", "CCMUFScrollChild", ufScrollFrame)
-    ufScrollChild:SetSize(490, 1000)
+    ufScrollChild:SetSize(490, 1300)
     ufScrollFrame:SetScrollChild(ufScrollChild)
     local ufScrollBar = _G["CCMUFScrollFrameScrollBar"]
     if ufScrollBar then
@@ -886,14 +932,17 @@ local function InitTabs()
       if ufUp then ufUp:SetAlpha(0); ufUp:EnableMouse(false) end
       if ufDown then ufDown:SetAlpha(0); ufDown:EnableMouse(false) end
     end
+    SetSmoothScroll(ufScrollFrame)
     local uc = ufScrollChild
     Section(uc, "Unit Frame Customization", -12)
     addonTable.useCustomBorderColorCB = Checkbox(uc, "Custom Border Color", 15, -37)
     addonTable.ufClassColorCB = Checkbox(uc, "Use class color", 280, -37)
     addonTable.ufDisableGlowsCB = Checkbox(uc, "Disable Frame Glows", 15, -62)
     addonTable.ufDisableCombatTextCB = Checkbox(uc, "Disable Player Combat Text", 280, -62)
-    addonTable.disableTargetFocusBuffsCB = Checkbox(uc, "Disable Target/Focus Buffs", 15, -87)
+    addonTable.disableTargetBuffsCB = Checkbox(uc, "Disable Target Buffs", 15, -87)
     addonTable.hideEliteTextureCB = Checkbox(uc, "Hide Elite Texture", 280, -87)
+    addonTable.ufUseCustomTexturesCB = Checkbox(uc, "Use Custom Textures", 15, -112)
+    addonTable.ufUseCustomNameColorCB = Checkbox(uc, "Use Custom Name Color", 280, -112)
     addonTable.ufBorderColorBtn = CreateStyledButton(uc, "Border Color", 100, 22)
     addonTable.ufBorderColorBtn:SetPoint("TOPLEFT", uc, "TOPLEFT", 15, -147)
     addonTable.ufBorderColorSwatch = CreateFrame("Frame", nil, uc, "BackdropTemplate")
@@ -902,12 +951,13 @@ local function InitTabs()
     addonTable.ufBorderColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
     addonTable.ufBorderColorSwatch:SetBackdropColor(0, 0, 0, 1)
     addonTable.ufBorderColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    addonTable.ufHealthTextureDD, addonTable.ufHealthTextureLbl = StyledDropdown(uc, "Texture", 280, -129, 115)
+    addonTable.ufHealthTextureDD = StyledDropdown(uc, nil, 280, -147, 115)
     addonTable.ufHealthTextureDD:SetOptions(textureOptions)
     addonTable.ufHealthTextureDD:SetEnabled(true)
-    if addonTable.ufHealthTextureLbl then
-      addonTable.ufHealthTextureLbl:SetTextColor(0.9, 0.9, 0.9)
-    end
+    addonTable.ufHealthTextureLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    addonTable.ufHealthTextureLbl:SetPoint("BOTTOMLEFT", addonTable.ufHealthTextureDD, "TOPLEFT", 0, 4)
+    addonTable.ufHealthTextureLbl:SetText("Texture")
+    addonTable.ufHealthTextureLbl:SetTextColor(0.9, 0.9, 0.9)
     addonTable.ufNameColorBtn = CreateStyledButton(uc, "Name Color", 90, 22)
     addonTable.ufNameColorBtn:SetPoint("LEFT", addonTable.ufHealthTextureDD, "RIGHT", 10, 0)
     addonTable.ufNameColorSwatch = CreateFrame("Frame", nil, uc, "BackdropTemplate")
@@ -916,6 +966,63 @@ local function InitTabs()
     addonTable.ufNameColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
     addonTable.ufNameColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.ufNameColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+
+    Section(uc, "Use Bigger Healthbars", -190)
+    addonTable.ufBigHBPlayerCB = Checkbox(uc, "Player", 15, -215)
+    addonTable.ufBigHBTargetCB = Checkbox(uc, "Target", 90, -215)
+    addonTable.ufBigHBFocusCB = Checkbox(uc, "Focus", 165, -215)
+    addonTable.ufBigHBHideRealmCB = Checkbox(uc, "Hide Realm", 240, -215)
+
+    Section(uc, "Player", -242)
+    addonTable.ufBigHBHidePlayerNameCB = Checkbox(uc, "Hide Name", 15, -267)
+    addonTable.ufBigHBHidePlayerLevelCB = Checkbox(uc, "Hide Level", 240, -267)
+    addonTable.ufBigHBPlayerHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", 15, -295, 140)
+    addonTable.ufBigHBPlayerHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBPlayerDmgAbsorbDD = StyledDropdown(uc, "Dmg Absorb", 175, -295, 140)
+    addonTable.ufBigHBPlayerDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBPlayerHealPredDD = StyledDropdown(uc, "Heal Prediction", 340, -295, 140)
+    addonTable.ufBigHBPlayerHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBPlayerNameXSlider = Slider(uc, "Name X", 15, -342, -200, 200, 0, 1)
+    addonTable.ufBigHBPlayerNameYSlider = Slider(uc, "Name Y", 280, -342, -200, 200, 0, 1)
+    addonTable.ufBigHBPlayerLevelXSlider = Slider(uc, "Level X", 15, -397, -200, 200, 0, 1)
+    addonTable.ufBigHBPlayerLevelYSlider = Slider(uc, "Level Y", 280, -397, -200, 200, 0, 1)
+    addonTable.ufBigHBPlayerNameTextScaleSlider = Slider(uc, "Name Text Scale", 15, -452, 0.50, 3.00, 1.00, 0.05)
+    addonTable.ufBigHBPlayerLevelTextScaleSlider = Slider(uc, "Level Text Scale", 280, -452, 0.50, 3.00, 1.00, 0.05)
+
+    Section(uc, "Target", -502)
+    addonTable.ufBigHBHideTargetNameCB = Checkbox(uc, "Hide Name", 15, -527)
+    addonTable.ufBigHBHideTargetLevelCB = Checkbox(uc, "Hide Level", 240, -527)
+    addonTable.ufBigHBTargetHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", 15, -555, 140)
+    addonTable.ufBigHBTargetHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBTargetDmgAbsorbDD = StyledDropdown(uc, "Dmg Absorb", 175, -555, 140)
+    addonTable.ufBigHBTargetDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBTargetHealPredDD = StyledDropdown(uc, "Heal Prediction", 340, -555, 140)
+    addonTable.ufBigHBTargetHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBTargetNameXSlider = Slider(uc, "Name X", 15, -602, -200, 200, 0, 1)
+    addonTable.ufBigHBTargetNameYSlider = Slider(uc, "Name Y", 280, -602, -200, 200, 0, 1)
+    addonTable.ufBigHBTargetLevelXSlider = Slider(uc, "Level X", 15, -657, -200, 200, 0, 1)
+    addonTable.ufBigHBTargetLevelYSlider = Slider(uc, "Level Y", 280, -657, -200, 200, 0, 1)
+    addonTable.ufBigHBTargetNameTextScaleSlider = Slider(uc, "Name Text Scale", 15, -712, 0.50, 3.00, 1.00, 0.05)
+    addonTable.ufBigHBTargetLevelTextScaleSlider = Slider(uc, "Level Text Scale", 280, -712, 0.50, 3.00, 1.00, 0.05)
+
+    Section(uc, "Focus", -762)
+    addonTable.ufBigHBHideFocusNameCB = Checkbox(uc, "Hide Name", 15, -787)
+    addonTable.ufBigHBHideFocusLevelCB = Checkbox(uc, "Hide Level", 240, -787)
+    addonTable.ufBigHBFocusHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", 15, -815, 140)
+    addonTable.ufBigHBFocusHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBFocusDmgAbsorbDD = StyledDropdown(uc, "Dmg Absorb", 175, -815, 140)
+    addonTable.ufBigHBFocusDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBFocusHealPredDD = StyledDropdown(uc, "Heal Prediction", 340, -815, 140)
+    addonTable.ufBigHBFocusHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable.ufBigHBFocusNameXSlider = Slider(uc, "Name X", 15, -862, -200, 200, 0, 1)
+    addonTable.ufBigHBFocusNameYSlider = Slider(uc, "Name Y", 280, -862, -200, 200, 0, 1)
+    addonTable.ufBigHBFocusLevelXSlider = Slider(uc, "Level X", 15, -917, -200, 200, 0, 1)
+    addonTable.ufBigHBFocusLevelYSlider = Slider(uc, "Level Y", 280, -917, -200, 200, 0, 1)
+    addonTable.ufBigHBFocusNameTextScaleSlider = Slider(uc, "Name Text Scale", 15, -972, 0.50, 3.00, 1.00, 0.05)
+    addonTable.ufBigHBFocusLevelTextScaleSlider = Slider(uc, "Level Text Scale", 280, -972, 0.50, 3.00, 1.00, 0.05)
+
+    Section(uc, "Name Trim", -1022)
+    addonTable.ufBigHBNameMaxCharsSlider = Slider(uc, "Name Max Chars (0=Off)", 15, -1047, 0, 40, 0, 1)
 
   end
 
@@ -938,6 +1045,7 @@ local function InitTabs()
       if up10 then up10:SetAlpha(0); up10:EnableMouse(false) end
       if down10 then down10:SetAlpha(0); down10:EnableMouse(false) end
     end
+    SetSmoothScroll(qolScrollFrame)
     local qc = qolScrollChild
     Section(qc, "Self Highlight", -12)
     addonTable.selfHighlightDD, addonTable.selfHighlightLbl = StyledDropdown(qc, "Shape", 15, -37, 120)

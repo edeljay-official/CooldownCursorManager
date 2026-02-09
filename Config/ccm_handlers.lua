@@ -463,64 +463,168 @@ local function UpdateAllControls()
   if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(profile.useFocusCastbar == true) end
   if addonTable.playerDebuffsCB then addonTable.playerDebuffsCB:SetChecked(profile.enablePlayerDebuffs == true) end
   if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(profile.enableUnitFrameCustomization ~= false) end
+  local ufOn = profile.enableUnitFrameCustomization ~= false
   if addonTable.radialCB then addonTable.radialCB:SetChecked(profile.showRadialCircle == true) end
   if addonTable.radialCombatCB then addonTable.radialCombatCB:SetChecked(profile.cursorCombatOnly == true) end
   if addonTable.radialGcdCB then addonTable.radialGcdCB:SetChecked(profile.showGCD == true) end
   if addonTable.ufClassColorCB then
     addonTable.ufClassColorCB:SetChecked(profile.ufClassColor == true)
-    addonTable.ufClassColorCB:SetEnabled(true)
-    addonTable.ufClassColorCB:SetAlpha(1)
+    addonTable.ufClassColorCB:SetEnabled(ufOn)
+    addonTable.ufClassColorCB:SetAlpha(ufOn and 1 or 0.5)
   end
+  local bigHBPlayerOn = ufOn and profile.ufBigHBPlayerEnabled == true
   if addonTable.ufDisableGlowsCB then
-    addonTable.ufDisableGlowsCB:SetChecked(profile.ufDisableGlows == true)
-    addonTable.ufDisableGlowsCB:SetEnabled(true)
-    if addonTable.ufDisableGlowsCB.SetAlpha then
-      addonTable.ufDisableGlowsCB:SetAlpha(1)
+    if bigHBPlayerOn then
+      addonTable.ufDisableGlowsCB:SetChecked(true)
+      addonTable.ufDisableGlowsCB:SetEnabled(false)
+      if addonTable.ufDisableGlowsCB.SetAlpha then addonTable.ufDisableGlowsCB:SetAlpha(0.5) end
+    else
+      addonTable.ufDisableGlowsCB:SetChecked(profile.ufDisableGlows == true)
+      addonTable.ufDisableGlowsCB:SetEnabled(ufOn)
+      if addonTable.ufDisableGlowsCB.SetAlpha then addonTable.ufDisableGlowsCB:SetAlpha(ufOn and 1 or 0.5) end
     end
   end
   if addonTable.ufDisableCombatTextCB then
     addonTable.ufDisableCombatTextCB:SetChecked(profile.ufDisableCombatText == true)
-    local enableCT = true
-    addonTable.ufDisableCombatTextCB:SetEnabled(enableCT)
+    addonTable.ufDisableCombatTextCB:SetEnabled(ufOn)
     if addonTable.ufDisableCombatTextCB.SetAlpha then
-      addonTable.ufDisableCombatTextCB:SetAlpha(enableCT and 1 or 0.5)
+      addonTable.ufDisableCombatTextCB:SetAlpha(ufOn and 1 or 0.5)
     end
   end
-  if addonTable.disableTargetFocusBuffsCB then
-    addonTable.disableTargetFocusBuffsCB:SetChecked(profile.disableTargetFocusBuffs == true)
-    addonTable.disableTargetFocusBuffsCB:SetEnabled(true)
-    if addonTable.disableTargetFocusBuffsCB.SetAlpha then
-      addonTable.disableTargetFocusBuffsCB:SetAlpha(1)
+  if addonTable.disableTargetBuffsCB then
+    addonTable.disableTargetBuffsCB:SetChecked(profile.disableTargetBuffs == true)
+    addonTable.disableTargetBuffsCB:SetEnabled(ufOn)
+    if addonTable.disableTargetBuffsCB.SetAlpha then
+      addonTable.disableTargetBuffsCB:SetAlpha(ufOn and 1 or 0.5)
     end
   end
   if addonTable.hideEliteTextureCB then
     addonTable.hideEliteTextureCB:SetChecked(profile.hideEliteTexture == true)
-    addonTable.hideEliteTextureCB:SetEnabled(true)
+    addonTable.hideEliteTextureCB:SetEnabled(ufOn)
     if addonTable.hideEliteTextureCB.SetAlpha then
-      addonTable.hideEliteTextureCB:SetAlpha(1)
+      addonTable.hideEliteTextureCB:SetAlpha(ufOn and 1 or 0.5)
     end
   end
+  local bigHBOn = ufOn and (profile.ufBigHBPlayerEnabled == true or profile.ufBigHBTargetEnabled == true or profile.ufBigHBFocusEnabled == true)
+  if addonTable.ufUseCustomTexturesCB then
+    if bigHBOn then
+      addonTable.ufUseCustomTexturesCB:SetChecked(false)
+      addonTable.ufUseCustomTexturesCB:SetEnabled(false)
+      if addonTable.ufUseCustomTexturesCB.SetAlpha then addonTable.ufUseCustomTexturesCB:SetAlpha(0.5) end
+    else
+      addonTable.ufUseCustomTexturesCB:SetChecked(profile.ufUseCustomTextures == true)
+      addonTable.ufUseCustomTexturesCB:SetEnabled(ufOn)
+      if addonTable.ufUseCustomTexturesCB.SetAlpha then addonTable.ufUseCustomTexturesCB:SetAlpha(ufOn and 1 or 0.5) end
+    end
+  end
+  local texOn = ufOn and (not bigHBOn) and profile.ufUseCustomTextures == true
   if addonTable.ufHealthTextureDD then
     addonTable.ufHealthTextureDD:SetValue(profile.ufHealthTexture or "solid")
-    addonTable.ufHealthTextureDD:SetEnabled(true)
+    addonTable.ufHealthTextureDD:SetEnabled(texOn)
     if addonTable.ufHealthTextureDD.SetAlpha then
-      addonTable.ufHealthTextureDD:SetAlpha(1)
+      addonTable.ufHealthTextureDD:SetAlpha(texOn and 1 or 0.5)
     end
     if addonTable.ufHealthTextureLbl then
-      addonTable.ufHealthTextureLbl:SetTextColor(0.9, 0.9, 0.9)
+      addonTable.ufHealthTextureLbl:SetTextColor(texOn and 0.9 or 0.4, texOn and 0.9 or 0.4, texOn and 0.9 or 0.4)
     end
   end
   if addonTable.useCustomBorderColorCB then
-    addonTable.useCustomBorderColorCB:SetChecked(profile.useCustomBorderColor == true)
-    addonTable.useCustomBorderColorCB:SetEnabled(true)
+    if bigHBOn then
+      addonTable.useCustomBorderColorCB:SetChecked(true)
+      addonTable.useCustomBorderColorCB:SetEnabled(false)
+    else
+      addonTable.useCustomBorderColorCB:SetChecked(profile.useCustomBorderColor == true)
+      addonTable.useCustomBorderColorCB:SetEnabled(ufOn)
+    end
   end
-  if addonTable.ufBorderColorBtn then addonTable.ufBorderColorBtn:SetEnabled(profile.useCustomBorderColor == true) end
+  if addonTable.ufBorderColorBtn then addonTable.ufBorderColorBtn:SetEnabled(bigHBOn or (ufOn and profile.useCustomBorderColor == true)) end
   if addonTable.ufBorderColorSwatch then
     addonTable.ufBorderColorSwatch:SetBackdropColor(num(profile.ufCustomBorderColorR, 0), num(profile.ufCustomBorderColorG, 0), num(profile.ufCustomBorderColorB, 0), 1)
   end
+  if addonTable.ufUseCustomNameColorCB then
+    if bigHBOn then
+      addonTable.ufUseCustomNameColorCB:SetChecked(true)
+      addonTable.ufUseCustomNameColorCB:SetEnabled(false)
+      if addonTable.ufUseCustomNameColorCB.SetAlpha then addonTable.ufUseCustomNameColorCB:SetAlpha(0.5) end
+    else
+      addonTable.ufUseCustomNameColorCB:SetChecked(profile.ufUseCustomNameColor == true)
+      addonTable.ufUseCustomNameColorCB:SetEnabled(ufOn)
+      if addonTable.ufUseCustomNameColorCB.SetAlpha then addonTable.ufUseCustomNameColorCB:SetAlpha(ufOn and 1 or 0.5) end
+    end
+  end
+  local nameColorOn = ufOn and (bigHBOn or profile.ufUseCustomNameColor == true)
+  if addonTable.ufNameColorBtn then
+    addonTable.ufNameColorBtn:SetEnabled(nameColorOn)
+    if addonTable.ufNameColorBtn.SetAlpha then
+      addonTable.ufNameColorBtn:SetAlpha(nameColorOn and 1 or 0.5)
+    end
+  end
   if addonTable.ufNameColorSwatch then
     addonTable.ufNameColorSwatch:SetBackdropColor(num(profile.ufNameColorR, 1), num(profile.ufNameColorG, 1), num(profile.ufNameColorB, 1), 1)
+    if addonTable.ufNameColorSwatch.SetAlpha then
+      addonTable.ufNameColorSwatch:SetAlpha(nameColorOn and 1 or 0.5)
+    end
   end
+  local ufBigPlayer = profile.ufBigHBPlayerEnabled == true
+  local ufBigTarget = profile.ufBigHBTargetEnabled == true
+  local ufBigFocus = profile.ufBigHBFocusEnabled == true
+  local ufBigNameMaxChars = num(profile.ufBigHBNameMaxChars, 0)
+  if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB:SetChecked(ufBigPlayer); addonTable.ufBigHBPlayerCB:SetEnabled(ufOn) end
+  if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB:SetChecked(ufBigTarget); addonTable.ufBigHBTargetCB:SetEnabled(ufOn) end
+  if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB:SetChecked(ufBigFocus); addonTable.ufBigHBFocusCB:SetEnabled(ufOn) end
+  if addonTable.ufBigHBHideRealmCB then addonTable.ufBigHBHideRealmCB:SetChecked(profile.ufBigHBHideRealm == true); addonTable.ufBigHBHideRealmCB:SetEnabled(bigHBOn and (ufBigTarget or ufBigFocus)) end
+
+  local function ApplyUFBigSlider(slider, value, enabled, fmt)
+    if not slider then return end
+    slider:SetValue(value)
+    if slider.valueText then
+      if fmt then slider.valueText:SetText(string.format(fmt, value)) else slider.valueText:SetText(math.floor(value + 0.5)) end
+    end
+    slider:SetEnabled(enabled)
+  end
+  ApplyUFBigSlider(addonTable.ufBigHBNameMaxCharsSlider, ufBigNameMaxChars, bigHBOn and (ufBigPlayer or ufBigTarget or ufBigFocus))
+  local playerGroupEnabled = bigHBOn and ufBigPlayer
+  local targetGroupEnabled = bigHBOn and ufBigTarget
+  local focusGroupEnabled = bigHBOn and ufBigFocus
+  if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB:SetChecked(profile.ufBigHBHidePlayerName == true); addonTable.ufBigHBHidePlayerNameCB:SetEnabled(playerGroupEnabled) end
+  if addonTable.ufBigHBHidePlayerLevelCB then addonTable.ufBigHBHidePlayerLevelCB:SetChecked(profile.ufBigHBHidePlayerLevel == true); addonTable.ufBigHBHidePlayerLevelCB:SetEnabled(playerGroupEnabled) end
+  local playerNameEnabled = playerGroupEnabled and (profile.ufBigHBHidePlayerName ~= true)
+  local playerLevelEnabled = playerGroupEnabled and (profile.ufBigHBHidePlayerLevel ~= true)
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerNameXSlider, num(profile.ufBigHBPlayerNameX, 0), playerNameEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerNameYSlider, num(profile.ufBigHBPlayerNameY, 0), playerNameEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerLevelXSlider, num(profile.ufBigHBPlayerLevelX, 0), playerLevelEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerLevelYSlider, num(profile.ufBigHBPlayerLevelY, 0), playerLevelEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerNameTextScaleSlider, num(profile.ufBigHBPlayerNameTextScale or profile.ufBigHBPlayerTextScale, 1), playerNameEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerLevelTextScaleSlider, num(profile.ufBigHBPlayerLevelTextScale or profile.ufBigHBPlayerTextScale, 1), playerLevelEnabled, "%.2f")
+  if addonTable.ufBigHBPlayerHealAbsorbDD then addonTable.ufBigHBPlayerHealAbsorbDD:SetValue(profile.ufBigHBPlayerHealAbsorb or "on"); addonTable.ufBigHBPlayerHealAbsorbDD:SetEnabled(playerGroupEnabled) end
+  if addonTable.ufBigHBPlayerDmgAbsorbDD then addonTable.ufBigHBPlayerDmgAbsorbDD:SetValue(profile.ufBigHBPlayerDmgAbsorb or "bar_glow"); addonTable.ufBigHBPlayerDmgAbsorbDD:SetEnabled(playerGroupEnabled) end
+  if addonTable.ufBigHBPlayerHealPredDD then addonTable.ufBigHBPlayerHealPredDD:SetValue(profile.ufBigHBPlayerHealPred or "on"); addonTable.ufBigHBPlayerHealPredDD:SetEnabled(playerGroupEnabled) end
+  if addonTable.ufBigHBHideTargetNameCB then addonTable.ufBigHBHideTargetNameCB:SetChecked(profile.ufBigHBHideTargetName == true); addonTable.ufBigHBHideTargetNameCB:SetEnabled(targetGroupEnabled) end
+  if addonTable.ufBigHBHideTargetLevelCB then addonTable.ufBigHBHideTargetLevelCB:SetChecked(profile.ufBigHBHideTargetLevel == true); addonTable.ufBigHBHideTargetLevelCB:SetEnabled(targetGroupEnabled) end
+  local targetNameEnabled = targetGroupEnabled and (profile.ufBigHBHideTargetName ~= true)
+  local targetLevelEnabled = targetGroupEnabled and (profile.ufBigHBHideTargetLevel ~= true)
+  ApplyUFBigSlider(addonTable.ufBigHBTargetNameXSlider, num(profile.ufBigHBTargetNameX, 0), targetNameEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBTargetNameYSlider, num(profile.ufBigHBTargetNameY, 0), targetNameEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBTargetLevelXSlider, num(profile.ufBigHBTargetLevelX, 0), targetLevelEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBTargetLevelYSlider, num(profile.ufBigHBTargetLevelY, 0), targetLevelEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBTargetNameTextScaleSlider, num(profile.ufBigHBTargetNameTextScale or profile.ufBigHBTargetTextScale, 1), targetNameEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBigHBTargetLevelTextScaleSlider, num(profile.ufBigHBTargetLevelTextScale or profile.ufBigHBTargetTextScale, 1), targetLevelEnabled, "%.2f")
+  if addonTable.ufBigHBTargetHealAbsorbDD then addonTable.ufBigHBTargetHealAbsorbDD:SetValue(profile.ufBigHBTargetHealAbsorb or "on"); addonTable.ufBigHBTargetHealAbsorbDD:SetEnabled(targetGroupEnabled) end
+  if addonTable.ufBigHBTargetDmgAbsorbDD then addonTable.ufBigHBTargetDmgAbsorbDD:SetValue(profile.ufBigHBTargetDmgAbsorb or "bar_glow"); addonTable.ufBigHBTargetDmgAbsorbDD:SetEnabled(targetGroupEnabled) end
+  if addonTable.ufBigHBTargetHealPredDD then addonTable.ufBigHBTargetHealPredDD:SetValue(profile.ufBigHBTargetHealPred or "on"); addonTable.ufBigHBTargetHealPredDD:SetEnabled(targetGroupEnabled) end
+  if addonTable.ufBigHBHideFocusNameCB then addonTable.ufBigHBHideFocusNameCB:SetChecked(profile.ufBigHBHideFocusName == true); addonTable.ufBigHBHideFocusNameCB:SetEnabled(focusGroupEnabled) end
+  if addonTable.ufBigHBHideFocusLevelCB then addonTable.ufBigHBHideFocusLevelCB:SetChecked(profile.ufBigHBHideFocusLevel == true); addonTable.ufBigHBHideFocusLevelCB:SetEnabled(focusGroupEnabled) end
+  local focusNameEnabled = focusGroupEnabled and (profile.ufBigHBHideFocusName ~= true)
+  local focusLevelEnabled = focusGroupEnabled and (profile.ufBigHBHideFocusLevel ~= true)
+  ApplyUFBigSlider(addonTable.ufBigHBFocusNameXSlider, num(profile.ufBigHBFocusNameX, 0), focusNameEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBFocusNameYSlider, num(profile.ufBigHBFocusNameY, 0), focusNameEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBFocusLevelXSlider, num(profile.ufBigHBFocusLevelX, 0), focusLevelEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBFocusLevelYSlider, num(profile.ufBigHBFocusLevelY, 0), focusLevelEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBFocusNameTextScaleSlider, num(profile.ufBigHBFocusNameTextScale or profile.ufBigHBFocusTextScale, 1), focusNameEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBigHBFocusLevelTextScaleSlider, num(profile.ufBigHBFocusLevelTextScale or profile.ufBigHBFocusTextScale, 1), focusLevelEnabled, "%.2f")
+  if addonTable.ufBigHBFocusHealAbsorbDD then addonTable.ufBigHBFocusHealAbsorbDD:SetValue(profile.ufBigHBFocusHealAbsorb or "on"); addonTable.ufBigHBFocusHealAbsorbDD:SetEnabled(focusGroupEnabled) end
+  if addonTable.ufBigHBFocusDmgAbsorbDD then addonTable.ufBigHBFocusDmgAbsorbDD:SetValue(profile.ufBigHBFocusDmgAbsorb or "bar_glow"); addonTable.ufBigHBFocusDmgAbsorbDD:SetEnabled(focusGroupEnabled) end
+  if addonTable.ufBigHBFocusHealPredDD then addonTable.ufBigHBFocusHealPredDD:SetValue(profile.ufBigHBFocusHealPred or "on"); addonTable.ufBigHBFocusHealPredDD:SetEnabled(focusGroupEnabled) end
   if addonTable.autoRepairCB then addonTable.autoRepairCB:SetChecked(profile.autoRepair == true) end
   if addonTable.showTooltipIDsCB then addonTable.showTooltipIDsCB:SetChecked(profile.showTooltipIDs == true) end
   if addonTable.compactMinimapIconsCB then addonTable.compactMinimapIconsCB:SetChecked(profile.compactMinimapIcons == true) end
@@ -624,6 +728,7 @@ local function UpdateAllControls()
     if cur.offsetYSlider then cur.offsetYSlider:SetValue(num(profile.offsetY, 25)); cur.offsetYSlider.valueText:SetText(math.floor(num(profile.offsetY, 25))) end
     if cur.directionDD then cur.directionDD:SetValue(profile.layoutDirection or "horizontal") end
     if cur.stackAnchorDD then cur.stackAnchorDD:SetValue(profile.stackTextPosition or "BOTTOMRIGHT") end
+    if cur.buffOverlayCB then cur.buffOverlayCB:SetChecked(profile.useBuffOverlay ~= false) end
     if cur.stackXSlider then cur.stackXSlider:SetValue(num(profile.stackTextOffsetX, 0)); cur.stackXSlider.valueText:SetText(math.floor(num(profile.stackTextOffsetX, 0))) end
     if cur.stackYSlider then cur.stackYSlider:SetValue(num(profile.stackTextOffsetY, 0)); cur.stackYSlider.valueText:SetText(math.floor(num(profile.stackTextOffsetY, 0))) end
   end
@@ -631,6 +736,7 @@ local function UpdateAllControls()
   if cb1 then
     if cb1.outOfCombatCB then cb1.outOfCombatCB:SetChecked(profile.customBarOutOfCombat ~= false) end
     if cb1.gcdCB then cb1.gcdCB:SetChecked(profile.customBarShowGCD == true) end
+    if cb1.buffOverlayCB then cb1.buffOverlayCB:SetChecked(profile.customBarUseBuffOverlay ~= false) end
     if cb1.centeredCB then cb1.centeredCB:SetChecked(profile.customBarCentered == true) end
     if cb1.iconSizeSlider then cb1.iconSizeSlider:SetValue(num(profile.customBarIconSize, 30)); cb1.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBarIconSize, 30))) end
     if cb1.spacingSlider then cb1.spacingSlider:SetValue(num(profile.customBarSpacing, 2)); cb1.spacingSlider.valueText:SetText(math.floor(num(profile.customBarSpacing, 2))) end
@@ -653,6 +759,7 @@ local function UpdateAllControls()
   if cb2 then
     if cb2.outOfCombatCB then cb2.outOfCombatCB:SetChecked(profile.customBar2OutOfCombat ~= false) end
     if cb2.gcdCB then cb2.gcdCB:SetChecked(profile.customBar2ShowGCD == true) end
+    if cb2.buffOverlayCB then cb2.buffOverlayCB:SetChecked(profile.customBar2UseBuffOverlay ~= false) end
     if cb2.centeredCB then cb2.centeredCB:SetChecked(profile.customBar2Centered == true) end
     if cb2.iconSizeSlider then cb2.iconSizeSlider:SetValue(num(profile.customBar2IconSize, 30)); cb2.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBar2IconSize, 30))) end
     if cb2.spacingSlider then cb2.spacingSlider:SetValue(num(profile.customBar2Spacing, 2)); cb2.spacingSlider.valueText:SetText(math.floor(num(profile.customBar2Spacing, 2))) end
@@ -675,6 +782,7 @@ local function UpdateAllControls()
   if cb3 then
     if cb3.outOfCombatCB then cb3.outOfCombatCB:SetChecked(profile.customBar3OutOfCombat ~= false) end
     if cb3.gcdCB then cb3.gcdCB:SetChecked(profile.customBar3ShowGCD == true) end
+    if cb3.buffOverlayCB then cb3.buffOverlayCB:SetChecked(profile.customBar3UseBuffOverlay ~= false) end
     if cb3.centeredCB then cb3.centeredCB:SetChecked(profile.customBar3Centered == true) end
     if cb3.iconSizeSlider then cb3.iconSizeSlider:SetValue(num(profile.customBar3IconSize, 30)); cb3.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBar3IconSize, 30))) end
     if cb3.spacingSlider then cb3.spacingSlider:SetValue(num(profile.customBar3Spacing, 2)); cb3.spacingSlider.valueText:SetText(math.floor(num(profile.customBar3Spacing, 2))) end
@@ -1075,14 +1183,24 @@ local function InitHandlers()
       local p = GetProfile(); if p then p.ufDisableCombatText = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end end
     end
   end
-  if addonTable.disableTargetFocusBuffsCB then
-    addonTable.disableTargetFocusBuffsCB.customOnClick = function(s)
-      local p = GetProfile(); if p then p.disableTargetFocusBuffs = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end end
+  if addonTable.disableTargetBuffsCB then
+    addonTable.disableTargetBuffsCB.customOnClick = function(s)
+      local p = GetProfile(); if p then p.disableTargetBuffs = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end end
     end
   end
   if addonTable.hideEliteTextureCB then
     addonTable.hideEliteTextureCB.customOnClick = function(s)
       local p = GetProfile(); if p then p.hideEliteTexture = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end end
+    end
+  end
+  if addonTable.ufUseCustomTexturesCB then
+    addonTable.ufUseCustomTexturesCB.customOnClick = function(s)
+      local p = GetProfile(); if p then
+        p.ufUseCustomTextures = s:GetChecked()
+        if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        if not s:GetChecked() then ShowReloadPrompt("Disabling custom textures requires a reload to fully restore default textures.") end
+      end
     end
   end
   if addonTable.ufHealthTextureDD then addonTable.ufHealthTextureDD.onSelect = function(v) local p = GetProfile(); if p then p.ufHealthTexture = v; if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end end end end
@@ -1116,6 +1234,16 @@ local function InitHandlers()
       ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
     end)
   end
+  if addonTable.ufUseCustomNameColorCB then
+    addonTable.ufUseCustomNameColorCB.customOnClick = function(s)
+      local p = GetProfile(); if p then
+        p.ufUseCustomNameColor = s:GetChecked()
+        if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        if not s:GetChecked() then ShowReloadPrompt("Disabling custom name color requires a reload to fully restore default colors.") end
+      end
+    end
+  end
   if addonTable.ufNameColorBtn then
     addonTable.ufNameColorBtn:SetScript("OnClick", function()
       local p = GetProfile()
@@ -1137,6 +1265,59 @@ local function InitHandlers()
       ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
     end)
   end
+  local function ApplyUFBigHealthbarChanges()
+    local p = GetProfile()
+    if p and (p.ufBigHBPlayerEnabled == true or p.ufBigHBTargetEnabled == true or p.ufBigHBFocusEnabled == true) then
+      p.ufUseCustomTextures = false
+      p.useCustomBorderColor = true
+      p.ufUseCustomNameColor = true
+      if (p.ufCustomBorderColorR or 0) == 0 and (p.ufCustomBorderColorG or 0) == 0 and (p.ufCustomBorderColorB or 0) == 0 then
+      elseif not p.useCustomBorderColor then
+        p.ufCustomBorderColorR = 0; p.ufCustomBorderColorG = 0; p.ufCustomBorderColorB = 0
+      end
+    end
+    if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+    if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+  end
+  if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBigHBHideRealmCB then addonTable.ufBigHBHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+
+  if addonTable.ufBigHBNameMaxCharsSlider then addonTable.ufBigHBNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHidePlayerName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBHidePlayerLevelCB then addonTable.ufBigHBHidePlayerLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHidePlayerLevel = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBHideTargetNameCB then addonTable.ufBigHBHideTargetNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideTargetName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBHideTargetLevelCB then addonTable.ufBigHBHideTargetLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideTargetLevel = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBHideFocusNameCB then addonTable.ufBigHBHideFocusNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideFocusName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBHideFocusLevelCB then addonTable.ufBigHBHideFocusLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideFocusLevel = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBPlayerNameXSlider then addonTable.ufBigHBPlayerNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerNameYSlider then addonTable.ufBigHBPlayerNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerLevelXSlider then addonTable.ufBigHBPlayerLevelXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerLevelYSlider then addonTable.ufBigHBPlayerLevelYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerNameTextScaleSlider then addonTable.ufBigHBPlayerNameTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBPlayerNameTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerLevelTextScaleSlider then addonTable.ufBigHBPlayerLevelTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBPlayerLevelTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetNameXSlider then addonTable.ufBigHBTargetNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetNameYSlider then addonTable.ufBigHBTargetNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetLevelXSlider then addonTable.ufBigHBTargetLevelXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetLevelX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetLevelYSlider then addonTable.ufBigHBTargetLevelYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetLevelY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetNameTextScaleSlider then addonTable.ufBigHBTargetNameTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBTargetNameTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetLevelTextScaleSlider then addonTable.ufBigHBTargetLevelTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetLevelTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBTargetLevelTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusNameXSlider then addonTable.ufBigHBFocusNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusNameYSlider then addonTable.ufBigHBFocusNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusLevelXSlider then addonTable.ufBigHBFocusLevelXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusLevelX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusLevelYSlider then addonTable.ufBigHBFocusLevelYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusLevelY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusNameTextScaleSlider then addonTable.ufBigHBFocusNameTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBFocusNameTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusLevelTextScaleSlider then addonTable.ufBigHBFocusLevelTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusLevelTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBFocusLevelTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerHealAbsorbDD then addonTable.ufBigHBPlayerHealAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerHealAbsorb = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBPlayerDmgAbsorbDD then addonTable.ufBigHBPlayerDmgAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerDmgAbsorb = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBPlayerHealPredDD then addonTable.ufBigHBPlayerHealPredDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerHealPred = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBTargetHealAbsorbDD then addonTable.ufBigHBTargetHealAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBTargetHealAbsorb = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBTargetDmgAbsorbDD then addonTable.ufBigHBTargetDmgAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBTargetDmgAbsorb = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBTargetHealPredDD then addonTable.ufBigHBTargetHealPredDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBTargetHealPred = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBFocusHealAbsorbDD then addonTable.ufBigHBFocusHealAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBFocusHealAbsorb = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBFocusDmgAbsorbDD then addonTable.ufBigHBFocusDmgAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBFocusDmgAbsorb = val; ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBFocusHealPredDD then addonTable.ufBigHBFocusHealPredDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBFocusHealPred = val; ApplyUFBigHealthbarChanges() end end end
   if addonTable.autoRepairCB then addonTable.autoRepairCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoRepair = s:GetChecked() end end end
   if addonTable.showTooltipIDsCB then addonTable.showTooltipIDsCB.customOnClick = function(s) local p = GetProfile(); if p then p.showTooltipIDs = s:GetChecked() end; if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end end end
   if addonTable.compactMinimapIconsCB then addonTable.compactMinimapIconsCB.customOnClick = function(s) local p = GetProfile(); if p then p.compactMinimapIcons = s:GetChecked(); if p.compactMinimapIcons then p.showMinimapButton = true; if addonTable.minimapCB then addonTable.minimapCB:SetChecked(true) end; if addonTable.ShowMinimapButton then addonTable.ShowMinimapButton() end end; if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end end end end
@@ -1539,6 +1720,92 @@ local function InitHandlers()
         end
       end)
     end
+    if cur.addTrinketsBtn then
+      cur.addTrinketsBtn:SetScript("OnClick", function()
+        if not addonTable.GetSpellList then return end
+        local s, e = addonTable.GetSpellList()
+        local added = 0
+        for _, slot in ipairs({13, 14}) do
+          local trinketID = GetInventoryItemID("player", slot)
+          if trinketID then
+            local spellName = GetItemSpell(trinketID)
+            if spellName then
+              local exists = false
+              for _, id in ipairs(s) do if id == -trinketID then exists = true; break end end
+              if not exists then table.insert(s, -trinketID); added = added + 1 end
+            end
+          end
+        end
+        if added > 0 then addonTable.SetSpellList(s, e); RefreshCursorSpellList(); CreateIcons() end
+      end)
+    end
+    if cur.addRacialBtn then
+      cur.addRacialBtn:SetScript("OnClick", function()
+        if not addonTable.GetSpellList then return end
+        local s, e = addonTable.GetSpellList()
+        local added = 0
+        local racialSpells = {59752,20594,58984,20589,28880,68992,256948,255647,265221,287712,312924,20572,33697,33702,7744,20577,20549,26297,28730,25046,50613,69179,80483,129597,155145,202719,232633,69041,69070,107079,260364,255654,274738,291944,281954,312411,368970,357214,436717}
+        for _, spellID in ipairs(racialSpells) do
+          if IsPlayerSpell(spellID) then
+            local exists = false
+            for _, id in ipairs(s) do if id == spellID then exists = true; break end end
+            if not exists then table.insert(s, spellID); added = added + 1 end
+          end
+        end
+        if added > 0 then addonTable.SetSpellList(s, e); RefreshCursorSpellList(); CreateIcons() end
+      end)
+    end
+    if cur.addPotionBtn then
+      cur.addPotionBtn:SetScript("OnClick", function()
+        if not addonTable.GetSpellList then return end
+        local s, e = addonTable.GetSpellList()
+        local added = 0
+        for bag = 0, 4 do
+          local numSlots = C_Container.GetContainerNumSlots(bag)
+          for slot = 1, numSlots do
+            local itemID = C_Container.GetContainerItemID(bag, slot)
+            if itemID then
+              local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(itemID)
+              if classID == 0 and subClassID == 1 then
+                local spellName = GetItemSpell(itemID)
+                if spellName then
+                  local exists = false
+                  for _, id in ipairs(s) do if id == -itemID then exists = true; break end end
+                  if not exists then table.insert(s, -itemID); added = added + 1 end
+                end
+              end
+            end
+          end
+        end
+        local _, _, playerClassID = UnitClass("player")
+        local hsID = playerClassID == 9 and 224464 or 5512
+        local hsExists = false
+        for _, id in ipairs(s) do if id == -hsID then hsExists = true; break end end
+        if not hsExists then table.insert(s, -hsID); added = added + 1 end
+        if added > 0 then addonTable.SetSpellList(s, e); RefreshCursorSpellList(); CreateIcons() end
+      end)
+    end
+    if cur.addGCSBtn then
+      cur.addGCSBtn:SetScript("OnClick", function()
+        if not addonTable.GetSpellList then return end
+        local s, e = addonTable.GetSpellList()
+        local gcsID = 188152
+        local found = false
+        for bag = 0, 4 do
+          local numSlots = C_Container.GetContainerNumSlots(bag)
+          for slot = 1, numSlots do
+            local itemID = C_Container.GetContainerItemID(bag, slot)
+            if itemID == gcsID then found = true; break end
+          end
+          if found then break end
+        end
+        if found then
+          local exists = false
+          for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end
+          if not exists then table.insert(s, -gcsID); addonTable.SetSpellList(s, e); RefreshCursorSpellList(); CreateIcons() end
+        end
+      end)
+    end
     if cur.addBox then
       cur.addBox:SetScript("OnEnterPressed", function()
         if cur.addSpellBtn then cur.addSpellBtn:Click() end
@@ -1546,6 +1813,7 @@ local function InitHandlers()
       end)
     end
     if cur.stackAnchorDD then cur.stackAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.stackTextPosition = v; if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end end end end
+    if cur.buffOverlayCB then cur.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.useBuffOverlay = s:GetChecked(); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end end
     if cur.stackXSlider then cur.stackXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.stackTextOffsetX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end; if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
     if cur.stackYSlider then cur.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.stackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end; if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
     if tabFrames and tabFrames[2] then
@@ -1556,6 +1824,7 @@ local function InitHandlers()
   if cb1 then
     if cb1.outOfCombatCB then cb1.outOfCombatCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarOutOfCombat = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
     if cb1.gcdCB then cb1.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
+    if cb1.buffOverlayCB then cb1.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarUseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
     if cb1.centeredCB then cb1.centeredCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -1600,6 +1869,10 @@ local function InitHandlers()
     if cb1.stackYSlider then cb1.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBarStackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBarStackTextPositions then addonTable.UpdateCustomBarStackTextPositions() end end end) end
     if cb1.addSpellBtn then cb1.addSpellBtn:SetScript("OnClick", function() local id = tonumber(cb1.addBox:GetText()); if id and addonTable.GetCustomBarSpells then local s,e = addonTable.GetCustomBarSpells(); table.insert(s, id); table.insert(e, true); addonTable.SetCustomBarSpells(s,e); cb1.addBox:SetText(""); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end) end
     if cb1.addItemBtn then cb1.addItemBtn:SetScript("OnClick", function() local id = tonumber(cb1.addBox:GetText()); if id and addonTable.GetCustomBarSpells then local s,e = addonTable.GetCustomBarSpells(); table.insert(s, -id); table.insert(e, true); addonTable.SetCustomBarSpells(s,e); cb1.addBox:SetText(""); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end) end
+    if cb1.addTrinketsBtn then cb1.addTrinketsBtn:SetScript("OnClick", function() if not addonTable.GetCustomBarSpells then return end; local s,e = addonTable.GetCustomBarSpells(); local added = 0; for _, slot in ipairs({13, 14}) do local trinketID = GetInventoryItemID("player", slot); if trinketID then local spellName = GetItemSpell(trinketID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -trinketID then exists = true; break end end; if not exists then table.insert(s, -trinketID); table.insert(e, true); added = added + 1 end end end end; if added > 0 then addonTable.SetCustomBarSpells(s,e); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end) end
+    if cb1.addRacialBtn then cb1.addRacialBtn:SetScript("OnClick", function() if not addonTable.GetCustomBarSpells then return end; local s,e = addonTable.GetCustomBarSpells(); local added = 0; local racialSpells = {59752,20594,58984,20589,28880,68992,256948,255647,265221,287712,312924,20572,33697,33702,7744,20577,20549,26297,28730,25046,50613,69179,80483,129597,155145,202719,232633,69041,69070,107079,260364,255654,274738,291944,281954,312411,368970,357214,436717}; for _, spellID in ipairs(racialSpells) do if IsPlayerSpell(spellID) then local exists = false; for _, id in ipairs(s) do if id == spellID then exists = true; break end end; if not exists then table.insert(s, spellID); table.insert(e, true); added = added + 1 end end end; if added > 0 then addonTable.SetCustomBarSpells(s,e); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end) end
+    if cb1.addPotionBtn then cb1.addPotionBtn:SetScript("OnClick", function() if not addonTable.GetCustomBarSpells then return end; local s,e = addonTable.GetCustomBarSpells(); local added = 0; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID then local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(itemID); if classID == 0 and subClassID == 1 then local spellName = GetItemSpell(itemID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -itemID then exists = true; break end end; if not exists then table.insert(s, -itemID); table.insert(e, true); added = added + 1 end end end end end end; local _, _, pClassID = UnitClass("player"); local hsID = pClassID == 9 and 224464 or 5512; local hsExists = false; for _, id in ipairs(s) do if id == -hsID then hsExists = true; break end end; if not hsExists then table.insert(s, -hsID); table.insert(e, true); added = added + 1 end; if added > 0 then addonTable.SetCustomBarSpells(s,e); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end) end
+    if cb1.addGCSBtn then cb1.addGCSBtn:SetScript("OnClick", function() if not addonTable.GetCustomBarSpells then return end; local s,e = addonTable.GetCustomBarSpells(); local gcsID = 188152; local found = false; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID == gcsID then found = true; break end end; if found then break end end; if found then local exists = false; for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end; if not exists then table.insert(s, -gcsID); table.insert(e, true); addonTable.SetCustomBarSpells(s,e); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end) end
     if cb1.addBox then cb1.addBox:SetScript("OnEnterPressed", function() if cb1.addSpellBtn then cb1.addSpellBtn:Click() end; cb1.addBox:ClearFocus() end) end
     if tabFrames and tabFrames[3] then SetupDragDrop(tabFrames[3], addonTable.GetCustomBarSpells, addonTable.SetCustomBarSpells, RefreshCB1SpellList, addonTable.CreateCustomBarIcons, addonTable.UpdateCustomBar) end
   end
@@ -1607,6 +1880,7 @@ local function InitHandlers()
   if cb2 then
     if cb2.outOfCombatCB then cb2.outOfCombatCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2OutOfCombat = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
     if cb2.gcdCB then cb2.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
+    if cb2.buffOverlayCB then cb2.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
     if cb2.centeredCB then cb2.centeredCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -1651,6 +1925,10 @@ local function InitHandlers()
     if cb2.stackYSlider then cb2.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar2StackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar2StackTextPositions then addonTable.UpdateCustomBar2StackTextPositions() end end end) end
     if cb2.addSpellBtn then cb2.addSpellBtn:SetScript("OnClick", function() local id = tonumber(cb2.addBox:GetText()); if id and addonTable.GetCustomBar2Spells then local s,e = addonTable.GetCustomBar2Spells(); table.insert(s, id); table.insert(e, true); addonTable.SetCustomBar2Spells(s,e); cb2.addBox:SetText(""); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end) end
     if cb2.addItemBtn then cb2.addItemBtn:SetScript("OnClick", function() local id = tonumber(cb2.addBox:GetText()); if id and addonTable.GetCustomBar2Spells then local s,e = addonTable.GetCustomBar2Spells(); table.insert(s, -id); table.insert(e, true); addonTable.SetCustomBar2Spells(s,e); cb2.addBox:SetText(""); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end) end
+    if cb2.addTrinketsBtn then cb2.addTrinketsBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar2Spells then return end; local s,e = addonTable.GetCustomBar2Spells(); local added = 0; for _, slot in ipairs({13, 14}) do local trinketID = GetInventoryItemID("player", slot); if trinketID then local spellName = GetItemSpell(trinketID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -trinketID then exists = true; break end end; if not exists then table.insert(s, -trinketID); table.insert(e, true); added = added + 1 end end end end; if added > 0 then addonTable.SetCustomBar2Spells(s,e); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end) end
+    if cb2.addRacialBtn then cb2.addRacialBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar2Spells then return end; local s,e = addonTable.GetCustomBar2Spells(); local added = 0; local racialSpells = {59752,20594,58984,20589,28880,68992,256948,255647,265221,287712,312924,20572,33697,33702,7744,20577,20549,26297,28730,25046,50613,69179,80483,129597,155145,202719,232633,69041,69070,107079,260364,255654,274738,291944,281954,312411,368970,357214,436717}; for _, spellID in ipairs(racialSpells) do if IsPlayerSpell(spellID) then local exists = false; for _, id in ipairs(s) do if id == spellID then exists = true; break end end; if not exists then table.insert(s, spellID); table.insert(e, true); added = added + 1 end end end; if added > 0 then addonTable.SetCustomBar2Spells(s,e); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end) end
+    if cb2.addPotionBtn then cb2.addPotionBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar2Spells then return end; local s,e = addonTable.GetCustomBar2Spells(); local added = 0; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID then local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(itemID); if classID == 0 and subClassID == 1 then local spellName = GetItemSpell(itemID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -itemID then exists = true; break end end; if not exists then table.insert(s, -itemID); table.insert(e, true); added = added + 1 end end end end end end; local _, _, pClassID = UnitClass("player"); local hsID = pClassID == 9 and 224464 or 5512; local hsExists = false; for _, id in ipairs(s) do if id == -hsID then hsExists = true; break end end; if not hsExists then table.insert(s, -hsID); table.insert(e, true); added = added + 1 end; if added > 0 then addonTable.SetCustomBar2Spells(s,e); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end) end
+    if cb2.addGCSBtn then cb2.addGCSBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar2Spells then return end; local s,e = addonTable.GetCustomBar2Spells(); local gcsID = 188152; local found = false; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID == gcsID then found = true; break end end; if found then break end end; if found then local exists = false; for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end; if not exists then table.insert(s, -gcsID); table.insert(e, true); addonTable.SetCustomBar2Spells(s,e); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end) end
     if cb2.addBox then cb2.addBox:SetScript("OnEnterPressed", function() if cb2.addSpellBtn then cb2.addSpellBtn:Click() end; cb2.addBox:ClearFocus() end) end
     if tabFrames and tabFrames[4] then SetupDragDrop(tabFrames[4], addonTable.GetCustomBar2Spells, addonTable.SetCustomBar2Spells, RefreshCB2SpellList, addonTable.CreateCustomBar2Icons, addonTable.UpdateCustomBar2) end
   end
@@ -1658,6 +1936,7 @@ local function InitHandlers()
   if cb3 then
     if cb3.outOfCombatCB then cb3.outOfCombatCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3OutOfCombat = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
     if cb3.gcdCB then cb3.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
+    if cb3.buffOverlayCB then cb3.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
     if cb3.centeredCB then cb3.centeredCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -1702,6 +1981,10 @@ local function InitHandlers()
     if cb3.stackYSlider then cb3.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar3StackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar3StackTextPositions then addonTable.UpdateCustomBar3StackTextPositions() end end end) end
     if cb3.addSpellBtn then cb3.addSpellBtn:SetScript("OnClick", function() local id = tonumber(cb3.addBox:GetText()); if id and addonTable.GetCustomBar3Spells then local s,e = addonTable.GetCustomBar3Spells(); table.insert(s, id); table.insert(e, true); addonTable.SetCustomBar3Spells(s,e); cb3.addBox:SetText(""); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
     if cb3.addItemBtn then cb3.addItemBtn:SetScript("OnClick", function() local id = tonumber(cb3.addBox:GetText()); if id and addonTable.GetCustomBar3Spells then local s,e = addonTable.GetCustomBar3Spells(); table.insert(s, -id); table.insert(e, true); addonTable.SetCustomBar3Spells(s,e); cb3.addBox:SetText(""); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb3.addTrinketsBtn then cb3.addTrinketsBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar3Spells then return end; local s,e = addonTable.GetCustomBar3Spells(); local added = 0; for _, slot in ipairs({13, 14}) do local trinketID = GetInventoryItemID("player", slot); if trinketID then local spellName = GetItemSpell(trinketID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -trinketID then exists = true; break end end; if not exists then table.insert(s, -trinketID); table.insert(e, true); added = added + 1 end end end end; if added > 0 then addonTable.SetCustomBar3Spells(s,e); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb3.addRacialBtn then cb3.addRacialBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar3Spells then return end; local s,e = addonTable.GetCustomBar3Spells(); local added = 0; local racialSpells = {59752,20594,58984,20589,28880,68992,256948,255647,265221,287712,312924,20572,33697,33702,7744,20577,20549,26297,28730,25046,50613,69179,80483,129597,155145,202719,232633,69041,69070,107079,260364,255654,274738,291944,281954,312411,368970,357214,436717}; for _, spellID in ipairs(racialSpells) do if IsPlayerSpell(spellID) then local exists = false; for _, id in ipairs(s) do if id == spellID then exists = true; break end end; if not exists then table.insert(s, spellID); table.insert(e, true); added = added + 1 end end end; if added > 0 then addonTable.SetCustomBar3Spells(s,e); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb3.addPotionBtn then cb3.addPotionBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar3Spells then return end; local s,e = addonTable.GetCustomBar3Spells(); local added = 0; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID then local _, _, _, _, _, classID, subClassID = GetItemInfoInstant(itemID); if classID == 0 and subClassID == 1 then local spellName = GetItemSpell(itemID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -itemID then exists = true; break end end; if not exists then table.insert(s, -itemID); table.insert(e, true); added = added + 1 end end end end end end; local _, _, pClassID = UnitClass("player"); local hsID = pClassID == 9 and 224464 or 5512; local hsExists = false; for _, id in ipairs(s) do if id == -hsID then hsExists = true; break end end; if not hsExists then table.insert(s, -hsID); table.insert(e, true); added = added + 1 end; if added > 0 then addonTable.SetCustomBar3Spells(s,e); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb3.addGCSBtn then cb3.addGCSBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar3Spells then return end; local s,e = addonTable.GetCustomBar3Spells(); local gcsID = 188152; local found = false; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID == gcsID then found = true; break end end; if found then break end end; if found then local exists = false; for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end; if not exists then table.insert(s, -gcsID); table.insert(e, true); addonTable.SetCustomBar3Spells(s,e); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end) end
     if cb3.addBox then cb3.addBox:SetScript("OnEnterPressed", function() if cb3.addSpellBtn then cb3.addSpellBtn:Click() end; cb3.addBox:ClearFocus() end) end
     if tabFrames and tabFrames[5] then SetupDragDrop(tabFrames[5], addonTable.GetCustomBar3Spells, addonTable.SetCustomBar3Spells, RefreshCB3SpellList, addonTable.CreateCustomBar3Icons, addonTable.UpdateCustomBar3) end
   end
@@ -1956,17 +2239,17 @@ local function InitHandlers()
                "customBarIconSize", "customBarSpacing", "customBarCdTextScale",
                "customBarStackTextScale", "customBarDirection", "customBarGrowth", "customBarAnchorPoint", "customBarAnchorFrame",
                "customBarX", "customBarY", "customBarCentered", "customBarCooldownMode", "customBarShowMode", "customBarIconsPerRow",
-               "customBarOutOfCombat", "customBarShowGCD", "customBarStackTextPosition",
+               "customBarOutOfCombat", "customBarShowGCD", "customBarUseBuffOverlay", "customBarStackTextPosition",
                "customBarStackTextOffsetX", "customBarStackTextOffsetY",
                "customBar2IconSize", "customBar2Spacing", "customBar2CdTextScale",
                "customBar2StackTextScale", "customBar2Direction", "customBar2Growth", "customBar2AnchorPoint", "customBar2AnchorFrame",
                "customBar2X", "customBar2Y", "customBar2Centered", "customBar2CooldownMode", "customBar2ShowMode", "customBar2IconsPerRow",
-               "customBar2OutOfCombat", "customBar2ShowGCD", "customBar2StackTextPosition",
+               "customBar2OutOfCombat", "customBar2ShowGCD", "customBar2UseBuffOverlay", "customBar2StackTextPosition",
                "customBar2StackTextOffsetX", "customBar2StackTextOffsetY",
                "customBar3IconSize", "customBar3Spacing", "customBar3CdTextScale",
                "customBar3StackTextScale", "customBar3Direction", "customBar3Growth", "customBar3AnchorPoint", "customBar3AnchorFrame",
                "customBar3X", "customBar3Y", "customBar3Centered", "customBar3CooldownMode", "customBar3ShowMode", "customBar3IconsPerRow",
-               "customBar3OutOfCombat", "customBar3ShowGCD", "customBar3StackTextPosition",
+               "customBar3OutOfCombat", "customBar3ShowGCD", "customBar3UseBuffOverlay", "customBar3StackTextPosition",
                "customBar3StackTextOffsetX", "customBar3StackTextOffsetY"},
     qol = {"selfHighlightShape", "selfHighlightVisibility", "selfHighlightSize", "selfHighlightY",
            "selfHighlightThickness", "selfHighlightOutline", "selfHighlightColorR", "selfHighlightColorG", "selfHighlightColorB",
@@ -1989,7 +2272,7 @@ local function InitHandlers()
     cursor = {"iconSize", "iconSpacing", "offsetX", "offsetY", "cdTextScale", "stackTextScale",
               "layoutDirection", "growDirection", "iconsPerRow",
               "numColumns", "showGCD", "cursorShowGCD", "iconsCombatOnly", "cursorCombatOnly",
-              "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "cooldownIconMode", "showMode",
+              "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "useBuffOverlay", "cooldownIconMode", "showMode",
               "showBeforeCdEnds", "glowWhenReady", "showInCombatOnly"},
     blizzcdm = {"disableBlizzCDM", "useBuffBar", "useEssentialBar",
                 "essentialBarSpacing", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
@@ -2038,11 +2321,26 @@ local function InitHandlers()
                "playerDebuffSortDirection", "playerDebuffIconsPerRow", "playerDebuffRowGrowDirection",
                "playerDebuffBorderSize"},
     uf = {"enablePlayerDebuffs",
-               "ufCustomizeHealth", "ufClassColor", "ufHealthTexture",
+               "ufClassColor", "ufUseCustomTextures", "ufHealthTexture",
                "ufDisableGlows", "ufDisableCombatText",
-               "disableTargetFocusBuffs", "hideEliteTexture",
+               "disableTargetBuffs", "hideEliteTexture",
                "useCustomBorderColor", "ufCustomBorderColorR", "ufCustomBorderColorG", "ufCustomBorderColorB",
-               "ufNameColorR", "ufNameColorG", "ufNameColorB",
+               "ufUseCustomNameColor", "ufNameColorR", "ufNameColorG", "ufNameColorB",
+               "ufBigHBPlayerEnabled", "ufBigHBTargetEnabled", "ufBigHBFocusEnabled",
+               "ufBigHBPlayerHealAbsorb", "ufBigHBPlayerDmgAbsorb", "ufBigHBPlayerHealPred",
+               "ufBigHBTargetHealAbsorb", "ufBigHBTargetDmgAbsorb", "ufBigHBTargetHealPred",
+               "ufBigHBFocusHealAbsorb", "ufBigHBFocusDmgAbsorb", "ufBigHBFocusHealPred",
+               "ufBigHBHidePlayerName", "ufBigHBHidePlayerLevel",
+               "ufBigHBPlayerNameX", "ufBigHBPlayerNameY", "ufBigHBPlayerLevelX", "ufBigHBPlayerLevelY",
+               "ufBigHBPlayerNameTextScale", "ufBigHBPlayerLevelTextScale",
+               "ufBigHBHideTargetName", "ufBigHBHideTargetLevel",
+               "ufBigHBTargetNameX", "ufBigHBTargetNameY", "ufBigHBTargetLevelX", "ufBigHBTargetLevelY",
+               "ufBigHBTargetNameTextScale", "ufBigHBTargetLevelTextScale",
+               "ufBigHBHideFocusName", "ufBigHBHideFocusLevel",
+               "ufBigHBFocusNameX", "ufBigHBFocusNameY", "ufBigHBFocusLevelX", "ufBigHBFocusLevelY",
+               "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
+               "ufBigHBNameMaxChars",
+               "ufBigHBHideRealm",
                },
   }
   local keyToCategory = {}
@@ -2153,7 +2451,7 @@ local function InitHandlers()
                         focusCastbarCentered = true,
                         focusCastbarShowIcon = true, focusCastbarShowTime = true, focusCastbarShowSpellName = true, focusCastbarShowTicks = true,
                         enablePlayerDebuffs = true,
-                        ufCustomizeHealth = true, ufClassColor = true, ufDisableGlows = true, ufDisableCombatText = true,
+                        ufClassColor = true, ufUseCustomTextures = true, ufUseCustomNameColor = true, ufDisableGlows = true, ufDisableCombatText = true,
                         useBiggerPlayerHealthframe = true, useBiggerPlayerHealthframeClassColor = true,
                         useBiggerPlayerHealthframeDisableGlows = true, useBiggerPlayerHealthframeDisableCombatText = true,
                       }
@@ -2168,7 +2466,6 @@ local function InitHandlers()
                   end
                 end
                 local renamedKeys = {
-                  useBiggerPlayerHealthframe = "ufCustomizeHealth",
                   useBiggerPlayerHealthframeClassColor = "ufClassColor",
                   useBiggerPlayerHealthframeTexture = "ufHealthTexture",
                   useBiggerPlayerHealthframeDisableGlows = "ufDisableGlows",
@@ -2432,6 +2729,9 @@ local function InitHandlers()
           C_Timer.After(0.1, function()
             if addonTable.LoadCastbarValues then addonTable.LoadCastbarValues() end
           end)
+          if not wasEnabled then
+            ShowReloadPrompt("Enabling the custom castbar requires a reload for full effect.", "Reload Now", "Later")
+          end
         else
           if addonTable.StopCastbarTicker then addonTable.StopCastbarTicker() end
           if addonTable.StopCastbarPreview then addonTable.StopCastbarPreview() end
@@ -2484,6 +2784,7 @@ local function InitHandlers()
       local p = GetProfile(); if p then
         p.enableUnitFrameCustomization = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
+        if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
         if s:GetChecked() and addonTable.SwitchToTab then
           addonTable.SwitchToTab(addonTable.TAB_UF or 11)
         end

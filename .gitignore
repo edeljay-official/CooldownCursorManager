@@ -12,3 +12,7 @@ desktop.ini
 
 # Temp/backup files
 *.bak
+
+# Dev files
+dev/
+nul
