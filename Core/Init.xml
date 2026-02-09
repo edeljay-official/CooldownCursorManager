@@ -2,4 +2,5 @@
 	<!-- Core namespace and utilities -->
 	<Script file="ccm_globals.lua"/>
 	<Script file="ccm_defaults.lua"/>
+	<Script file="ccm_spelllist.lua"/>
 </Ui>

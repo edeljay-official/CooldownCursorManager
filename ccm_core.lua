@@ -125,6 +125,11 @@ local State = {
   combatStatusLastEntering = true,
 }
 addonTable.State = State
+addonTable.UF_BIG_HB_TEXT_BASE = {
+  player = { nameX = 36, nameY = -2, levelX = 0, levelY = -2 },
+  target = { nameX = -4, nameY = 8, levelX = 2, levelY = -2 },
+  focus = { nameX = 2, nameY = 8, levelX = 3, levelY = -2 },
+}
 State.tmpChildren = {}
 State.tmpIconChildren = {}
 State.tmpRegions = {}
@@ -149,7 +154,7 @@ addonTable.CollectRegions = function(frame, out)
   end
   return count
 end
-local CLASS_POWER_CONFIG = {
+addonTable.CLASS_POWER_CONFIG = {
   PALADIN = {default = {powerType = 9, segments = true}},
   ROGUE = {default = {powerType = 4, segments = true}},
   DRUID = {default = {powerType = 4, segments = true, requireForm = 1}},
@@ -164,7 +169,7 @@ local CLASS_POWER_CONFIG = {
 local function GetClassPowerConfig()
   local _, playerClass = UnitClass("player")
   if not playerClass then return nil end
-  local classConfig = CLASS_POWER_CONFIG[playerClass]
+  local classConfig = addonTable.CLASS_POWER_CONFIG[playerClass]
   if not classConfig then return nil end
   if classConfig.default then
     local config = classConfig.default
@@ -180,6 +185,7 @@ local function GetClassPowerConfig()
   if not specID then return nil end
   return classConfig[specID]
 end
+addonTable.GetClassPowerConfig = GetClassPowerConfig
 local GetGlobalFont
 local IsClassPowerRedundant
 IsClassPowerRedundant = function()
@@ -215,6 +221,36 @@ local function GetChargeSpellDesaturation(spellID)
   return 0
 end
 local ChargeSpellCache = {}
+local BuffDurationCache = {}
+local ActiveBuffStart = {}
+local function ResolveBuffDurations()
+  wipe(BuffDurationCache)
+  local seed = addonTable.BuffDurationSeed
+  if not seed then return end
+  for auraID, dur in pairs(seed) do
+    BuffDurationCache[auraID] = dur
+  end
+  local overrides = addonTable.BuffTalentOverrides
+  if not overrides then return end
+  for auraID, talents in pairs(overrides) do
+    for _, entry in ipairs(talents) do
+      if IsPlayerSpell(entry[1]) then
+        BuffDurationCache[auraID] = (BuffDurationCache[auraID] or 0) + entry[2]
+      end
+    end
+  end
+end
+local function GetActiveBuffOverlay(spellID)
+  local duration = BuffDurationCache[spellID]
+  if not duration or duration <= 0 then return nil, nil end
+  local startTime = ActiveBuffStart[spellID]
+  if not startTime then return nil, nil end
+  if GetTime() >= startTime + duration then
+    ActiveBuffStart[spellID] = nil
+    return nil, nil
+  end
+  return startTime, duration
+end
 local function IsRealChargeSpell(charges, spellID)
   if not charges then
     if spellID then ChargeSpellCache[spellID] = false end
@@ -239,6 +275,70 @@ local function IsRealChargeSpell(charges, spellID)
       ChargeSpellCache[spellID] = isChargeSpell
     end
     return isChargeSpell
+  end
+end
+local function ScanSpellBookCharges()
+  if not C_Spell or not C_Spell.GetSpellCharges then return end
+  local function cacheSpell(id)
+    if not id or type(id) ~= "number" or id <= 0 then return end
+    if ChargeSpellCache[id] ~= nil then return end
+    local charges = C_Spell.GetSpellCharges(id)
+    if charges then
+      IsRealChargeSpell(charges, id)
+    end
+  end
+  local function cacheWithOverride(id)
+    if not id or type(id) ~= "number" or id <= 0 then return end
+    cacheSpell(id)
+    local overrideID
+    if FindSpellOverrideByID then
+      local ok, oid = pcall(FindSpellOverrideByID, id)
+      if ok and type(oid) == "number" and oid > 0 and oid ~= id then overrideID = oid end
+    end
+    if not overrideID and C_SpellBook and C_SpellBook.FindSpellOverrideByID then
+      local ok, oid = pcall(C_SpellBook.FindSpellOverrideByID, id)
+      if ok and type(oid) == "number" and oid > 0 and oid ~= id then overrideID = oid end
+    end
+    if overrideID then
+      cacheSpell(overrideID)
+      if ChargeSpellCache[id] == nil and ChargeSpellCache[overrideID] ~= nil then
+        ChargeSpellCache[id] = ChargeSpellCache[overrideID]
+      end
+      if ChargeSpellCache[overrideID] == nil and ChargeSpellCache[id] ~= nil then
+        ChargeSpellCache[overrideID] = ChargeSpellCache[id]
+      end
+    end
+  end
+  if C_SpellBook and C_SpellBook.GetNumSpellBookItems then
+    local numSpells = C_SpellBook.GetNumSpellBookItems(Enum.SpellBookSpellBank.Player) or 0
+    for i = 1, numSpells do
+      local spellID = C_SpellBook.GetSpellBookItemSpellID and C_SpellBook.GetSpellBookItemSpellID(i, Enum.SpellBookSpellBank.Player)
+      if spellID then cacheWithOverride(spellID) end
+    end
+  end
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if profile and profile.trackedSpells then
+    for _, entryID in ipairs(profile.trackedSpells) do
+      if type(entryID) == "number" and entryID > 0 then
+        cacheWithOverride(entryID)
+      end
+    end
+  end
+  if CooldownCursorManagerDB and CooldownCursorManagerDB.characterCustomBarSpells then
+    local pName = UnitName and UnitName("player")
+    local pRealm = GetRealmName and GetRealmName()
+    local charKey = (pName and pRealm) and (pName .. "-" .. pRealm) or nil
+    if charKey and CooldownCursorManagerDB.characterCustomBarSpells[charKey] then
+      local specID = GetSpecialization and GetSpecialization() or 0
+      local specSpells = CooldownCursorManagerDB.characterCustomBarSpells[charKey][specID]
+      if specSpells then
+        for _, entryID in ipairs(specSpells) do
+          if type(entryID) == "number" and entryID > 0 then
+            cacheWithOverride(entryID)
+          end
+        end
+      end
+    end
   end
 end
 local function GetSafeCurrentCharges(charges, spellID, cooldownFrame, originalSpellID)
@@ -357,12 +457,6 @@ local function GetSafeCurrentCharges(charges, spellID, cooldownFrame, originalSp
             if okAppsValid and appsValid then
               return apps
             end
-            local okPoint, point = pcall(function() return aura.points and aura.points[1] end)
-            local pointNum = okPoint and tonumber(point) or nil
-            local okPointValid, pointValid = pcall(function() return type(pointNum) == "number" and pointNum > 0 end)
-            if okPointValid and pointValid then
-              return pointNum
-            end
           end
         end
       end
@@ -412,13 +506,6 @@ local function GetSafeCurrentCharges(charges, spellID, cooldownFrame, originalSp
         local okApps, apps = pcall(tonumber, aura.applications)
         if okApps and type(apps) == "number" and apps > 0 then
           return apps
-        end
-        local okPoints, point1 = pcall(function()
-          return aura.points and aura.points[1]
-        end)
-        local pointValue = okPoints and tonumber(point1) or nil
-        if type(pointValue) == "number" and pointValue > 0 then
-          return pointValue
         end
       end
     end
@@ -608,15 +695,15 @@ local defaults = {
       combatStatusLeaveColorR = 1,
       combatStatusLeaveColorG = 1,
       combatStatusLeaveColorB = 1,
-      ufCustomizeHealth = false,
       ufClassColor = false,
+      ufUseCustomTextures = false,
       ufHealthTexture = "solid",
       ufCustomBorderColorR = 0,
       ufCustomBorderColorG = 0,
       ufCustomBorderColorB = 0,
       ufDisableGlows = false,
       ufDisableCombatText = false,
-      disableTargetFocusBuffs = false,
+      disableTargetBuffs = false,
       hideEliteTexture = false,
       cdFont = "default",
       usePersonalResourceBar = false,
@@ -1128,6 +1215,11 @@ minimapButton:SetScript("OnLeave", function(self)
   addonTable.ScheduleCompactMinimapAutoHide()
 end)
 function addonTable.ShowMinimapButton()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if profile and profile.showMinimapButton == false and not (profile.compactMinimapIcons == true) then
+    minimapButton:Hide()
+    return
+  end
   minimapButton:Show()
   addonTable.UpdateMinimapButtonPosition()
   if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
@@ -1155,33 +1247,14 @@ addonTable.SetupTooltipIDHooks = function()
     local sid = SafeToNumber(spellID)
     if not sid then return false end
     tt:AddLine(string.format("|cff888888SpellID:|r %d", sid), 0.75, 0.75, 0.75)
-    local spellIconID
-    if C_Spell and C_Spell.GetSpellInfo then
-      local spellInfo = C_Spell.GetSpellInfo(sid)
-      if spellInfo then
-        spellIconID = SafeToNumber(spellInfo.iconID)
-      end
-    end
-    if not spellIconID and GetSpellTexture then
-      spellIconID = SafeToNumber(GetSpellTexture(sid))
-    end
-    if spellIconID then
-      tt:AddLine(string.format("|cff888888Spell IconID:|r %d", spellIconID), 0.75, 0.75, 0.75)
-    end
     return true
   end
   local function AddItemLines(tt, itemIDOrLink)
     if not GetItemInfoInstant then return false end
-    local itemID, _, _, _, itemIconID = GetItemInfoInstant(itemIDOrLink)
+    local itemID = GetItemInfoInstant(itemIDOrLink)
     local iid = SafeToNumber(itemID)
-    local iconID = SafeToNumber(itemIconID)
-    if not iid and not iconID then return false end
-    if iid then
-      tt:AddLine(string.format("|cff888888ItemID:|r %d", iid), 0.75, 0.75, 0.75)
-    end
-    if iconID then
-      tt:AddLine(string.format("|cff888888Item IconID:|r %d", iconID), 0.75, 0.75, 0.75)
-    end
+    if not iid then return false end
+    tt:AddLine(string.format("|cff888888ItemID:|r %d", iid), 0.75, 0.75, 0.75)
     return true
   end
   local function AddTooltipIDs(tt, tooltipData)
@@ -1213,6 +1286,8 @@ addonTable.SetupTooltipIDHooks = function()
         if dtype == Enum.TooltipDataType.Item and AddItemLines(tt, byID) then
           added = true
         elseif dtype == Enum.TooltipDataType.Spell and AddSpellLines(tt, byID) then
+          added = true
+        elseif Enum.TooltipDataType.UnitAura and dtype == Enum.TooltipDataType.UnitAura and AddSpellLines(tt, byID) then
           added = true
         end
       end
@@ -1370,6 +1445,9 @@ addonTable.SetupTooltipIDHooks = function()
     if Enum.TooltipDataType.Spell then
       TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.Spell, AddTooltipIDs)
     end
+    if Enum.TooltipDataType.UnitAura then
+      TooltipDataProcessor.AddTooltipPostCall(Enum.TooltipDataType.UnitAura, AddTooltipIDs)
+    end
   end
   addonTable.tooltipIDHooksInstalled = true
 end
@@ -1424,6 +1502,7 @@ local function AddIconBorder(icon, borderSize)
   icon.borderRight:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", 0, 0)
   icon.borderRight:SetWidth(borderSize)
 end
+addonTable.AddIconBorder = AddIconBorder
 local function IsRealNumber(value)
   if value == nil then return false end
   local ok = pcall(function()
@@ -1431,14 +1510,17 @@ local function IsRealNumber(value)
   end)
   return ok
 end
+addonTable.IsRealNumber = IsRealNumber
 local function IsShowModeActive(mode)
   if not mode or mode == "always" then return true end
+  if UnitAffectingCombat("player") then return true end
   local inInstance, instanceType = IsInInstance()
   if mode == "raid" then return inInstance and instanceType == "raid" end
   if mode == "dungeon" then return inInstance and instanceType == "party" end
   if mode == "raidanddungeon" then return inInstance and (instanceType == "raid" or instanceType == "party") end
   return true
 end
+addonTable.IsShowModeActive = IsShowModeActive
 local function IsOnlyGCD(startTime, duration)
   if not IsRealNumber(startTime) or not IsRealNumber(duration) then return false end
   if startTime == 0 or duration == 0 then return false end
@@ -1455,7 +1537,7 @@ end
 local customBarFrame = CreateFrame("Frame", "CCMCustomBar", UIParent, "BackdropTemplate")
 customBarFrame:SetSize(200, 50)
 customBarFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
-customBarFrame:SetFrameStrata("TOOLTIP")
+customBarFrame:SetFrameStrata("MEDIUM")
 customBarFrame:SetClampedToScreen(true)
 customBarFrame:SetMovable(false)
 customBarFrame:EnableMouse(true)
@@ -1497,7 +1579,7 @@ end)
 local customBar2Frame = CreateFrame("Frame", "CCMCustomBar2", UIParent, "BackdropTemplate")
 customBar2Frame:SetSize(200, 50)
 customBar2Frame:SetPoint("CENTER", UIParent, "CENTER", 0, -250)
-customBar2Frame:SetFrameStrata("TOOLTIP")
+customBar2Frame:SetFrameStrata("MEDIUM")
 customBar2Frame:SetClampedToScreen(true)
 customBar2Frame:SetMovable(false)
 customBar2Frame:EnableMouse(true)
@@ -1539,7 +1621,7 @@ end)
 local customBar3Frame = CreateFrame("Frame", "CCMCustomBar3", UIParent, "BackdropTemplate")
 customBar3Frame:SetSize(200, 50)
 customBar3Frame:SetPoint("CENTER", UIParent, "CENTER", 0, -300)
-customBar3Frame:SetFrameStrata("TOOLTIP")
+customBar3Frame:SetFrameStrata("MEDIUM")
 customBar3Frame:SetClampedToScreen(true)
 customBar3Frame:SetMovable(false)
 customBar3Frame:EnableMouse(true)
@@ -1578,127 +1660,13 @@ customBar3Frame:SetScript("OnMouseUp", function(self, button)
     end
   end
 end)
-local prbFrame = CreateFrame("Frame", "CCMPersonalResourceBar", UIParent, "BackdropTemplate")
-prbFrame:SetSize(220, 40)
-prbFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -180)
-prbFrame:SetFrameStrata("MEDIUM")
-prbFrame:SetClampedToScreen(true)
-prbFrame:SetMovable(false)
-prbFrame:EnableMouse(true)
-prbFrame:RegisterForDrag("LeftButton")
-prbFrame:Hide()
-addonTable.PRBFrame = prbFrame
-prbFrame.textOverlay = CreateFrame("Frame", nil, prbFrame)
-prbFrame.textOverlay:SetAllPoints()
-prbFrame.textOverlay:SetFrameLevel(100)
-prbFrame.healthBar = CreateFrame("StatusBar", nil, prbFrame)
-prbFrame.healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-prbFrame.healthBar:SetStatusBarColor(0, 1, 0)
-prbFrame.healthBar.bg = prbFrame.healthBar:CreateTexture(nil, "BACKGROUND")
-prbFrame.healthBar.bg:SetAllPoints()
-prbFrame.healthBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
-prbFrame.healthBar.border = CreateFrame("Frame", nil, prbFrame.healthBar, "BackdropTemplate")
-prbFrame.healthBar.border:SetPoint("TOPLEFT", prbFrame.healthBar, "TOPLEFT", 0, 0)
-prbFrame.healthBar.border:SetPoint("BOTTOMRIGHT", prbFrame.healthBar, "BOTTOMRIGHT", 0, 0)
-prbFrame.healthBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-prbFrame.healthBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-prbFrame.healthBar.text = prbFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-prbFrame.healthBar.text:SetPoint("CENTER")
-prbFrame.healthBar.text:SetTextColor(1, 1, 1)
-prbFrame.powerBar = CreateFrame("StatusBar", nil, prbFrame)
-prbFrame.powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-prbFrame.powerBar:SetStatusBarColor(0, 0.5, 1)
-prbFrame.powerBar.bg = prbFrame.powerBar:CreateTexture(nil, "BACKGROUND")
-prbFrame.powerBar.bg:SetAllPoints()
-prbFrame.powerBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
-prbFrame.powerBar.border = CreateFrame("Frame", nil, prbFrame.powerBar, "BackdropTemplate")
-prbFrame.powerBar.border:SetPoint("TOPLEFT", prbFrame.powerBar, "TOPLEFT", 0, 0)
-prbFrame.powerBar.border:SetPoint("BOTTOMRIGHT", prbFrame.powerBar, "BOTTOMRIGHT", 0, 0)
-prbFrame.powerBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-prbFrame.powerBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-prbFrame.powerBar.text = prbFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-prbFrame.powerBar.text:SetPoint("CENTER")
-prbFrame.powerBar.text:SetTextColor(1, 1, 1)
-prbFrame.manaBar = CreateFrame("StatusBar", nil, prbFrame)
-prbFrame.manaBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-prbFrame.manaBar:SetStatusBarColor(0, 0.5, 1)
-prbFrame.manaBar.bg = prbFrame.manaBar:CreateTexture(nil, "BACKGROUND")
-prbFrame.manaBar.bg:SetAllPoints()
-prbFrame.manaBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
-prbFrame.manaBar.border = CreateFrame("Frame", nil, prbFrame.manaBar, "BackdropTemplate")
-prbFrame.manaBar.border:SetPoint("TOPLEFT", prbFrame.manaBar, "TOPLEFT", 0, 0)
-prbFrame.manaBar.border:SetPoint("BOTTOMRIGHT", prbFrame.manaBar, "BOTTOMRIGHT", 0, 0)
-prbFrame.manaBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-prbFrame.manaBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-prbFrame.manaBar.text = prbFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-prbFrame.manaBar.text:SetPoint("CENTER")
-prbFrame.manaBar.text:SetTextColor(1, 1, 1)
-prbFrame.manaBar:Hide()
-prbFrame.classPowerBar = CreateFrame("StatusBar", nil, prbFrame)
-prbFrame.classPowerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-prbFrame.classPowerBar:SetStatusBarColor(1, 0.82, 0)
-prbFrame.classPowerBar.bg = prbFrame.classPowerBar:CreateTexture(nil, "BACKGROUND")
-prbFrame.classPowerBar.bg:SetAllPoints()
-prbFrame.classPowerBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
-prbFrame.classPowerBar.border = CreateFrame("Frame", nil, prbFrame.classPowerBar, "BackdropTemplate")
-prbFrame.classPowerBar.border:SetPoint("TOPLEFT", prbFrame.classPowerBar, "TOPLEFT", 0, 0)
-prbFrame.classPowerBar.border:SetPoint("BOTTOMRIGHT", prbFrame.classPowerBar, "BOTTOMRIGHT", 0, 0)
-prbFrame.classPowerBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-prbFrame.classPowerBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-prbFrame.classPowerBar.text = prbFrame.classPowerBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-prbFrame.classPowerBar.text:SetPoint("CENTER")
-prbFrame.classPowerBar.text:SetTextColor(1, 1, 1)
-prbFrame.classPowerBar:Hide()
-prbFrame.classPowerSegments = {}
-for i = 1, 10 do
-  local seg = CreateFrame("Frame", nil, prbFrame)
-  seg.bg = seg:CreateTexture(nil, "BACKGROUND")
-  seg.bg:SetAllPoints()
-  seg.bg:SetColorTexture(1, 0.82, 0, 1)
-  seg.border = CreateFrame("Frame", nil, seg, "BackdropTemplate")
-  seg.border:SetPoint("TOPLEFT", seg, "TOPLEFT", 0, 0)
-  seg.border:SetPoint("BOTTOMRIGHT", seg, "BOTTOMRIGHT", 0, 0)
-  seg.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  seg.border:SetBackdropBorderColor(0, 0, 0, 1)
-  seg:Hide()
-  prbFrame.classPowerSegments[i] = seg
-end
-prbFrame:SetScript("OnDragStart", function(self)
-  if not State.guiIsOpen then return end
-  if addonTable.activeTab and addonTable.activeTab() ~= 7 then
-    if addonTable.SwitchToTab then addonTable.SwitchToTab(7) end
-  end
-  State.prbDragging = true
-  self:StartMoving()
-end)
-prbFrame:SetScript("OnDragStop", function(self)
-  if not State.prbDragging then return end
-  self:StopMovingOrSizing()
-  local centerX, centerY = UIParent:GetCenter()
-  local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if profile then
-    profile.prbX = newX
-    profile.prbY = newY
-    if addonTable.UpdatePRBSliders then addonTable.UpdatePRBSliders(newX, newY) end
-  end
-  State.prbDragging = false
-end)
-prbFrame:SetScript("OnMouseUp", function(self, button)
-  if button == "LeftButton" and not State.prbDragging then
-    if addonTable.GetGUIOpen and addonTable.GetGUIOpen() then
-      if addonTable.SwitchToTab then addonTable.SwitchToTab(7) end
-    end
-  end
-end)
 local function GetClassColor()
   local _, class = UnitClass("player")
   local colors = RAID_CLASS_COLORS[class]
   if colors then return colors.r, colors.g, colors.b end
   return 0, 1, 0
 end
+addonTable.GetClassColor = GetClassColor
 GetGlobalFont = function()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local fontPath = "Fonts\\FRIZQT__.TTF"
@@ -1727,7 +1695,7 @@ GetGlobalFont = function()
         fontPath = fontValue
       end
     end
-    if profile.globalOutline then
+    if profile.globalOutline ~= nil then
       fontOutline = profile.globalOutline
     end
   end
@@ -1761,4482 +1729,8 @@ local function FitTextToBar(textObj, barWidth, baseScale, padding, barHeight)
   if fitScale < baseScale * 0.3 then fitScale = baseScale * 0.3 end
   textObj:SetScale(fitScale)
 end
-local function SetBlizzardPlayerPowerBarsVisibility(showPower, showClassPower)
-  local classPowerFrames = {
-    ClassPowerBar,
-    ComboPointPowerBar,
-    PaladinPowerBar,
-    PaladinPowerBarFrame,
-    WarlockPowerBar,
-    WarlockPowerFrame,
-    MonkHarmonyBar,
-    MonkHarmonyBarFrame,
-    MageArcaneChargesFrame,
-    RuneFrame,
-    TotemFrame,
-    EssencePlayerFrame,
-  }
-  for _, frame in ipairs(classPowerFrames) do
-    if frame and frame.SetAlpha then
-      if showClassPower then
-        frame:SetAlpha(0)
-        if frame.UnregisterAllEvents then
-          pcall(function() frame:UnregisterAllEvents() end)
-        end
-      else
-        frame:SetAlpha(1)
-      end
-    end
-  end
-  if PlayerFrameBottomManagedFramesContainer and PlayerFrameBottomManagedFramesContainer.SetAlpha then
-    if showClassPower then
-      PlayerFrameBottomManagedFramesContainer:SetAlpha(0)
-    else
-      PlayerFrameBottomManagedFramesContainer:SetAlpha(1)
-    end
-  end
-  if ClassNameplateBar and ClassNameplateBar.SetAlpha then
-    if showClassPower then
-      ClassNameplateBar:SetAlpha(0)
-      if ClassNameplateBar.UnregisterAllEvents then
-        pcall(function() ClassNameplateBar:UnregisterAllEvents() end)
-      end
-    else
-      ClassNameplateBar:SetAlpha(1)
-    end
-  end
-end
-addonTable.SetBlizzardPlayerPowerBarsVisibility = SetBlizzardPlayerPowerBarsVisibility
-addonTable.ApplyUnitFrameCustomization = function()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local ufEnabled = profile.enableUnitFrameCustomization ~= false
-  local function GetPlayerObjects()
-    local pf = PlayerFrame
-    local main = pf and pf.PlayerFrameContent and pf.PlayerFrameContent.PlayerFrameContentMain
-    local hContainer = main and main.HealthBarsContainer
-    local mArea = main and main.ManaBarArea
-    local hp = PlayerFrameHealthBar or (hContainer and hContainer.HealthBar)
-    local mp = PlayerFrameManaBar or (mArea and mArea.ManaBar)
-    return {
-      healthBar = hp,
-      powerBar = mp,
-      manaArea = mArea,
-      healthMask = hContainer and hContainer.HealthBarMask,
-    }
-  end
-  local function ResolveUnitHealthColorSafe(unitToken, useClassColor)
-    local r, g, b
-    if useClassColor and unitToken and UnitExists(unitToken) and UnitIsPlayer(unitToken) then
-      local _, classToken = UnitClass(unitToken)
-      local classColor = classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
-      if classColor then
-        r, g, b = classColor.r, classColor.g, classColor.b
-      end
-    end
-    if not r then
-      if unitToken == "player" then
-        r, g, b = 0, 1, 0
-      elseif unitToken and UnitExists(unitToken) then
-        if UnitIsFriend("player", unitToken) then
-          r, g, b = 0, 1, 0
-        elseif UnitCanAttack("player", unitToken) then
-          r, g, b = 1, 0, 0
-        else
-          r, g, b = 1, 1, 0
-        end
-      end
-    end
-    if not r then
-      r, g, b = 0, 1, 0
-    end
-    return r, g, b
-  end
-  local function ApplyHealthColorSafe(bar, unitToken, useClassColor)
-    if not bar then return end
-    local r, g, b = ResolveUnitHealthColorSafe(unitToken, useClassColor)
-    bar:SetStatusBarColor(r, g, b)
-    if bar.AnimatedLossBar and bar.AnimatedLossBar.SetStatusBarColor then
-      bar.AnimatedLossBar:SetStatusBarColor(r, g, b)
-    end
-    local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
-    if tex then
-      tex:SetAlpha(1)
-      tex:SetVertexColor(r, g, b, 1)
-    end
-  end
-  local function ApplyUnitFrameClassColorsOnly()
-    local prof = addonTable.GetProfile and addonTable.GetProfile()
-    if not prof or not prof.ufClassColor then return end
-    if InCombatLockdown and InCombatLockdown() then return end
-    local objs = GetPlayerObjects()
-    if objs and objs.healthBar then
-      ApplyHealthColorSafe(objs.healthBar, "player", true)
-    end
-    local tMain = TargetFrame and TargetFrame.TargetFrameContent and TargetFrame.TargetFrameContent.TargetFrameContentMain
-    local targetBar = tMain and tMain.HealthBarsContainer and tMain.HealthBarsContainer.HealthBar
-    if targetBar then
-      ApplyHealthColorSafe(targetBar, "target", true)
-    end
-    local fMain = FocusFrame and FocusFrame.TargetFrameContent and FocusFrame.TargetFrameContent.TargetFrameContentMain
-    local focusBar = fMain and fMain.HealthBarsContainer and fMain.HealthBarsContainer.HealthBar
-    if focusBar then
-      ApplyHealthColorSafe(focusBar, "focus", true)
-    end
-  end
-  addonTable.ApplyUnitFrameClassColorsOnly = ApplyUnitFrameClassColorsOnly
-  if InCombatLockdown and InCombatLockdown() then
-    State.unitFrameCustomizationPending = true
-    return
-  end
-  State.unitFrameCustomizationPending = false
-  local player = GetPlayerObjects()
-  local healthBar = player.healthBar
-  local powerBar = player.powerBar
-  local manaArea = player.manaArea
-  local healthMask = player.healthMask
-  if not healthBar or not powerBar then return end
-  addonTable.ApplyUnitFrameStatusTexts = nil
-  local function ApplyBorderTextureColor(frameObj, r, g, b)
-    if not frameObj then return end
-    local texSeen = {}
-    local function applyTex(tex)
-      if not tex or not tex.SetVertexColor then return end
-      if texSeen[tex] then return end
-      texSeen[tex] = true
-      tex:SetVertexColor(r or 1, g or 1, b or 1, 1)
-    end
-
-    local playerContainer = frameObj.PlayerFrameContainer
-    local targetContainer = frameObj.TargetFrameContainer
-
-    applyTex(playerContainer and playerContainer.FrameTexture)
-    applyTex(playerContainer and playerContainer.AlternatePowerFrameTexture)
-    applyTex(targetContainer and targetContainer.FrameTexture)
-    applyTex(targetContainer and targetContainer.BossPortraitFrameTexture)
-    applyTex(frameObj.FrameTexture)
-    applyTex(frameObj.BossPortraitFrameTexture)
-  end
-  local useCustomBorder = ufEnabled and profile.useCustomBorderColor
-  local borderR = useCustomBorder and (profile.ufCustomBorderColorR or 0) or 1
-  local borderG = useCustomBorder and (profile.ufCustomBorderColorG or 0) or 1
-  local borderB = useCustomBorder and (profile.ufCustomBorderColorB or 0) or 1
-  ApplyBorderTextureColor(PlayerFrame, borderR, borderG, borderB)
-  ApplyBorderTextureColor(TargetFrame, borderR, borderG, borderB)
-  ApplyBorderTextureColor(FocusFrame, borderR, borderG, borderB)
-  ApplyBorderTextureColor(_G.TargetFrameToT, borderR, borderG, borderB)
-  ApplyBorderTextureColor(_G.TargetFrameToTFrame, borderR, borderG, borderB)
-  for i = 1, 5 do
-    ApplyBorderTextureColor(_G["Boss" .. i .. "TargetFrame"], borderR, borderG, borderB)
-  end
-  State.playerFrameOriginal = State.playerFrameOriginal or {}
-  local orig = State.playerFrameOriginal
-  local function CapturePoints(frame)
-    local points = {}
-    local numPoints = frame:GetNumPoints() or 0
-    for i = 1, numPoints do
-      local p, rel, rp, x, y = frame:GetPoint(i)
-      if type(p) == "string" then
-        points[#points + 1] = {p, rel, rp, x, y}
-      end
-    end
-    return points
-  end
-  local function RestorePoints(frame, points)
-    frame:ClearAllPoints()
-    if not points or #points == 0 then return end
-    for i = 1, #points do
-      local pt = points[i]
-      if pt and type(pt[1]) == "string" then
-        pcall(frame.SetPoint, frame, pt[1], pt[2], pt[3], pt[4], pt[5])
-      end
-    end
-  end
-  local texturePaths = {
-    solid = "Interface\\Buttons\\WHITE8x8",
-    flat = "Interface\\Buttons\\WHITE8x8",
-    blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
-    blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
-    normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
-    gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
-    melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
-    mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
-    betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
-    skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
-    dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
-  }
-  local selectedTexture = profile.ufHealthTexture or "solid"
-  local selectedTexturePath = texturePaths[selectedTexture] or texturePaths.solid
-  local function ResolveUnitHealthColor(unitToken, useClassColor)
-    local r, g, b
-    if useClassColor and unitToken and UnitExists(unitToken) and UnitIsPlayer(unitToken) then
-      local _, classToken = UnitClass(unitToken)
-      local classColor = classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
-      if classColor then
-        r, g, b = classColor.r, classColor.g, classColor.b
-      end
-    end
-    if not r then
-      if unitToken == "player" then
-        r, g, b = 0, 1, 0
-      elseif unitToken and UnitExists(unitToken) then
-        if UnitIsFriend("player", unitToken) then
-          r, g, b = 0, 1, 0
-        elseif UnitCanAttack("player", unitToken) then
-          r, g, b = 1, 0, 0
-        else
-          r, g, b = 1, 1, 0
-        end
-      end
-    end
-    if not r then
-      r, g, b = 0, 1, 0
-    end
-    return r, g, b
-  end
-  local function ApplyUnitHealthColor(bar, unitToken, useClassColor)
-    if not bar then return end
-    local r, g, b = ResolveUnitHealthColor(unitToken, useClassColor)
-    bar:SetStatusBarColor(r, g, b)
-    if bar.AnimatedLossBar and bar.AnimatedLossBar.SetStatusBarColor then
-      bar.AnimatedLossBar:SetStatusBarColor(r, g, b)
-    end
-    local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
-    if tex then
-      tex:SetAlpha(1)
-      tex:SetVertexColor(r, g, b, 1)
-    end
-  end
-  local function GetStatusBarUnitToken(statusBar, fallbackUnit)
-    if type(fallbackUnit) == "string" and fallbackUnit ~= "" then
-      return fallbackUnit
-    end
-    if statusBar and type(statusBar.unit) == "string" and statusBar.unit ~= "" then
-      return statusBar.unit
-    end
-    local uf = statusBar and statusBar.unitFrame
-    if uf and type(uf.unit) == "string" and uf.unit ~= "" then
-      return uf.unit
-    end
-    return nil
-  end
-  local function ApplyBiggerHealthForUnit(frame, enabled, stateKey, unitToken)
-    if not frame then return end
-    local main = frame.TargetFrameContent and frame.TargetFrameContent.TargetFrameContentMain
-    local hContainer = main and main.HealthBarsContainer
-    local hp = hContainer and hContainer.HealthBar
-    local mp = main and main.ManaBar
-    local hMask = hContainer and hContainer.HealthBarMask
-    if not hp or not mp then return end
-    State[stateKey] = State[stateKey] or {}
-    local o = State[stateKey]
-    if not o.saved then
-      o.saved = true
-      o.healthPoints = CapturePoints(hp)
-      o.powerPoints = CapturePoints(mp)
-      o.healthHeight = hp:GetHeight()
-      o.powerHeight = mp:GetHeight()
-      o.powerAlpha = mp:GetAlpha()
-      o.powerShown = mp:IsShown()
-      o.powerFrameLevel = mp:GetFrameLevel()
-      if hMask then
-        o.maskPoints = CapturePoints(hMask)
-        o.maskShown = hMask:IsShown()
-      end
-      local bonusHeight = o.powerHeight or 0
-      o.expandedHealthHeight = (o.healthHeight or 0) + bonusHeight + 1
-      if o.expandedHealthHeight < (o.healthHeight or 0) + 4 then
-        o.expandedHealthHeight = (o.healthHeight or 0) + 4
-      end
-    end
-    pcall(hp.SetStatusBarTexture, hp, selectedTexturePath)
-    local st = hp.GetStatusBarTexture and hp:GetStatusBarTexture()
-    if st then
-      st:ClearAllPoints()
-      st:SetAllPoints(hp)
-    end
-    ApplyUnitHealthColor(hp, unitToken, profile.ufClassColor == true)
-    if enabled then
-      o.wasEnabled = true
-      RestorePoints(hp, o.healthPoints)
-      if o.expandedHealthHeight and o.expandedHealthHeight > 0 then
-        hp:SetHeight(o.expandedHealthHeight)
-      end
-      local statusTex = hp.GetStatusBarTexture and hp:GetStatusBarTexture()
-      if statusTex then
-        statusTex:ClearAllPoints()
-        statusTex:SetAllPoints(hp)
-        if statusTex.SetTexCoord then
-          statusTex:SetTexCoord(0, 1, 0, 1)
-        end
-      end
-      if hMask then
-        hMask:Hide()
-      end
-      mp:SetAlpha(0)
-      mp:Hide()
-      mp:SetFrameLevel((hp:GetFrameLevel() or 1) + 2)
-    else
-      RestorePoints(hp, o.healthPoints)
-      if o.healthHeight and o.healthHeight > 0 then
-        hp:SetHeight(o.healthHeight)
-      end
-      if hMask then
-        RestorePoints(hMask, o.maskPoints)
-        if o.maskShown then hMask:Show() else hMask:Hide() end
-      end
-      if o.wasEnabled then
-        o.wasEnabled = nil
-        RestorePoints(mp, o.powerPoints)
-        if o.powerHeight and o.powerHeight > 0 then
-          mp:SetHeight(o.powerHeight)
-        end
-        mp:SetAlpha(1)
-        mp:Show()
-        if o.powerFrameLevel then
-          mp:SetFrameLevel(o.powerFrameLevel)
-        end
-      end
-    end
-  end
-  if not orig.saved then
-    orig.saved = true
-    orig.healthPoints = CapturePoints(healthBar)
-    orig.powerPoints = CapturePoints(powerBar)
-    if manaArea then
-      orig.manaAreaPoints = CapturePoints(manaArea)
-      orig.manaAreaAlpha = manaArea:GetAlpha()
-      orig.manaAreaShown = manaArea:IsShown()
-      orig.manaAreaHeight = manaArea:GetHeight()
-    end
-    orig.healthHeight = healthBar:GetHeight()
-    orig.healthColorR, orig.healthColorG, orig.healthColorB = healthBar:GetStatusBarColor()
-    if healthBar.Background and healthBar.Background.GetAlpha then
-      orig.healthBgAlpha = healthBar.Background:GetAlpha()
-    end
-    local savedStatusTex = healthBar.GetStatusBarTexture and healthBar:GetStatusBarTexture()
-    if savedStatusTex and savedStatusTex.GetTexture then
-      orig.healthTexturePath = savedStatusTex:GetTexture()
-      orig.healthStatusTexPoints = CapturePoints(savedStatusTex)
-    end
-    orig.powerHeight = powerBar:GetHeight()
-    orig.powerAlpha = powerBar:GetAlpha()
-    orig.powerShown = powerBar:IsShown()
-    orig.powerFrameLevel = powerBar:GetFrameLevel()
-    if manaArea then
-      orig.manaAreaFrameLevel = manaArea:GetFrameLevel()
-    end
-    if healthMask then
-      orig.maskPoints = CapturePoints(healthMask)
-      orig.maskShown = healthMask:IsShown()
-    end
-    if PlayerFrameManaBarText then
-      orig.powerTextShown = PlayerFrameManaBarText:IsShown()
-    end
-    local bonusHeight = (orig.manaAreaHeight and orig.manaAreaHeight > 0) and orig.manaAreaHeight or (orig.powerHeight or 0)
-    orig.expandedHealthHeight = (orig.healthHeight or 0) + bonusHeight + 1
-    if orig.expandedHealthHeight < (orig.healthHeight or 0) + 4 then
-      orig.expandedHealthHeight = (orig.healthHeight or 0) + 4
-    end
-  end
-  local function ApplyPlayerHealthColor()
-    if not healthBar then return end
-    local defaultTexture = texturePaths.blizzard
-    local useClassColor = ufEnabled and profile.ufClassColor == true
-    if ufEnabled and profile.ufCustomizeHealth then
-      pcall(healthBar.SetStatusBarTexture, healthBar, selectedTexturePath)
-      local statusTex = healthBar.GetStatusBarTexture and healthBar:GetStatusBarTexture()
-      if useClassColor then
-        ApplyUnitHealthColor(healthBar, "player", true)
-        if healthBar.Background then
-          healthBar.Background:SetAlpha(0)
-        end
-      else
-        ApplyUnitHealthColor(healthBar, "player", false)
-        if healthBar.Background then
-          healthBar.Background:SetAlpha(orig.healthBgAlpha or 1)
-        end
-      end
-    else
-      pcall(healthBar.SetStatusBarTexture, healthBar, selectedTexturePath or defaultTexture)
-      local statusTex = healthBar.GetStatusBarTexture and healthBar:GetStatusBarTexture()
-      if statusTex then
-        statusTex:ClearAllPoints()
-        statusTex:SetAllPoints(healthBar)
-        statusTex:SetAlpha(1)
-        statusTex:SetVertexColor(1, 1, 1, 1)
-      end
-      if useClassColor then
-        ApplyUnitHealthColor(healthBar, "player", true)
-      else
-        ApplyUnitHealthColor(healthBar, "player", false)
-      end
-      if healthBar.Background then
-        healthBar.Background:SetAlpha(orig.healthBgAlpha or 1)
-      end
-    end
-  end
-  if not orig.unitHealthColorHooked and type(hooksecurefunc) == "function" and type(UnitFrameHealthBar_Update) == "function" then
-    orig.unitHealthColorHooked = true
-    hooksecurefunc("UnitFrameHealthBar_Update", function(statusBar, unitToken)
-      local p = addonTable.GetProfile and addonTable.GetProfile()
-      if not p or not statusBar then return end
-      if p.enableUnitFrameCustomization == false then return end
-      local tMain = TargetFrame and TargetFrame.TargetFrameContent and TargetFrame.TargetFrameContent.TargetFrameContentMain
-      local fMain = FocusFrame and FocusFrame.TargetFrameContent and FocusFrame.TargetFrameContent.TargetFrameContentMain
-      local targetBar = tMain and tMain.HealthBarsContainer and tMain.HealthBarsContainer.HealthBar
-      local focusBar = fMain and fMain.HealthBarsContainer and fMain.HealthBarsContainer.HealthBar
-      local useClassColor = p.ufClassColor == true
-      if not useClassColor and not p.ufCustomizeHealth then return end
-      if healthBar then ApplyUnitHealthColor(healthBar, "player", useClassColor) end
-      if targetBar then ApplyUnitHealthColor(targetBar, "target", useClassColor) end
-      if focusBar then ApplyUnitHealthColor(focusBar, "focus", useClassColor) end
-      local barUnit = GetStatusBarUnitToken(statusBar, unitToken)
-      if not barUnit then
-        if targetBar and statusBar == targetBar then
-          barUnit = "target"
-        elseif focusBar and statusBar == focusBar then
-          barUnit = "focus"
-        end
-      end
-      if barUnit == "player" or statusBar == healthBar then
-        ApplyUnitHealthColor(statusBar, "player", useClassColor)
-      elseif barUnit == "target" or barUnit == "focus" then
-        ApplyUnitHealthColor(statusBar, barUnit, useClassColor)
-      end
-    end)
-  end
-  if not orig.powerHooked and powerBar.HookScript then
-    orig.powerHooked = true
-    powerBar:HookScript("OnShow", function(bar)
-      local p = addonTable.GetProfile and addonTable.GetProfile()
-      if p and p.ufCustomizeHealth then
-        bar:SetAlpha(0)
-      end
-    end)
-  end
-  if manaArea and (not orig.manaAreaHooked) and manaArea.HookScript then
-    orig.manaAreaHooked = true
-    manaArea:HookScript("OnShow", function(frame)
-      local p = addonTable.GetProfile and addonTable.GetProfile()
-      if p and p.ufCustomizeHealth then
-        frame:SetAlpha(0)
-      end
-    end)
-  end
-  
-  local function CollectPlayerGlowTargets()
-    local targets = {}
-    local seen = {}
-    local function add(obj)
-      if obj and not seen[obj] then
-        seen[obj] = true
-        targets[#targets + 1] = obj
-      end
-    end
-    local function addRestedRegions(frame)
-      if not frame or not frame.GetRegions then return end
-      for _, region in ipairs({frame:GetRegions()}) do
-        if region and region.GetObjectType and region:GetObjectType() == "Texture" and region.GetTexture then
-          local tex = region:GetTexture()
-          if type(tex) == "string" then
-            local lower = string.lower(tex)
-            if string.find(lower, "rest") or string.find(lower, "zzz") or string.find(lower, "sleep") then
-              add(region)
-            end
-          elseif region.GetAtlas then
-            local atlas = region:GetAtlas()
-            if type(atlas) == "string" then
-              local lowerAtlas = string.lower(atlas)
-              if string.find(lowerAtlas, "rest") or string.find(lowerAtlas, "sleep") then
-                add(region)
-              end
-            end
-          end
-        end
-      end
-    end
-    local pf = PlayerFrame
-    local pContainer = pf and pf.PlayerFrameContainer
-    local content = pf and pf.PlayerFrameContent
-    local main = content and content.PlayerFrameContentMain
-    local contextual = content and content.PlayerFrameContentContextual
-    add(main and main.StatusTexture)
-    add(pContainer and pContainer.FrameFlash)
-    add(main and main.Flash)
-    add(main and main.AttentionIndicator)
-    add(main and main.RestingIcon)
-    add(contextual and contextual.RestingIcon)
-    add(pf and pf.StatusTexture)
-    add(pf and pf.RestingIcon)
-    add(contextual and contextual.StatusTexture)
-    add(main and main.HitIndicator)
-    add(main and main.HitIndicator and main.HitIndicator.HitText)
-    add(contextual and contextual.PlayerRestLoop)
-    add(contextual and contextual.PlayerRestLoop and contextual.PlayerRestLoop.RestTexture)
-    add(contextual and contextual.PlayerPortraitCornerIcon)
-    addRestedRegions(main)
-    addRestedRegions(contextual)
-    addRestedRegions(pf)
-    add(contextual and contextual.RoleIcon)
-    local function addUnitFrameGlows(unitFrame)
-      if not unitFrame then return end
-      local tContent = unitFrame.TargetFrameContent
-      local tMain = tContent and tContent.TargetFrameContentMain
-      local tContextual = tContent and tContent.TargetFrameContentContextual
-      local tContainer = unitFrame.TargetFrameContainer
-      add(tMain and tMain.StatusTexture)
-      add(tMain and tMain.Flash)
-      add(tMain and tMain.AttentionIndicator)
-      add(tContextual and tContextual.StatusTexture)
-      add(tContainer and tContainer.Flash)
-      add(tContainer and tContainer.FrameFlash)
-      addRestedRegions(tMain)
-      addRestedRegions(tContextual)
-      addRestedRegions(unitFrame)
-      add(tContextual and tContextual.RoleIcon)
-    end
-    addUnitFrameGlows(TargetFrame)
-    addUnitFrameGlows(FocusFrame)
-    return targets
-  end
-  local function IsGlowSuppressionEnabled()
-    local p = addonTable.GetProfile and addonTable.GetProfile()
-    if not p then return false end
-    return p.ufDisableGlows == true
-  end
-  local function ApplyGlowSuppression(enabled)
-    orig.glowTargets = orig.glowTargets or CollectPlayerGlowTargets()
-    orig.glowStates = orig.glowStates or {}
-    for _, obj in ipairs(orig.glowTargets) do
-      if not orig.glowStates[obj] then
-        orig.glowStates[obj] = {
-          alpha = obj.GetAlpha and obj:GetAlpha() or nil,
-          shown = obj.IsShown and obj:IsShown() or nil,
-        }
-      end
-      if enabled then
-        if obj.HookScript then
-          orig.glowHideHooked = orig.glowHideHooked or {}
-          if not orig.glowHideHooked[obj] then
-            obj:HookScript("OnShow", function(self)
-              if IsGlowSuppressionEnabled() then
-                if self.SetAlpha then self:SetAlpha(0) end
-                if self.Hide then self:Hide() end
-              end
-            end)
-            orig.glowHideHooked[obj] = true
-          end
-        end
-        if obj.Hide then obj:Hide() end
-        if obj.SetAlpha then obj:SetAlpha(0) end
-      else
-        local st = orig.glowStates[obj]
-        if st then
-          if obj.SetAlpha and st.alpha ~= nil then obj:SetAlpha(st.alpha) end
-          if obj.Show and st.shown == true then obj:Show() elseif obj.Hide and st.shown == false then obj:Hide() end
-        end
-      end
-    end
-    local frameFlash = PlayerFrame and PlayerFrame.PlayerFrameContainer and PlayerFrame.PlayerFrameContainer.FrameFlash
-    if frameFlash and not orig.frameFlashHideHooked then
-      frameFlash:HookScript("OnShow", function(self)
-        if IsGlowSuppressionEnabled() then
-          if self.SetAlpha then self:SetAlpha(0) end
-          if self.Hide then self:Hide() end
-        end
-      end)
-      orig.frameFlashHideHooked = true
-    end
-  end
-
-  local function ApplyCombatTextSuppression(enabled)
-    orig.combatTextCvars = orig.combatTextCvars or {}
-    local cvars = {
-      "floatingCombatTextCombatDamage",
-      "floatingCombatTextCombatHealing",
-    }
-    for _, key in ipairs(cvars) do
-      if orig.combatTextCvars[key] == nil then
-        orig.combatTextCvars[key] = GetCVar and GetCVar(key)
-      end
-      if enabled then
-        if SetCVar then SetCVar(key, "0") end
-      else
-        local prev = orig.combatTextCvars[key]
-        if prev ~= nil and SetCVar then SetCVar(key, prev) end
-      end
-    end
-    local hitIndicator = PlayerFrame and PlayerFrame.PlayerFrameContent and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain.HitIndicator
-    local hitText = hitIndicator and hitIndicator.HitText
-    orig.combatTextFrames = orig.combatTextFrames or {}
-    if hitIndicator and orig.combatTextFrames.hitIndicatorShown == nil and hitIndicator.IsShown then
-      orig.combatTextFrames.hitIndicatorShown = hitIndicator:IsShown()
-    end
-    if hitText and orig.combatTextFrames.hitTextShown == nil and hitText.IsShown then
-      orig.combatTextFrames.hitTextShown = hitText:IsShown()
-    end
-    if enabled then
-      if hitText and hitText.Hide then hitText:Hide() end
-      if hitIndicator and hitIndicator.Hide then hitIndicator:Hide() end
-    else
-      if hitText then
-        if orig.combatTextFrames.hitTextShown then hitText:Show() elseif hitText.Hide then hitText:Hide() end
-      end
-      if hitIndicator then
-        if orig.combatTextFrames.hitIndicatorShown then hitIndicator:Show() elseif hitIndicator.Hide then hitIndicator:Hide() end
-      end
-    end
-  end
-
-  local function ApplyTargetFocusBuffSuppression(enabled)
-    local frames = {
-      {frame = TargetFrame, prefix = "TargetFrame"},
-      {frame = FocusFrame, prefix = "FocusFrame"},
-    }
-    for _, entry in ipairs(frames) do
-      if entry.frame then
-        if enabled then
-          entry.frame.maxBuffs = 0
-          entry.frame.maxDebuffs = 0
-        else
-          entry.frame.maxBuffs = nil
-          entry.frame.maxDebuffs = nil
-        end
-        local function hideAuras()
-          for i = 1, 40 do
-            local buff = _G[entry.prefix .. "Buff" .. i]
-            if buff and buff.Hide then buff:Hide() end
-            local debuff = _G[entry.prefix .. "Debuff" .. i]
-            if debuff and debuff.Hide then debuff:Hide() end
-          end
-        end
-        if enabled then
-          hideAuras()
-        end
-        if not orig.auraBuffsHooked then orig.auraBuffsHooked = {} end
-        if not orig.auraBuffsHooked[entry.prefix] and type(hooksecurefunc) == "function" then
-          orig.auraBuffsHooked[entry.prefix] = true
-          if type(entry.frame.UpdateAuras) == "function" then
-            hooksecurefunc(entry.frame, "UpdateAuras", function()
-              local p = addonTable.GetProfile and addonTable.GetProfile()
-              if p and p.disableTargetFocusBuffs then hideAuras() end
-            end)
-          end
-        end
-      end
-    end
-    if not orig.auraGlobalHooked and type(hooksecurefunc) == "function" and type(TargetFrame_UpdateAuras) == "function" then
-      orig.auraGlobalHooked = true
-      hooksecurefunc("TargetFrame_UpdateAuras", function(self)
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.disableTargetFocusBuffs then return end
-        local prefix = (self == TargetFrame and "TargetFrame") or (self == FocusFrame and "FocusFrame") or nil
-        if not prefix then return end
-        for i = 1, 40 do
-          local buff = _G[prefix .. "Buff" .. i]
-          if buff and buff.Hide then buff:Hide() end
-          local debuff = _G[prefix .. "Debuff" .. i]
-          if debuff and debuff.Hide then debuff:Hide() end
-        end
-      end)
-    end
-  end
-
-  local function ApplyEliteTextureSuppression(enabled)
-    local unitFrames = {
-      {frame = TargetFrame, key = "targetBoss"},
-      {frame = FocusFrame, key = "focusBoss"},
-    }
-    if not orig.bossTexHooked then orig.bossTexHooked = {} end
-    if not orig.bossTexSaved then orig.bossTexSaved = {} end
-    for _, uf in ipairs(unitFrames) do
-      local container = uf.frame and uf.frame.TargetFrameContainer
-      local tex = container and container.BossPortraitFrameTexture
-      if tex then
-        if not orig.bossTexSaved[uf.key] then
-          orig.bossTexSaved[uf.key] = true
-          orig.bossTexSaved[uf.key .. "Shown"] = tex.IsShown and tex:IsShown() or nil
-        end
-        if enabled then
-          if tex.Hide then tex:Hide() end
-          if not orig.bossTexHooked[uf.key] and type(hooksecurefunc) == "function" then
-            orig.bossTexHooked[uf.key] = true
-            hooksecurefunc(tex, "Show", function(self)
-              local p = addonTable.GetProfile and addonTable.GetProfile()
-              if p and p.hideEliteTexture then self:Hide() end
-            end)
-          end
-        else
-          if orig.bossTexSaved[uf.key .. "Shown"] and tex.Show then tex:Show() end
-        end
-      end
-    end
-  end
-
-  if ufEnabled and profile.ufCustomizeHealth == true then
-    RestorePoints(healthBar, orig.healthPoints)
-    if orig.expandedHealthHeight and orig.expandedHealthHeight > 0 then
-      healthBar:SetHeight(orig.expandedHealthHeight)
-    end
-    local statusTex = healthBar.GetStatusBarTexture and healthBar:GetStatusBarTexture()
-    if statusTex then
-      statusTex:ClearAllPoints()
-      statusTex:SetAllPoints(healthBar)
-      if statusTex.SetTexCoord then
-        statusTex:SetTexCoord(0, 1, 0, 1)
-      end
-    end
-    if healthMask then
-      healthMask:Hide()
-    end
-    powerBar:SetAlpha(0)
-    powerBar:Hide()
-    powerBar:SetFrameLevel((healthBar:GetFrameLevel() or 1) + 2)
-    if manaArea then
-      manaArea:SetAlpha(0)
-      manaArea:Hide()
-      manaArea:SetFrameLevel((healthBar:GetFrameLevel() or 1) + 1)
-      if orig.manaAreaHeight and orig.manaAreaHeight > 0 then
-        manaArea:SetHeight(orig.manaAreaHeight)
-      end
-    else
-      powerBar:ClearAllPoints()
-      powerBar:SetPoint("TOPLEFT", healthBar, "BOTTOMLEFT", 0, -1)
-      powerBar:SetPoint("TOPRIGHT", healthBar, "BOTTOMRIGHT", 0, -1)
-    end
-    if PlayerFrameManaBarText then
-      PlayerFrameManaBarText:Hide()
-    end
-    ApplyPlayerHealthColor()
-  else
-    RestorePoints(healthBar, orig.healthPoints)
-    RestorePoints(powerBar, orig.powerPoints)
-    if manaArea then
-      RestorePoints(manaArea, orig.manaAreaPoints)
-      manaArea:SetAlpha(orig.manaAreaAlpha or 1)
-      manaArea:Show()
-    end
-    if healthMask then
-      RestorePoints(healthMask, orig.maskPoints)
-      if orig.maskShown then
-        healthMask:Show()
-      else
-        healthMask:Hide()
-      end
-    end
-    if orig.healthHeight and orig.healthHeight > 0 then
-      healthBar:SetHeight(orig.healthHeight)
-    end
-    ApplyPlayerHealthColor()
-    if orig.powerHeight and orig.powerHeight > 0 then
-      powerBar:SetHeight(orig.powerHeight)
-    end
-    powerBar:SetAlpha(orig.powerAlpha or 1)
-    powerBar:SetAlpha(orig.powerAlpha or 1)
-    powerBar:Show()
-    if PlayerFrameManaBarText and orig.powerTextShown then
-      PlayerFrameManaBarText:Show()
-    end
-    if orig.powerFrameLevel then
-      powerBar:SetFrameLevel(orig.powerFrameLevel)
-    end
-    if manaArea and orig.manaAreaFrameLevel then
-      manaArea:SetFrameLevel(orig.manaAreaFrameLevel)
-    end
-  end
-  local disableGlows = profile.ufDisableGlows == true
-  if disableGlows then
-    ApplyGlowSuppression(true)
-  else
-    ApplyGlowSuppression(false)
-  end
-  local disableCombatText = profile.ufDisableCombatText == true
-  if disableCombatText then
-    ApplyCombatTextSuppression(true)
-  else
-    ApplyCombatTextSuppression(false)
-  end
-  local disableBuffs = profile.disableTargetFocusBuffs == true
-  if disableBuffs then
-    ApplyTargetFocusBuffSuppression(true)
-  else
-    ApplyTargetFocusBuffSuppression(false)
-  end
-  local hideElite = profile.hideEliteTexture == true
-  if hideElite then
-    ApplyEliteTextureSuppression(true)
-  else
-    ApplyEliteTextureSuppression(false)
-  end
-  ApplyBiggerHealthForUnit(TargetFrame, false, "targetFrameOriginal", "target")
-  ApplyBiggerHealthForUnit(FocusFrame, false, "focusFrameOriginal", "focus")
-  if not orig.ufFontHooked then
-    orig.ufFontHooked = true
-    orig.ufFontObjects = orig.ufFontObjects or {}
-    local function GetOrCreateFontObject(size)
-      local key = math.floor(size + 0.5)
-      if not orig.ufFontObjects[key] then
-        orig.ufFontObjects[key] = CreateFont("CCM_UFFont_" .. key)
-      end
-      local gf, go = GetGlobalFont()
-      local oFlag = (go and go ~= "") and go or "OUTLINE"
-      orig.ufFontObjects[key]:SetFont(gf, key, oFlag)
-      return orig.ufFontObjects[key]
-    end
-    local function ApplyGlobalFontToUFs()
-      local function afs(fs)
-        if not fs or not fs.GetFont or not fs.SetFontObject then return end
-        local _, sz = fs:GetFont()
-        if not sz or sz <= 0 then sz = 12 end
-        local fontObj = GetOrCreateFontObject(sz)
-        pcall(fs.SetFontObject, fs, fontObj)
-      end
-      afs(_G["PlayerName"])
-      afs(_G["PlayerLevelText"])
-      if healthBar then
-        afs(healthBar.TextString)
-        afs(healthBar.LeftText)
-        afs(healthBar.RightText)
-      end
-      afs(_G["PlayerFrameHealthBarText"])
-      afs(_G["PlayerFrameHealthBarTextLeft"])
-      afs(_G["PlayerFrameHealthBarTextRight"])
-      afs(_G["PlayerFrameManaBarText"])
-      local function afsUnit(unitFrame)
-        if not unitFrame then return end
-        local tMain = unitFrame.TargetFrameContent and unitFrame.TargetFrameContent.TargetFrameContentMain
-        if tMain then
-          afs(tMain.Name)
-          afs(tMain.LevelText)
-        end
-        local hc = tMain and tMain.HealthBarsContainer
-        local hb = hc and hc.HealthBar
-        if hb then afs(hb.TextString); afs(hb.LeftText); afs(hb.RightText) end
-        local mb = tMain and tMain.ManaBar
-        if mb then afs(mb.TextString); afs(mb.LeftText); afs(mb.RightText) end
-      end
-      afsUnit(TargetFrame)
-      afsUnit(FocusFrame)
-    end
-    ApplyGlobalFontToUFs()
-    hooksecurefunc("UnitFrameHealthBar_Update", function() ApplyGlobalFontToUFs() end)
-    if type(UnitFrameManaBar_Update) == "function" then
-      hooksecurefunc("UnitFrameManaBar_Update", function() ApplyGlobalFontToUFs() end)
-    end
-    local fontEventFrame = CreateFrame("Frame")
-    fontEventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-    fontEventFrame:RegisterEvent("PLAYER_FOCUS_CHANGED")
-    fontEventFrame:RegisterEvent("UNIT_NAME_UPDATE")
-    fontEventFrame:RegisterEvent("PLAYER_LEVEL_UP")
-    fontEventFrame:SetScript("OnEvent", function() ApplyGlobalFontToUFs() end)
-  end
-end
-local function UpdatePRB()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.usePersonalResourceBar then
-    prbFrame:Hide()
-    SetBlizzardPlayerPowerBarsVisibility(false, false)
-    return
-  end
-  local showMode = profile.prbShowMode or "always"
-  if showMode == "combat" and not InCombatLockdown() then
-    prbFrame:Hide()
-    return
-  end
-  local width = profile.prbWidth or 220
-  local rawBorder = profile.prbBorderSize or 1
-  local borderSize = rawBorder > 0 and (rawBorder + 1) or 0
-  local autoWidthSource = profile.prbAutoWidthSource or "off"
-  if autoWidthSource ~= "off" then
-    if autoWidthSource == "essential" then
-      local widthFromEss = 0
-      if profile.useEssentialBar and State.cachedEssentialBarWidth and State.cachedEssentialBarWidth > 0 then
-        widthFromEss = State.cachedEssentialBarWidth
-      else
-        local essBar = EssentialCooldownViewer
-        if essBar and essBar:IsShown() then
-          local w = essBar:GetWidth()
-          if w and w > 0 then
-            local scale = essBar.GetEffectiveScale and essBar:GetEffectiveScale() or 1
-            local parentScale = UIParent:GetEffectiveScale()
-            if parentScale and parentScale > 0 then
-              widthFromEss = w * (scale / parentScale)
-            else
-              widthFromEss = w
-            end
-          end
-        end
-        if widthFromEss <= 0 and State.standaloneEssentialWidth and State.standaloneEssentialWidth > 0 then
-          widthFromEss = State.standaloneEssentialWidth
-        end
-      end
-      if widthFromEss > 0 then
-        width = widthFromEss - (borderSize * 2)
-        if width < 10 then width = 10 end
-      end
-    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
-      local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
-      local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
-      local cbarWidth = profile[prefix .. "IconSize"] or 28
-      local cbarSpacing = type(profile[prefix .. "Spacing"]) == "number" and profile[prefix .. "Spacing"] or 2
-      local cbarCount = 0
-      local getSpellsFunc = barNum == 1 and addonTable.GetCustomBarSpells or addonTable["GetCustomBar" .. barNum .. "Spells"]
-      if getSpellsFunc then
-        local spells = getSpellsFunc()
-        if spells then cbarCount = #spells end
-      end
-      if cbarCount > 0 then
-        width = (cbarWidth * cbarCount) + (cbarSpacing * (cbarCount - 1)) - (borderSize * 2)
-        if width < 10 then width = 10 end
-      end
-    end
-  end
-  width = math.floor(width)
-  local healthHeight = profile.prbHealthHeight or 18
-  local powerHeight = profile.prbPowerHeight or 8
-    local spacing = profile.prbSpacing
-    if spacing == nil then spacing = 0 end
-    local showHealth = profile.prbShowHealth == true
-    local showPower = profile.prbShowPower == true
-    local healthTextMode = profile.prbHealthTextMode or "hidden"
-    local powerTextMode = profile.prbPowerTextMode or "hidden"
-    local bgAlpha = (profile.prbBackgroundAlpha or 70) / 100
-    local healthTextScale = profile.prbHealthTextScale or 1
-    local powerTextScale = profile.prbPowerTextScale or 1
-    local manaTextScale = profile.prbManaTextScale or 1
-    local healthTextY = profile.prbHealthTextY or 0
-    local powerTextY = profile.prbPowerTextY or 0
-    local manaTextY = profile.prbManaTextY or 0
-    local healthYOffset = profile.prbHealthYOffset or 0
-    local powerYOffset = profile.prbPowerYOffset or 0
-    local manaYOffset = profile.prbManaYOffset or 0
-    local clampBars = profile.prbClampBars == true
-    local healthTexture = profile.prbHealthTexture or "solid"
-    local powerTexture = profile.prbPowerTexture or "solid"
-    local manaTexture = profile.prbManaTexture or "solid"
-    local texturePaths = {
-      solid = "Interface\\Buttons\\WHITE8x8",
-      flat = "Interface\\Buttons\\WHITE8x8",
-      blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
-      blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
-      smooth = "Interface\\TargetingFrame\\UI-StatusBar-Glow",
-      minimalist = "Interface\\ChatFrame\\ChatFrameBackground",
-      cilo = "Interface\\TARGETINGFRAME\\UI-TargetingFrame-BarFill",
-      glaze = "Interface\\TargetingFrame\\BarFill2",
-      steel = "Interface\\TargetingFrame\\UI-TargetingFrame-Fill",
-      aluminium = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
-      metal = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
-      amber = "Interface\\UNITPOWERBARALT\\Amber_Horizontal_Fill",
-      arcane = "Interface\\UNITPOWERBARALT\\Arcane_Horizontal_Fill",
-      fire = "Interface\\UNITPOWERBARALT\\Fire_Horizontal_Fill",
-      water = "Interface\\UNITPOWERBARALT\\Water_Horizontal_Fill",
-      waterdark = "Interface\\UNITPOWERBARALT\\WaterDark_Horizontal_Fill",
-      generic = "Interface\\UNITPOWERBARALT\\Generic_Horizontal_Fill",
-      round = "Interface\\AchievementFrame\\UI-Achievement-ProgressBar-Fill",
-      diagonal = "Interface\\ACHIEVEMENTFRAME\\UI-Achievement-HorizontalShadow",
-      striped = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
-      armory = "Interface\\PaperDollInfoFrame\\UI-Character-Tab-Highlight",
-      gradient = "Interface\\CHARACTERFRAME\\UI-Player-Status-Left",
-      otravi = "Interface\\Tooltips\\UI-Tooltip-Background",
-      rocks = "Interface\\FrameGeneral\\UI-Background-Rock",
-      highlight = "Interface\\QuestFrame\\UI-QuestLogTitleHighlight",
-      inner = "Interface\\BUTTONS\\UI-Listbox-Highlight2",
-      lite = "Interface\\LFGFRAME\\UI-LFG-SEPARATOR",
-      spark = "Interface\\CastingBar\\UI-CastingBar-Spark",
-      normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
-      gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
-      melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
-      mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
-      betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
-      skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
-      dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
-    }
-    local healthTexturePath = texturePaths[healthTexture] or texturePaths.solid
-    local powerTexturePath = texturePaths[powerTexture] or texturePaths.solid
-    local manaTexturePath = texturePaths[manaTexture] or texturePaths.solid
-    local showManaBarOption = profile.prbShowManaBar == true
-    local _, playerClass = UnitClass("player")
-    local currentPowerType = UnitPowerType("player")
-    local hasMana = (playerClass ~= "WARRIOR" and playerClass ~= "ROGUE" and playerClass ~= "DEATHKNIGHT" and playerClass ~= "DEMONHUNTER")
-    local needsManaBar = hasMana and currentPowerType ~= 0
-    local showManaBar = showManaBarOption and needsManaBar
-    local manaHeight = profile.prbManaHeight or 6
-    local showClassPower = profile.prbShowClassPower == true
-    local cpConfig = GetClassPowerConfig()
-    local hasClassPower = cpConfig ~= nil and not IsClassPowerRedundant()
-    local cpHeight = profile.prbClassPowerHeight or 6
-    local cpYOffset = profile.prbClassPowerY or 20
-    local clampAnchor = (profile.prbClampAnchor == "bottom") and "bottom" or "top"
-    local barOrder = {}
-    local clampTotalHeight = nil
-    if clampBars then
-      table.insert(barOrder, {type = "health", priority = healthYOffset, height = healthHeight, order = 1, active = showHealth})
-      table.insert(barOrder, {type = "power", priority = powerYOffset, height = powerHeight, order = 2, active = showPower})
-      table.insert(barOrder, {type = "mana", priority = manaYOffset, height = manaHeight, order = 3, active = showManaBar})
-      table.insert(barOrder, {type = "classpower", priority = cpYOffset, height = cpHeight, order = 4, active = (showClassPower and hasClassPower)})
-      table.sort(barOrder, function(a, b)
-        if a.priority == b.priority then
-          return (a.order or 99) < (b.order or 99)
-        end
-        return a.priority > b.priority
-      end)
-      local effectiveSpacing = spacing
-      if borderSize > 0 then
-        effectiveSpacing = effectiveSpacing + (borderSize * 2)
-        if borderSize == 1 then
-          effectiveSpacing = effectiveSpacing + 1
-        end
-      end
-      local reservedHeight = 0
-      for i, barInfo in ipairs(barOrder) do
-        if i > 1 then
-          reservedHeight = reservedHeight + effectiveSpacing
-        end
-        reservedHeight = reservedHeight + barInfo.height
-      end
-      local activePos = 0
-      local activeCount = 0
-      local activeHeight = 0
-      for _, barInfo in ipairs(barOrder) do
-        if barInfo.active ~= false then
-          activeCount = activeCount + 1
-          if activeCount > 1 then
-            activePos = activePos + effectiveSpacing
-          end
-          barInfo.yPos = activePos
-          activePos = activePos + barInfo.height
-          activeHeight = activePos
-        end
-      end
-      if clampAnchor == "bottom" and activeCount > 0 and reservedHeight > activeHeight then
-        local bottomShift = reservedHeight - activeHeight
-        for _, barInfo in ipairs(barOrder) do
-          if barInfo.active ~= false and barInfo.yPos then
-            barInfo.yPos = barInfo.yPos + bottomShift
-          end
-        end
-      end
-      clampTotalHeight = reservedHeight
-    end
-    local function GetBarYPos(barType, defaultYOff, yOffset)
-      if clampBars then
-        for _, barInfo in ipairs(barOrder) do
-          if barInfo.type == barType then
-            return barInfo.yPos
-          end
-        end
-        return 0
-      else
-        return defaultYOff - yOffset
-      end
-    end
-    local totalHeight = 0
-    if clampBars then
-      totalHeight = clampTotalHeight or 0
-    else
-      if showHealth then totalHeight = totalHeight + healthHeight end
-      if showPower and showHealth then totalHeight = totalHeight + spacing + powerHeight end
-      if showPower and not showHealth then totalHeight = totalHeight + powerHeight end
-      if showManaBar and (showHealth or showPower) then totalHeight = totalHeight + spacing + manaHeight end
-      if showManaBar and not showHealth and not showPower then totalHeight = totalHeight + manaHeight end
-    end
-    PixelUtil.SetSize(prbFrame, width, math.max(totalHeight, 10))
-    if not State.prbDragging then
-      local posX = profile.prbX or 0
-      local posY = profile.prbY or -180
-      prbFrame:ClearAllPoints()
-      if profile.prbCentered then
-        prbFrame:SetPoint("CENTER", UIParent, "CENTER", 0, posY)
-      else
-        prbFrame:SetPoint("CENTER", UIParent, "CENTER", posX, posY)
-      end
-    end
-    local yOff = 0
-    local powerYPosForClamp = nil
-    if showHealth then
-      prbFrame.healthBar:Show()
-      prbFrame.healthBar:SetStatusBarTexture(healthTexturePath)
-      prbFrame.healthBar:ClearAllPoints()
-      local healthY = clampBars and GetBarYPos("health", 0, 0) or (yOff - healthYOffset)
-      PixelUtil.SetPoint(prbFrame.healthBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -healthY)
-      PixelUtil.SetSize(prbFrame.healthBar, width, healthHeight)
-      prbFrame.healthBar:SetMinMaxValues(0, UnitHealthMax("player") or 1)
-      prbFrame.healthBar:SetValue(UnitHealth("player") or 0)
-      if profile.prbUseClassColor then
-        local r, g, b = GetClassColor()
-        prbFrame.healthBar:SetStatusBarColor(r, g, b)
-      else
-        local r = profile.prbHealthColorR or 0
-        local g = profile.prbHealthColorG or 0.8
-        local b = profile.prbHealthColorB or 0
-        prbFrame.healthBar:SetStatusBarColor(r, g, b)
-      end
-      local bgR = profile.prbBgColorR or 0.1
-      local bgG = profile.prbBgColorG or 0.1
-      local bgB = profile.prbBgColorB or 0.1
-      prbFrame.healthBar.bg:SetColorTexture(bgR, bgG, bgB, bgAlpha)
-      if borderSize > 0 then
-        prbFrame.healthBar.border:ClearAllPoints()
-        prbFrame.healthBar.border:SetPoint("TOPLEFT", prbFrame.healthBar, "TOPLEFT", -borderSize, borderSize)
-        prbFrame.healthBar.border:SetPoint("BOTTOMRIGHT", prbFrame.healthBar, "BOTTOMRIGHT", borderSize, -borderSize)
-        prbFrame.healthBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
-        prbFrame.healthBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-        prbFrame.healthBar.border:Show()
-      else
-        prbFrame.healthBar.border:SetBackdrop(nil)
-        prbFrame.healthBar.border:Hide()
-      end
-      local htR = profile.prbHealthTextColorR or 1
-      local htG = profile.prbHealthTextColorG or 1
-      local htB = profile.prbHealthTextColorB or 1
-      prbFrame.healthBar.text:SetTextColor(htR, htG, htB)
-      prbFrame.healthBar.text:SetScale(healthTextScale)
-      local globalFont, globalOutline = GetGlobalFont()
-      local fontSize = 12 * healthTextScale
-      prbFrame.healthBar.text:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      prbFrame.healthBar.text:ClearAllPoints()
-      prbFrame.healthBar.text:SetPoint("CENTER", prbFrame.healthBar, "CENTER", 0, healthTextY)
-      if healthTextMode ~= "hidden" then
-        local healthText = ""
-        if healthTextMode == "percent" then
-          if UnitHealthPercent then
-            local pct = UnitHealthPercent("player", false, CurveConstants.ScaleTo100)
-            healthText = string.format("%.0f%%", pct or 100)
-          else
-            healthText = "100%"
-          end
-        elseif healthTextMode == "percentnumber" then
-          if UnitHealthPercent then
-            local pct = UnitHealthPercent("player", false, CurveConstants.ScaleTo100)
-            healthText = string.format("%.0f", pct or 100)
-          else
-            healthText = "100"
-          end
-        elseif healthTextMode == "value" then
-          healthText = AbbreviateNumbers(UnitHealth("player"))
-        elseif healthTextMode == "both" then
-          local valStr = AbbreviateNumbers(UnitHealth("player"))
-          local pct = 100
-          if UnitHealthPercent then
-            pct = UnitHealthPercent("player", false, CurveConstants.ScaleTo100) or 100
-          end
-          healthText = string.format("%s (%.0f%%)", valStr, pct)
-        end
-        prbFrame.healthBar.text:SetText(healthText)
-        FitTextToBar(prbFrame.healthBar.text, width, healthTextScale, 6, healthHeight)
-        prbFrame.healthBar.text:Show()
-      else
-        prbFrame.healthBar.text:Hide()
-      end
-      if showPower then
-        yOff = yOff + healthHeight + spacing
-      else
-        yOff = yOff + healthHeight
-      end
-    else
-      prbFrame.healthBar:Hide()
-      prbFrame.healthBar.text:Hide()
-    end
-    if showPower then
-      prbFrame.powerBar:Show()
-      prbFrame.powerBar:SetStatusBarTexture(powerTexturePath)
-      prbFrame.powerBar:ClearAllPoints()
-      local powerY = clampBars and GetBarYPos("power", 0, 0) or (yOff - powerYOffset)
-      if clampBars then
-        powerYPosForClamp = powerY
-      end
-      PixelUtil.SetPoint(prbFrame.powerBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -powerY)
-      PixelUtil.SetSize(prbFrame.powerBar, width, powerHeight)
-      local powerType = UnitPowerType("player") or 0
-      prbFrame.powerBar:SetMinMaxValues(0, UnitPowerMax("player") or 1)
-      prbFrame.powerBar:SetValue(UnitPower("player") or 0)
-      if profile.prbUsePowerTypeColor then
-        if powerType == 0 then
-          prbFrame.powerBar:SetStatusBarColor(0, 0.298, 1)
-        else
-          local powerColors = PowerBarColor[powerType]
-          if powerColors then
-            prbFrame.powerBar:SetStatusBarColor(powerColors.r, powerColors.g, powerColors.b)
-          else
-            prbFrame.powerBar:SetStatusBarColor(0, 0.5, 1)
-          end
-        end
-      else
-        local r = profile.prbPowerColorR or 0
-        local g = profile.prbPowerColorG or 0.5
-        local b = profile.prbPowerColorB or 1
-        prbFrame.powerBar:SetStatusBarColor(r, g, b)
-      end
-      local bgR = profile.prbBgColorR or 0.1
-      local bgG = profile.prbBgColorG or 0.1
-      local bgB = profile.prbBgColorB or 0.1
-      prbFrame.powerBar.bg:SetColorTexture(bgR, bgG, bgB, bgAlpha)
-      if borderSize > 0 then
-        prbFrame.powerBar.border:ClearAllPoints()
-        prbFrame.powerBar.border:SetPoint("TOPLEFT", prbFrame.powerBar, "TOPLEFT", -borderSize, borderSize)
-        prbFrame.powerBar.border:SetPoint("BOTTOMRIGHT", prbFrame.powerBar, "BOTTOMRIGHT", borderSize, -borderSize)
-        prbFrame.powerBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
-        prbFrame.powerBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-        prbFrame.powerBar.border:Show()
-      else
-        prbFrame.powerBar.border:SetBackdrop(nil)
-        prbFrame.powerBar.border:Hide()
-      end
-      local ptR = profile.prbPowerTextColorR or 1
-      local ptG = profile.prbPowerTextColorG or 1
-      local ptB = profile.prbPowerTextColorB or 1
-      prbFrame.powerBar.text:SetTextColor(ptR, ptG, ptB)
-      prbFrame.powerBar.text:SetScale(powerTextScale)
-      local globalFont, globalOutline = GetGlobalFont()
-      prbFrame.powerBar.text:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      prbFrame.powerBar.text:ClearAllPoints()
-      prbFrame.powerBar.text:SetPoint("CENTER", prbFrame.powerBar, "CENTER", 0, powerTextY)
-      if powerTextMode ~= "hidden" then
-        local powerText = ""
-        if powerTextMode == "percent" then
-          if UnitPowerPercent then
-            local pct = UnitPowerPercent("player", powerType, false, CurveConstants.ScaleTo100)
-            powerText = string.format("%.0f%%", pct or 100)
-          else
-            powerText = "100%"
-          end
-        elseif powerTextMode == "percentnumber" then
-          if UnitPowerPercent then
-            local pct = UnitPowerPercent("player", powerType, false, CurveConstants.ScaleTo100)
-            powerText = string.format("%.0f", pct or 100)
-          else
-            powerText = "100"
-          end
-        elseif powerTextMode == "value" then
-          powerText = AbbreviateNumbers(UnitPower("player", powerType))
-        elseif powerTextMode == "both" then
-          local valStr = AbbreviateNumbers(UnitPower("player", powerType))
-          local pct = 100
-          if UnitPowerPercent then
-            pct = UnitPowerPercent("player", powerType, false, CurveConstants.ScaleTo100) or 100
-          end
-          powerText = string.format("%s (%.0f%%)", valStr, pct)
-        end
-        prbFrame.powerBar.text:SetText(powerText)
-        FitTextToBar(prbFrame.powerBar.text, width, powerTextScale, 6, powerHeight)
-        prbFrame.powerBar.text:Show()
-      else
-        prbFrame.powerBar.text:Hide()
-      end
-      yOff = yOff + powerHeight
-    else
-      prbFrame.powerBar:Hide()
-      prbFrame.powerBar.text:Hide()
-    end
-    if showManaBar then
-      local manaTextMode = profile.prbManaTextMode or "hidden"
-      if (showHealth or showPower) then
-        yOff = yOff + spacing
-      end
-      prbFrame.manaBar:Show()
-      prbFrame.manaBar:SetStatusBarTexture(manaTexturePath)
-      prbFrame.manaBar:ClearAllPoints()
-      local manaY = clampBars and GetBarYPos("mana", 0, 0) or (yOff - manaYOffset)
-      if clampBars and powerYPosForClamp ~= nil then
-        local minGap = spacing + (borderSize > 0 and (borderSize * 2) or 0)
-        if borderSize == 1 then
-          minGap = minGap + 1
-        end
-        minGap = math.max(1, minGap)
-        prbFrame.manaBar:SetPoint("TOPLEFT", prbFrame.powerBar, "BOTTOMLEFT", 0, -minGap)
-      else
-        PixelUtil.SetPoint(prbFrame.manaBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -manaY)
-      end
-      PixelUtil.SetSize(prbFrame.manaBar, width, manaHeight)
-      prbFrame.manaBar:SetMinMaxValues(0, UnitPowerMax("player", 0) or 1)
-      prbFrame.manaBar:SetValue(UnitPower("player", 0) or 0)
-      local mR = profile.prbManaColorR or 0
-      local mG = profile.prbManaColorG or 0.5
-      local mB = profile.prbManaColorB or 1
-      prbFrame.manaBar:SetStatusBarColor(mR, mG, mB)
-      local bgR = profile.prbBgColorR or 0.1
-      local bgG = profile.prbBgColorG or 0.1
-      local bgB = profile.prbBgColorB or 0.1
-      prbFrame.manaBar.bg:SetColorTexture(bgR, bgG, bgB, bgAlpha)
-      if borderSize > 0 then
-        prbFrame.manaBar.border:ClearAllPoints()
-        prbFrame.manaBar.border:SetPoint("TOPLEFT", prbFrame.manaBar, "TOPLEFT", -borderSize, borderSize)
-        prbFrame.manaBar.border:SetPoint("BOTTOMRIGHT", prbFrame.manaBar, "BOTTOMRIGHT", borderSize, -borderSize)
-        prbFrame.manaBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
-        prbFrame.manaBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-        prbFrame.manaBar.border:Show()
-      else
-        prbFrame.manaBar.border:SetBackdrop(nil)
-        prbFrame.manaBar.border:Hide()
-      end
-      local mtR = profile.prbManaTextColorR or 1
-      local mtG = profile.prbManaTextColorG or 1
-      local mtB = profile.prbManaTextColorB or 1
-      prbFrame.manaBar.text:SetTextColor(mtR, mtG, mtB)
-      prbFrame.manaBar.text:SetScale(manaTextScale)
-      local globalFont, globalOutline = GetGlobalFont()
-      prbFrame.manaBar.text:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      prbFrame.manaBar.text:ClearAllPoints()
-      prbFrame.manaBar.text:SetPoint("CENTER", prbFrame.manaBar, "CENTER", 0, manaTextY)
-      if manaTextMode ~= "hidden" then
-        local manaText = ""
-        if manaTextMode == "percent" then
-          if UnitPowerPercent then
-            local pct = UnitPowerPercent("player", 0, true, CurveConstants and CurveConstants.ScaleTo100 or 1)
-            manaText = string.format("%.0f%%", pct or 100)
-          else
-            manaText = "100%"
-          end
-        elseif manaTextMode == "percentnumber" then
-          if UnitPowerPercent then
-            local pct = UnitPowerPercent("player", 0, true, CurveConstants and CurveConstants.ScaleTo100 or 1)
-            manaText = string.format("%.0f", pct or 100)
-          else
-            manaText = "100"
-          end
-        elseif manaTextMode == "value" then
-          manaText = AbbreviateNumbers(UnitPower("player", 0))
-        elseif manaTextMode == "both" then
-          local valStr = AbbreviateNumbers(UnitPower("player", 0))
-          local pct = 100
-          if UnitPowerPercent then
-            pct = UnitPowerPercent("player", 0, true, CurveConstants and CurveConstants.ScaleTo100 or 1) or 100
-          end
-          manaText = string.format("%s (%.0f%%)", valStr, pct)
-        end
-        prbFrame.manaBar.text:SetText(manaText)
-        FitTextToBar(prbFrame.manaBar.text, width, manaTextScale, 6, manaHeight)
-        prbFrame.manaBar.text:Show()
-      else
-        prbFrame.manaBar.text:Hide()
-      end
-    else
-      prbFrame.manaBar:Hide()
-      prbFrame.manaBar.text:Hide()
-    end
-    local _, playerClass = UnitClass("player")
-    SetBlizzardPlayerPowerBarsVisibility(showPower, showClassPower)
-    local classPowerType = cpConfig and cpConfig.powerType
-    local buffID = cpConfig and cpConfig.buffID
-    local classPower = 0
-    local maxClassPower = 5
-    if hasClassPower and buffID then
-      local auraData = C_UnitAuras.GetPlayerAuraBySpellID(buffID)
-      if auraData then
-        classPower = auraData.applications or auraData.count or 0
-      end
-      maxClassPower = cpConfig.maxStacks or 10
-    elseif hasClassPower and classPowerType then
-      local maxPower = UnitPowerMax("player", classPowerType) or 0
-      if maxPower <= 0 then
-        hasClassPower = false
-      else
-        classPower = UnitPower("player", classPowerType) or 0
-        maxClassPower = maxPower
-      end
-    end
-    for i = 1, 10 do
-      if prbFrame.classPowerSegments[i] then
-        prbFrame.classPowerSegments[i]:Hide()
-      end
-    end
-    if showClassPower and hasClassPower then
-      local cpR = profile.prbClassPowerColorR or 1
-      local cpG = profile.prbClassPowerColorG or 0.82
-      local cpB = profile.prbClassPowerColorB or 0
-      local cpY = profile.prbClassPowerY or 20
-      local cpX = profile.prbClassPowerX or 0
-      local isContinuous = cpConfig.continuous == true
-      if isContinuous then
-        for i = 1, 10 do
-          if prbFrame.classPowerSegments[i] then
-            prbFrame.classPowerSegments[i]:Hide()
-          end
-        end
-        PixelUtil.SetSize(prbFrame.classPowerBar, width, cpHeight)
-        prbFrame.classPowerBar:ClearAllPoints()
-        if clampBars then
-          local classPowerYPos = GetBarYPos("classpower", 0, 0)
-          PixelUtil.SetPoint(prbFrame.classPowerBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -classPowerYPos)
-        elseif profile.prbCentered then
-          prbFrame.classPowerBar:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", 0, cpY)
-        else
-          prbFrame.classPowerBar:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", cpX, cpY)
-        end
-        prbFrame.classPowerBar:SetMinMaxValues(0, maxClassPower)
-        prbFrame.classPowerBar:SetValue(classPower)
-        prbFrame.classPowerBar:SetStatusBarColor(cpR, cpG, cpB, 1)
-        prbFrame.classPowerBar.bg:SetColorTexture(0.15, 0.15, 0.15, bgAlpha)
-        if borderSize > 0 then
-          prbFrame.classPowerBar.border:ClearAllPoints()
-          prbFrame.classPowerBar.border:SetPoint("TOPLEFT", prbFrame.classPowerBar, "TOPLEFT", -borderSize, borderSize)
-          prbFrame.classPowerBar.border:SetPoint("BOTTOMRIGHT", prbFrame.classPowerBar, "BOTTOMRIGHT", borderSize, -borderSize)
-          prbFrame.classPowerBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
-          prbFrame.classPowerBar.border:SetBackdropBorderColor(0, 0, 0, 1)
-          prbFrame.classPowerBar.border:Show()
-        else
-          prbFrame.classPowerBar.border:SetBackdrop(nil)
-          prbFrame.classPowerBar.border:Hide()
-        end
-        prbFrame.classPowerBar:Show()
-      else
-        prbFrame.classPowerBar:Hide()
-        if maxClassPower > 0 then
-          local segSpacing = 2
-          local segTotalWidth = prbFrame:GetWidth() or width
-          local totalSpacing = (maxClassPower - 1) * segSpacing
-          local baseSegWidth = math.floor((segTotalWidth - totalSpacing) / maxClassPower)
-          for i = 1, maxClassPower do
-            local seg = prbFrame.classPowerSegments[i]
-            if seg then
-              local xOff = (i - 1) * (baseSegWidth + segSpacing)
-              seg:ClearAllPoints()
-              if i == maxClassPower then
-                if clampBars then
-                  local classPowerYPos = GetBarYPos("classpower", 0, 0)
-                  seg:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", xOff, -classPowerYPos)
-                  seg:SetPoint("BOTTOMRIGHT", prbFrame, "TOPLEFT", segTotalWidth, -classPowerYPos - cpHeight)
-                elseif profile.prbCentered then
-                  seg:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", xOff, cpY)
-                  seg:SetPoint("TOPRIGHT", prbFrame, "TOPLEFT", segTotalWidth, cpY + cpHeight)
-                else
-                  seg:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", xOff + cpX, cpY)
-                  seg:SetPoint("TOPRIGHT", prbFrame, "TOPLEFT", cpX + segTotalWidth, cpY + cpHeight)
-                end
-              else
-                PixelUtil.SetSize(seg, baseSegWidth, cpHeight)
-                if clampBars then
-                  local classPowerYPos = GetBarYPos("classpower", 0, 0)
-                  seg:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", xOff, -classPowerYPos)
-                elseif profile.prbCentered then
-                  seg:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", xOff, cpY)
-                else
-                  seg:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", xOff + cpX, cpY)
-                end
-              end
-              if borderSize > 0 then
-                seg.border:ClearAllPoints()
-                seg.border:SetPoint("TOPLEFT", seg, "TOPLEFT", -borderSize, borderSize)
-                seg.border:SetPoint("BOTTOMRIGHT", seg, "BOTTOMRIGHT", borderSize, -borderSize)
-                seg.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
-                seg.border:SetBackdropBorderColor(0, 0, 0, 1)
-                seg.border:Show()
-              else
-                seg.border:SetBackdrop(nil)
-                seg.border:Hide()
-              end
-              if i <= classPower then
-                seg.bg:SetColorTexture(cpR, cpG, cpB, 1)
-              else
-                seg.bg:SetColorTexture(0.15, 0.15, 0.15, bgAlpha)
-              end
-              seg:Show()
-            end
-          end
-          for i = maxClassPower + 1, 10 do
-            if prbFrame.classPowerSegments[i] then
-              prbFrame.classPowerSegments[i]:Hide()
-            end
-          end
-        end
-      end
-    else
-      prbFrame.classPowerBar:Hide()
-      for i = 1, 10 do
-        if prbFrame.classPowerSegments[i] then
-          prbFrame.classPowerSegments[i]:Hide()
-        end
-      end
-    end
-    prbFrame:Show()
-end
-addonTable.UpdatePRB = UpdatePRB
-local function UpdatePRBFonts()
-  UpdatePRB()
-end
-addonTable.UpdatePRBFonts = UpdatePRBFonts
-local function StartPRBTicker()
-  if State.prbTicker then return end
-  State.prbTicker = C_Timer.NewTicker(0.1, UpdatePRB)
-end
-local function StopPRBTicker()
-  if State.prbTicker then
-    State.prbTicker:Cancel()
-    State.prbTicker = nil
-  end
-end
-addonTable.StartPRBTicker = StartPRBTicker
-addonTable.StopPRBTicker = StopPRBTicker
-local castbarFrame = CreateFrame("Frame", "CCMCastbar", UIParent, "BackdropTemplate")
-castbarFrame:SetSize(250, 20)
-castbarFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -250)
-castbarFrame:SetFrameStrata("MEDIUM")
-castbarFrame:SetClampedToScreen(true)
-castbarFrame:SetMovable(false)
-castbarFrame:EnableMouse(true)
-castbarFrame:RegisterForDrag("LeftButton")
-castbarFrame:Hide()
-addonTable.CastbarFrame = castbarFrame
-castbarFrame.bar = CreateFrame("StatusBar", nil, castbarFrame)
-castbarFrame.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-castbarFrame.bar:SetStatusBarColor(1, 0.7, 0)
-castbarFrame.bar:SetAllPoints()
-castbarFrame.bg = castbarFrame.bar:CreateTexture(nil, "BACKGROUND")
-castbarFrame.bg:SetAllPoints()
-castbarFrame.bg:SetColorTexture(0.1, 0.1, 0.1, 0.7)
-castbarFrame.textOverlay = CreateFrame("Frame", nil, castbarFrame)
-castbarFrame.textOverlay:SetAllPoints()
-castbarFrame.textOverlay:SetFrameLevel(castbarFrame:GetFrameLevel() + 10)
-castbarFrame.spellText = castbarFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-castbarFrame.spellText:SetPoint("LEFT", castbarFrame, "LEFT", 5, 0)
-castbarFrame.spellText:SetTextColor(1, 1, 1)
-castbarFrame.spellText:SetJustifyH("LEFT")
-castbarFrame.timeText = castbarFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-castbarFrame.timeText:SetPoint("RIGHT", castbarFrame, "RIGHT", -5, 0)
-castbarFrame.timeText:SetTextColor(1, 1, 1)
-castbarFrame.timeText:SetJustifyH("RIGHT")
-castbarFrame.icon = CreateFrame("Frame", nil, castbarFrame)
-castbarFrame.icon:SetSize(24, 24)
-castbarFrame.icon:SetPoint("RIGHT", castbarFrame, "LEFT", -4, 0)
-castbarFrame.icon.texture = castbarFrame.icon:CreateTexture(nil, "ARTWORK")
-castbarFrame.icon.texture:SetAllPoints()
-castbarFrame.icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-castbarFrame.border = CreateFrame("Frame", nil, castbarFrame, "BackdropTemplate")
-castbarFrame.border:SetFrameLevel(castbarFrame:GetFrameLevel() + 20)
-castbarFrame.border:SetAllPoints()
-castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
-castbarFrame.ticks = {}
-for i = 1, 10 do
-  local tick = castbarFrame.bar:CreateTexture(nil, "OVERLAY")
-  tick:SetColorTexture(1, 1, 1, 0.8)
-  tick:SetSize(2, 1)
-  tick:Hide()
-  castbarFrame.ticks[i] = tick
-end
-castbarFrame:SetScript("OnDragStart", function(self)
-  if not State.guiIsOpen then return end
-  if addonTable.activeTab and addonTable.activeTab() ~= 8 then
-    if addonTable.SwitchToTab then addonTable.SwitchToTab(8) end
-  end
-  State.castbarDragging = true
-  self:StartMoving()
-end)
-castbarFrame:SetScript("OnDragStop", function(self)
-  if not State.castbarDragging then return end
-  self:StopMovingOrSizing()
-  local centerX, centerY = UIParent:GetCenter()
-  local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if profile then
-    profile.castbarX = newX
-    profile.castbarY = newY
-    if addonTable.UpdateCastbarSliders then addonTable.UpdateCastbarSliders(newX, newY) end
-  end
-  State.castbarDragging = false
-end)
-castbarFrame:SetScript("OnMouseUp", function(self, button)
-  if button == "LeftButton" and not State.castbarDragging then
-    if addonTable.GetGUIOpen and addonTable.GetGUIOpen() then
-      if addonTable.SwitchToTab then addonTable.SwitchToTab(8) end
-    end
-  end
-end)
-local castbarTextures = {
-  solid = "Interface\\Buttons\\WHITE8x8",
-  flat = "Interface\\Buttons\\WHITE8x8",
-  blizzard = "Interface\\TargetingFrame\\UI-StatusBar",
-  blizzraid = "Interface\\RaidFrame\\Raid-Bar-Hp-Fill",
-  smooth = "Interface\\TargetingFrame\\UI-StatusBar-Glow",
-  minimalist = "Interface\\ChatFrame\\ChatFrameBackground",
-  cilo = "Interface\\TARGETINGFRAME\\UI-TargetingFrame-BarFill",
-  glaze = "Interface\\TargetingFrame\\BarFill2",
-  steel = "Interface\\TargetingFrame\\UI-TargetingFrame-Fill",
-  aluminium = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
-  metal = "Interface\\UNITPOWERBARALT\\Metal_Horizontal_Fill",
-  amber = "Interface\\UNITPOWERBARALT\\Amber_Horizontal_Fill",
-  arcane = "Interface\\UNITPOWERBARALT\\Arcane_Horizontal_Fill",
-  fire = "Interface\\UNITPOWERBARALT\\Fire_Horizontal_Fill",
-  water = "Interface\\UNITPOWERBARALT\\Water_Horizontal_Fill",
-  waterdark = "Interface\\UNITPOWERBARALT\\WaterDark_Horizontal_Fill",
-  generic = "Interface\\UNITPOWERBARALT\\Generic_Horizontal_Fill",
-  round = "Interface\\AchievementFrame\\UI-Achievement-ProgressBar-Fill",
-  diagonal = "Interface\\ACHIEVEMENTFRAME\\UI-Achievement-HorizontalShadow",
-  striped = "Interface\\PaperDollInfoFrame\\UI-Character-Skills-Bar",
-  armory = "Interface\\PaperDollInfoFrame\\UI-Character-Tab-Highlight",
-  gradient = "Interface\\CHARACTERFRAME\\UI-Player-Status-Left",
-  otravi = "Interface\\Tooltips\\UI-Tooltip-Background",
-  rocks = "Interface\\FrameGeneral\\UI-Background-Rock",
-  highlight = "Interface\\QuestFrame\\UI-QuestLogTitleHighlight",
-  inner = "Interface\\BUTTONS\\UI-Listbox-Highlight2",
-  lite = "Interface\\LFGFRAME\\UI-LFG-SEPARATOR",
-  spark = "Interface\\CastingBar\\UI-CastingBar-Spark",
-  normtex = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex",
-  gloss = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Gloss",
-  melli = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Melli",
-  mellidark = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\MelliDark",
-  betterblizzard = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\BetterBlizzard",
-  skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
-  dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
-}
-State.castbarActive = false
-State.castbarChanneling = false
-State.castbarStartTime = 0
-State.castbarEndTime = 0
-State.castbarDragging = false
-State.castbarPreviewMode = false
-local channelTickData = {
-  [234153] = 6,
-  [198590] = 6,
-  [755] = 5,
-  [5740] = 8,
-  [5143] = 5,
-  [12051] = 3,
-  [205021] = 10,
-  [64843] = 4,
-  [47540] = 2,
-  [204197] = 2,
-  [15407] = 4,
-  [263165] = 4,
-  [48045] = 5,
-  [205065] = 4,
-  [740] = 4,
-  [16914] = 10,
-  [61295] = 3,
-  [115175] = 8,
-  [191837] = 3,
-  [382614] = 4,
-  [355936] = 3,
-  [356995] = 4,
-  [361469] = 3,
-  [382411] = 4,
-  [120360] = 15,
-  [257044] = 4,
-  [206930] = 3,
-  [198013] = 2,
-  [258920] = 2,
-}
-local selfHighlightFrame = CreateFrame("Frame", "CCMSelfHighlight", UIParent)
-selfHighlightFrame:SetSize(40, 40)
-selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-selfHighlightFrame:SetFrameStrata("TOOLTIP")
-selfHighlightFrame:SetFrameLevel(1000)
-selfHighlightFrame:Hide()
-selfHighlightFrame.lines = {}
-for i = 1, 4 do
-  selfHighlightFrame.lines[i] = selfHighlightFrame:CreateLine(nil, "OVERLAY")
-  selfHighlightFrame.lines[i]:SetColorTexture(1, 1, 1, 1)
-end
-addonTable.SelfHighlightFrame = selfHighlightFrame
-local function UpdateSelfHighlight()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then selfHighlightFrame:Hide(); return end
-  local shape = profile.selfHighlightShape or "off"
-  if shape == "off" then selfHighlightFrame:Hide(); return end
-  local combatOnly = profile.selfHighlightCombatOnly == true
-  if combatOnly and not InCombatLockdown() then selfHighlightFrame:Hide(); return end
-  local size = profile.selfHighlightSize or 20
-  local thickness = profile.selfHighlightThickness or "medium"
-  local outline = profile.selfHighlightOutline ~= false
-  local r = profile.selfHighlightColorR or 1
-  local g = profile.selfHighlightColorG or 1
-  local b = profile.selfHighlightColorB or 1
-  local a = profile.selfHighlightAlpha or 1
-  local yOffset = profile.selfHighlightY or 0
-  selfHighlightFrame:SetSize(size, size)
-  selfHighlightFrame:ClearAllPoints()
-  selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, yOffset)
-  if shape == "cross" then
-    local lineThickness = thickness == "thin" and 1 or (thickness == "thick" and 4 or 2)
-    local halfSize = size / 2
-    if outline then
-      local outlineThickness = lineThickness + 2
-      selfHighlightFrame.lines[3]:SetStartPoint("CENTER", -halfSize, 0)
-      selfHighlightFrame.lines[3]:SetEndPoint("CENTER", halfSize, 0)
-      selfHighlightFrame.lines[3]:SetThickness(outlineThickness)
-      selfHighlightFrame.lines[3]:SetColorTexture(0, 0, 0, a)
-      selfHighlightFrame.lines[3]:SetDrawLayer("OVERLAY", 0)
-      selfHighlightFrame.lines[3]:Show()
-      selfHighlightFrame.lines[4]:SetStartPoint("CENTER", 0, -halfSize)
-      selfHighlightFrame.lines[4]:SetEndPoint("CENTER", 0, halfSize)
-      selfHighlightFrame.lines[4]:SetThickness(outlineThickness)
-      selfHighlightFrame.lines[4]:SetColorTexture(0, 0, 0, a)
-      selfHighlightFrame.lines[4]:SetDrawLayer("OVERLAY", 0)
-      selfHighlightFrame.lines[4]:Show()
-    else
-      selfHighlightFrame.lines[3]:Hide()
-      selfHighlightFrame.lines[4]:Hide()
-    end
-    selfHighlightFrame.lines[1]:SetStartPoint("CENTER", -halfSize, 0)
-    selfHighlightFrame.lines[1]:SetEndPoint("CENTER", halfSize, 0)
-    selfHighlightFrame.lines[1]:SetThickness(lineThickness)
-    selfHighlightFrame.lines[1]:SetColorTexture(r, g, b, a)
-    selfHighlightFrame.lines[1]:SetDrawLayer("OVERLAY", 1)
-    selfHighlightFrame.lines[1]:Show()
-    selfHighlightFrame.lines[2]:SetStartPoint("CENTER", 0, -halfSize)
-    selfHighlightFrame.lines[2]:SetEndPoint("CENTER", 0, halfSize)
-    selfHighlightFrame.lines[2]:SetThickness(lineThickness)
-    selfHighlightFrame.lines[2]:SetColorTexture(r, g, b, a)
-    selfHighlightFrame.lines[2]:SetDrawLayer("OVERLAY", 1)
-    selfHighlightFrame.lines[2]:Show()
-    selfHighlightFrame:Show()
-  end
-end
-addonTable.UpdateSelfHighlight = UpdateSelfHighlight
-local selfHighlightTicker = nil
-local function StartSelfHighlightTicker()
-  if selfHighlightTicker then return end
-  selfHighlightTicker = C_Timer.NewTicker(0.1, function()
-    if addonTable.UpdateSelfHighlight then addonTable.UpdateSelfHighlight() end
-  end)
-end
-local function StopSelfHighlightTicker()
-  if selfHighlightTicker then
-    selfHighlightTicker:Cancel()
-    selfHighlightTicker = nil
-  end
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if profile and profile.selfHighlightCombatOnly then
-    selfHighlightFrame:Hide()
-  end
-end
-addonTable.StartSelfHighlightTicker = StartSelfHighlightTicker
-addonTable.StopSelfHighlightTicker = StopSelfHighlightTicker
-local noTargetAlertFrame = CreateFrame("Frame", "CCMNoTargetAlert", UIParent)
-noTargetAlertFrame:SetSize(300, 50)
-noTargetAlertFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 100)
-noTargetAlertFrame:SetFrameStrata("HIGH")
-noTargetAlertFrame:Hide()
-noTargetAlertFrame.text = noTargetAlertFrame:CreateFontString(nil, "OVERLAY")
-noTargetAlertFrame.text:SetPoint("CENTER")
-noTargetAlertFrame.text:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
-noTargetAlertFrame.text:SetText("NO TARGET")
-noTargetAlertFrame.text:SetTextColor(1, 0, 0, 1)
-addonTable.NoTargetAlertFrame = noTargetAlertFrame
-State.noTargetAlertFlashActive = false
-State.noTargetAlertFlashTime = 0
-addonTable.CombatTimerFrame = CreateFrame("Frame", "CCMCombatTimer", UIParent, "BackdropTemplate")
-addonTable.CombatTimerFrame:SetSize(96, 34)
-addonTable.CombatTimerFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 200)
-addonTable.CombatTimerFrame:SetFrameStrata("HIGH")
-addonTable.CombatTimerFrame:SetBackdrop({
-  bgFile = "Interface\\Buttons\\WHITE8x8",
-  edgeFile = "Interface\\Buttons\\WHITE8x8",
-  edgeSize = 1
-})
-addonTable.CombatTimerFrame:SetBackdropColor(0.12, 0.12, 0.12, 0.85)
-addonTable.CombatTimerFrame:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
-addonTable.CombatTimerFrame.text = addonTable.CombatTimerFrame:CreateFontString(nil, "OVERLAY")
-addonTable.CombatTimerFrame.text:SetPoint("CENTER")
-addonTable.CombatTimerFrame.text:SetFont("Fonts\\FRIZQT__.TTF", 22, "OUTLINE")
-addonTable.CombatTimerFrame.text:SetTextColor(1, 1, 1, 1)
-addonTable.CombatTimerFrame.text:SetText("00:00.0")
-addonTable.CombatTimerFrame:SetMovable(true)
-addonTable.CombatTimerFrame:EnableMouse(true)
-addonTable.CombatTimerFrame:SetClampedToScreen(true)
-addonTable.CombatTimerFrame:RegisterForDrag("LeftButton")
-addonTable.CombatTimerFrame:SetScript("OnDragStart", function(self)
-  local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
-  local activeTab = addonTable.activeTab and addonTable.activeTab()
-  if not guiOpen or activeTab ~= 11 then return end
-  self:StartMoving()
-end)
-addonTable.CombatTimerFrame:SetScript("OnDragStop", function(self)
-  self:StopMovingOrSizing()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local centerX, centerY = self:GetCenter()
-  local parentCenterX, parentCenterY = UIParent:GetCenter()
-  if centerX and centerY and parentCenterX and parentCenterY then
-    local scale = UIParent:GetEffectiveScale() or 1
-    local rx = (centerX - parentCenterX) * scale
-    local ry = (centerY - parentCenterY) * scale
-    local centered = profile.combatTimerCentered == true
-    profile.combatTimerX = centered and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
-    profile.combatTimerY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
-    if addonTable.UpdateCombatTimerSliders then
-      addonTable.UpdateCombatTimerSliders(profile.combatTimerX, profile.combatTimerY)
-    end
-    if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-    if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
-  end
-end)
-addonTable.CombatTimerFrame:Hide()
-State.combatTimerStart = 0
-State.combatTimerElapsed = 0
-State.combatTimerActive = false
-State.combatTimerTicker = nil
-local function ApplyCombatTimerStyle(style)
-  local frame = addonTable.CombatTimerFrame
-  if not frame or not frame.text then return end
-  if style == "minimal" then
-    frame:SetSize(128, 44)
-    frame:SetBackdropColor(0, 0, 0, 0)
-    frame:SetBackdropBorderColor(0, 0, 0, 0)
-    frame.text:SetFont("Fonts\\FRIZQT__.TTF", 34, "OUTLINE")
-    frame.text:ClearAllPoints()
-    frame.text:SetPoint("CENTER")
-  else
-    frame:SetSize(96, 34)
-    frame.text:SetFont("Fonts\\FRIZQT__.TTF", 22, "OUTLINE")
-    frame.text:ClearAllPoints()
-    frame.text:SetPoint("CENTER")
-  end
-end
-function addonTable.UpdateCombatTimer()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local frame = addonTable.CombatTimerFrame
-  if not frame then return end
-  if not profile or profile.combatTimerEnabled ~= true then
-    if addonTable.StopCombatTimerTicker then addonTable.StopCombatTimerTicker() end
-    frame:Hide()
-    return
-  end
-  local x = type(profile.combatTimerX) == "number" and profile.combatTimerX or 0
-  local y = type(profile.combatTimerY) == "number" and profile.combatTimerY or 200
-  local centered = profile.combatTimerCentered == true
-  local scale = type(profile.combatTimerScale) == "number" and profile.combatTimerScale or 1
-  local tr = type(profile.combatTimerTextColorR) == "number" and profile.combatTimerTextColorR or 1
-  local tg = type(profile.combatTimerTextColorG) == "number" and profile.combatTimerTextColorG or 1
-  local tb = type(profile.combatTimerTextColorB) == "number" and profile.combatTimerTextColorB or 1
-  local br = type(profile.combatTimerBgColorR) == "number" and profile.combatTimerBgColorR or 0.12
-  local bg = type(profile.combatTimerBgColorG) == "number" and profile.combatTimerBgColorG or 0.12
-  local bb = type(profile.combatTimerBgColorB) == "number" and profile.combatTimerBgColorB or 0.12
-  local ba = type(profile.combatTimerBgAlpha) == "number" and profile.combatTimerBgAlpha or 0.85
-  frame:ClearAllPoints()
-  frame:SetPoint("CENTER", UIParent, "CENTER", centered and 0 or x, y)
-  frame:SetScale(scale)
-  local style = profile.combatTimerStyle == "minimal" and "minimal" or "boxed"
-  ApplyCombatTimerStyle(style)
-  if style == "minimal" then
-    frame:SetBackdropColor(0, 0, 0, 0)
-    frame:SetBackdropBorderColor(0, 0, 0, 0)
-  else
-    frame:SetBackdropColor(br, bg, bb, ba)
-    frame:SetBackdropBorderColor(0.45, 0.45, 0.45, 1)
-  end
-  frame.text:SetTextColor(tr, tg, tb, 1)
-  local mode = profile.combatTimerMode == "always" and "always" or "combat"
-  local shouldShow = (mode == "always") or State.combatTimerActive
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
-  frame:EnableMouse(draggable)
-  if shouldShow then
-    frame:Show()
-    if addonTable.StartCombatTimerTicker then addonTable.StartCombatTimerTicker() end
-  else
-    frame:Hide()
-    if addonTable.StopCombatTimerTicker then addonTable.StopCombatTimerTicker() end
-  end
-end
-function addonTable.RefreshCombatTimerText()
-  local frame = addonTable.CombatTimerFrame
-  if not frame or not frame.text then return end
-  local elapsed = State.combatTimerElapsed or 0
-  if State.combatTimerActive and State.combatTimerStart and State.combatTimerStart > 0 then
-    elapsed = GetTime() - State.combatTimerStart
-    if elapsed < 0 then elapsed = 0 end
-    State.combatTimerElapsed = elapsed
-  end
-  local minutes = math.floor(elapsed / 60)
-  local seconds = elapsed - (minutes * 60)
-  frame.text:SetText(string.format("%02d:%04.1f", minutes, seconds))
-end
-function addonTable.StartCombatTimerTicker()
-  if State.combatTimerTicker then return end
-  State.combatTimerTicker = C_Timer.NewTicker(0.05, function()
-    if addonTable.RefreshCombatTimerText then addonTable.RefreshCombatTimerText() end
-  end)
-end
-function addonTable.StopCombatTimerTicker()
-  if State.combatTimerTicker then
-    State.combatTimerTicker:Cancel()
-    State.combatTimerTicker = nil
-  end
-end
-function addonTable.SetCombatTimerActive(active)
-  if active then
-    State.combatTimerActive = true
-    State.combatTimerStart = GetTime()
-    State.combatTimerElapsed = 0
-    if addonTable.StartCombatTimerTicker then addonTable.StartCombatTimerTicker() end
-  else
-    if State.combatTimerActive and State.combatTimerStart and State.combatTimerStart > 0 then
-      local elapsed = GetTime() - State.combatTimerStart
-      if elapsed > 0 then
-        State.combatTimerElapsed = elapsed
-      end
-    end
-    State.combatTimerActive = false
-    State.combatTimerStart = 0
-  end
-  if addonTable.RefreshCombatTimerText then addonTable.RefreshCombatTimerText() end
-  if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-  if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
-end
-addonTable.crTimerFrame = CreateFrame("Frame", "CCMCRTimer", UIParent)
-addonTable.crTimerFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 150)
-addonTable.crTimerFrame:SetSize(180, 42)
-addonTable.crTimerFrame:SetFrameStrata("HIGH")
-addonTable.crTimerFrame:SetMovable(true)
-addonTable.crTimerFrame:EnableMouse(true)
-addonTable.crTimerFrame:SetClampedToScreen(true)
-addonTable.crTimerFrame:RegisterForDrag("LeftButton")
-addonTable.crTimerFrame.crText = addonTable.crTimerFrame:CreateFontString(nil, "OVERLAY")
-addonTable.crTimerFrame.crText:SetFont("Fonts\\FRIZQT__.TTF", 24, "OUTLINE")
-addonTable.crTimerFrame.crText:SetTextColor(1, 1, 1, 1)
-addonTable.crTimerFrame.blText = addonTable.crTimerFrame:CreateFontString(nil, "OVERLAY")
-addonTable.crTimerFrame.blText:SetFont("Fonts\\FRIZQT__.TTF", 24, "OUTLINE")
-addonTable.crTimerFrame.blText:SetTextColor(1, 1, 1, 1)
-addonTable.crTimerFrame:SetScript("OnDragStart", function(self)
-  local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
-  local activeTab = addonTable.activeTab and addonTable.activeTab()
-  if not guiOpen or activeTab ~= 11 then return end
-  self:StartMoving()
-end)
-addonTable.crTimerFrame:SetScript("OnDragStop", function(self)
-  self:StopMovingOrSizing()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local centerX, centerY = self:GetCenter()
-  local parentCenterX, parentCenterY = UIParent:GetCenter()
-  if centerX and centerY and parentCenterX and parentCenterY then
-    local scale = UIParent:GetEffectiveScale() or 1
-    local rx = (centerX - parentCenterX) * scale
-    local ry = (centerY - parentCenterY) * scale
-    profile.crTimerX = (profile.crTimerCentered == true) and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
-    profile.crTimerY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
-    if addonTable.UpdateCRTimerSliders then addonTable.UpdateCRTimerSliders(profile.crTimerX, profile.crTimerY) end
-    if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
-  end
-end)
-addonTable.crTimerFrame:Hide()
-addonTable.CombatStatusFrame = CreateFrame("Frame", "CCMCombatStatus", UIParent)
-addonTable.CombatStatusFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 280)
-addonTable.CombatStatusFrame:SetSize(360, 40)
-addonTable.CombatStatusFrame:SetFrameStrata("HIGH")
-addonTable.CombatStatusFrame:SetMovable(true)
-addonTable.CombatStatusFrame:EnableMouse(true)
-addonTable.CombatStatusFrame:SetClampedToScreen(true)
-addonTable.CombatStatusFrame:RegisterForDrag("LeftButton")
-addonTable.CombatStatusFrame.text = addonTable.CombatStatusFrame:CreateFontString(nil, "OVERLAY")
-addonTable.CombatStatusFrame.text:SetFont("Fonts\\FRIZQT__.TTF", 30, "OUTLINE")
-addonTable.CombatStatusFrame.text:SetPoint("CENTER")
-addonTable.CombatStatusFrame.text:SetTextColor(1, 1, 1, 1)
-addonTable.CombatStatusFrame.text:SetText("* Entering Combat *")
-addonTable.CombatStatusFrame:SetScript("OnDragStart", function(self)
-  local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
-  local activeTab = addonTable.activeTab and addonTable.activeTab()
-  if not guiOpen or activeTab ~= 11 then return end
-  self:StartMoving()
-end)
-addonTable.CombatStatusFrame:SetScript("OnDragStop", function(self)
-  self:StopMovingOrSizing()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local centerX, centerY = self:GetCenter()
-  local parentCenterX, parentCenterY = UIParent:GetCenter()
-  if centerX and centerY and parentCenterX and parentCenterY then
-    local scale = UIParent:GetEffectiveScale() or 1
-    local rx = (centerX - parentCenterX) * scale
-    local ry = (centerY - parentCenterY) * scale
-    profile.combatStatusX = (profile.combatStatusCentered == true) and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
-    profile.combatStatusY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
-    if addonTable.UpdateCombatStatusSliders then addonTable.UpdateCombatStatusSliders(profile.combatStatusX, profile.combatStatusY) end
-    if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
-  end
-end)
-addonTable.CombatStatusFrame:Hide()
-local function SetCombatStatusText(isEntering)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local frame = addonTable.CombatStatusFrame
-  if not profile or not frame or not frame.text then return end
-  local r, g, b
-  if isEntering then
-    r = profile.combatStatusEnterColorR or 1
-    g = profile.combatStatusEnterColorG or 1
-    b = profile.combatStatusEnterColorB or 1
-    frame.text:SetText("* Entering Combat *")
-  else
-    r = profile.combatStatusLeaveColorR or 1
-    g = profile.combatStatusLeaveColorG or 1
-    b = profile.combatStatusLeaveColorB or 1
-    frame.text:SetText("* Leaving Combat *")
-  end
-  frame.text:SetTextColor(r, g, b, 1)
-  State.combatStatusLastEntering = isEntering and true or false
-end
-function addonTable.UpdateCombatStatus()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local frame = addonTable.CombatStatusFrame
-  if not profile or not frame or not frame.text then return end
-  if profile.combatStatusEnabled ~= true and not State.combatStatusPreviewMode then
-    frame:Hide()
-    return
-  end
-  frame:ClearAllPoints()
-  frame:SetPoint("CENTER", UIParent, "CENTER", profile.combatStatusCentered == true and 0 or (profile.combatStatusX or 0), profile.combatStatusY or 280)
-  frame:SetScale(type(profile.combatStatusScale) == "number" and profile.combatStatusScale or 1)
-  SetCombatStatusText(State.combatStatusLastEntering ~= false)
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
-  frame:EnableMouse(draggable)
-  if State.combatStatusPreviewMode then
-    frame:Show()
-  end
-end
-function addonTable.ShowCombatStatusPreview()
-  State.combatStatusPreviewMode = true
-  if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
-  SetCombatStatusText(true)
-  if addonTable.CombatStatusFrame then addonTable.CombatStatusFrame:Show() end
-end
-function addonTable.StopCombatStatusPreview()
-  State.combatStatusPreviewMode = false
-  if addonTable.CombatStatusFrame then addonTable.CombatStatusFrame:Hide() end
-end
-function addonTable.ShowCombatStatusMessage(isEntering)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local frame = addonTable.CombatStatusFrame
-  if not profile or not frame or not frame.text then return end
-  if profile.combatStatusEnabled ~= true then return end
-  if State.combatStatusPreviewMode then return end
-  if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
-  SetCombatStatusText(isEntering)
-  frame:Show()
-  State.combatStatusMessageToken = (State.combatStatusMessageToken or 0) + 1
-  local token = State.combatStatusMessageToken
-  C_Timer.After(1.5, function()
-    if State.combatStatusMessageToken ~= token then return end
-    if frame then frame:Hide() end
-  end)
-end
-local BL_AURA_IDS = {2825, 32182, 80353, 264667, 390386, 381301}
-local BL_DEBUFF_IDS = {57724, 57723, 80354, 264689, 390435}
-local function FormatMMSS(seconds)
-  local s = tonumber(seconds) or 0
-  if s < 0 then s = 0 end
-  local m = math.floor(s / 60)
-  local r = math.floor(s - (m * 60))
-  return string.format("%d:%02d", m, r)
-end
-local function GetPlayerAuraRemainingByIDs(idList)
-  if not C_UnitAuras or not C_UnitAuras.GetPlayerAuraBySpellID then return 0 end
-  local now = GetTime()
-  local bestRemaining = 0
-  for i = 1, #idList do
-    local okAura, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, idList[i])
-    if okAura and aura and aura.expirationTime then
-      local okExp, exp = pcall(tonumber, aura.expirationTime)
-      if okExp and type(exp) == "number" and exp > 0 then
-        local rem = exp - now
-        if rem > bestRemaining then bestRemaining = rem end
-      end
-    end
-  end
-  return bestRemaining
-end
-function addonTable.RefreshCRTimerText()
-  local frame = addonTable.crTimerFrame
-  if not frame or not frame.crText then return end
-  local charges = 0
-  local crTimeText = "READY"
-  local chargesInfo = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(20484)
-  if chargesInfo then
-    local okCharges, currentCharges = pcall(tonumber, chargesInfo.currentCharges)
-    if okCharges and type(currentCharges) == "number" then charges = currentCharges end
-    local okStart, startTime = pcall(tonumber, chargesInfo.cooldownStartTime)
-    local okDur, duration = pcall(tonumber, chargesInfo.cooldownDuration)
-    if okStart and okDur and type(startTime) == "number" and type(duration) == "number" and startTime > 0 and duration > 0 then
-      local rem = (startTime + duration) - GetTime()
-      if rem > 0 then crTimeText = FormatMMSS(rem) end
-    end
-  end
-  frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r / |cffFFFFFF%s|r", charges, crTimeText))
-  if frame.blText then
-    frame.blText:Hide()
-  end
-end
-function addonTable.UpdateCRTimer()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local frame = addonTable.crTimerFrame
-  if not profile or not frame then return end
-  if profile.crTimerEnabled ~= true then
-    frame:Hide()
-    if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
-    return
-  end
-  local mode = profile.crTimerMode == "always" and "always" or "combat"
-  local shouldShow = (mode == "always") or UnitAffectingCombat("player")
-  if not shouldShow then
-    frame:Hide()
-    if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
-    return
-  end
-  frame:ClearAllPoints()
-  local centered = profile.crTimerCentered == true
-  frame:SetPoint("CENTER", UIParent, "CENTER", centered and 0 or (profile.crTimerX or 0), profile.crTimerY or 150)
-  local vertical = profile.crTimerLayout ~= "horizontal"
-  frame.crText:ClearAllPoints()
-  if frame.blText then
-    frame.blText:ClearAllPoints()
-    frame.blText:Hide()
-  end
-  if vertical then
-    frame.crText:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-    frame:SetSize(190, 26)
-  else
-    frame.crText:SetPoint("LEFT", frame, "LEFT", 0, 0)
-    frame:SetSize(190, 26)
-  end
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
-  frame:EnableMouse(draggable)
-  if addonTable.RefreshCRTimerText then addonTable.RefreshCRTimerText() end
-  frame:Show()
-  if addonTable.StartCRTimerTicker then addonTable.StartCRTimerTicker() end
-end
-function addonTable.StartCRTimerTicker()
-  if State.crTimerTicker then return end
-  State.crTimerTicker = C_Timer.NewTicker(0.2, function()
-    if addonTable.RefreshCRTimerText then addonTable.RefreshCRTimerText() end
-  end)
-end
-function addonTable.StopCRTimerTicker()
-  if State.crTimerTicker then
-    State.crTimerTicker:Cancel()
-    State.crTimerTicker = nil
-  end
-end
-local function StartNoTargetAlertFlash()
-  if State.noTargetAlertFlashActive then return end
-  State.noTargetAlertFlashActive = true
-  State.noTargetAlertFlashTime = 0
-  noTargetAlertFrame:SetScript("OnUpdate", function(self, elapsed)
-    if not State.noTargetAlertFlashActive then return end
-    State.noTargetAlertFlashTime = State.noTargetAlertFlashTime + elapsed
-    local alpha = 0.55 + 0.45 * math.cos(State.noTargetAlertFlashTime * math.pi * 2)
-    noTargetAlertFrame.text:SetAlpha(alpha)
-  end)
-end
-local function StopNoTargetAlertFlash()
-  State.noTargetAlertFlashActive = false
-  noTargetAlertFrame:SetScript("OnUpdate", nil)
-  noTargetAlertFrame.text:SetAlpha(1)
-end
-local function UpdateNoTargetAlert()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.noTargetAlertEnabled then
-    if not State.noTargetAlertPreviewMode then
-      noTargetAlertFrame:Hide()
-      StopNoTargetAlertFlash()
-    end
-    return
-  end
-  if State.noTargetAlertPreviewMode then return end
-  local x = profile.noTargetAlertX or 0
-  local y = profile.noTargetAlertY or 100
-  local fontSize = profile.noTargetAlertFontSize or 36
-  local r = profile.noTargetAlertColorR or 1
-  local g = profile.noTargetAlertColorG or 0
-  local b = profile.noTargetAlertColorB or 0
-  noTargetAlertFrame:ClearAllPoints()
-  noTargetAlertFrame:SetPoint("CENTER", UIParent, "CENTER", x, y)
-  local globalFont, globalOutline = GetGlobalFont()
-  noTargetAlertFrame.text:SetFont(globalFont, fontSize, globalOutline ~= "" and globalOutline or "OUTLINE")
-  noTargetAlertFrame.text:SetTextColor(r, g, b, 1)
-  local inCombat = InCombatLockdown()
-  local hasTarget = UnitExists("target")
-  if inCombat and not hasTarget then
-    noTargetAlertFrame:Show()
-    if profile.noTargetAlertFlash then
-      StartNoTargetAlertFlash()
-    else
-      StopNoTargetAlertFlash()
-    end
-  else
-    noTargetAlertFrame:Hide()
-    StopNoTargetAlertFlash()
-  end
-end
-addonTable.UpdateNoTargetAlert = UpdateNoTargetAlert
-local function ShowNoTargetAlertPreview()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local x = profile.noTargetAlertX or 0
-  local y = profile.noTargetAlertY or 100
-  local fontSize = profile.noTargetAlertFontSize or 36
-  local r = profile.noTargetAlertColorR or 1
-  local g = profile.noTargetAlertColorG or 0
-  local b = profile.noTargetAlertColorB or 0
-  noTargetAlertFrame:ClearAllPoints()
-  noTargetAlertFrame:SetPoint("CENTER", UIParent, "CENTER", x, y)
-  local globalFont, globalOutline = GetGlobalFont()
-  noTargetAlertFrame.text:SetFont(globalFont, fontSize, globalOutline ~= "" and globalOutline or "OUTLINE")
-  noTargetAlertFrame.text:SetTextColor(r, g, b, 1)
-  State.noTargetAlertPreviewMode = true
-  noTargetAlertFrame:Show()
-  if profile.noTargetAlertFlash then
-    StartNoTargetAlertFlash()
-  else
-    StopNoTargetAlertFlash()
-  end
-end
-addonTable.ShowNoTargetAlertPreview = ShowNoTargetAlertPreview
-local function StopNoTargetAlertPreview()
-  State.noTargetAlertPreviewMode = false
-  StopNoTargetAlertFlash()
-  UpdateNoTargetAlert()
-end
-addonTable.StopNoTargetAlertPreview = StopNoTargetAlertPreview
-local function UpdateNoTargetAlertPreviewIfActive()
-  if State.noTargetAlertPreviewMode then
-    ShowNoTargetAlertPreview()
-  end
-end
-addonTable.UpdateNoTargetAlertPreviewIfActive = UpdateNoTargetAlertPreviewIfActive
-local noTargetEventFrame = CreateFrame("Frame")
-noTargetEventFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-noTargetEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-noTargetEventFrame:RegisterEvent("PLAYER_TARGET_CHANGED")
-noTargetEventFrame:SetScript("OnEvent", function(self, event)
-  if addonTable.UpdateNoTargetAlert then addonTable.UpdateNoTargetAlert() end
-  if addonTable.UpdateSelfHighlight then addonTable.UpdateSelfHighlight() end
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if profile and profile.selfHighlightCombatOnly and profile.selfHighlightShape ~= "off" then
-    if event == "PLAYER_REGEN_DISABLED" then
-      if addonTable.StartSelfHighlightTicker then addonTable.StartSelfHighlightTicker() end
-    elseif event == "PLAYER_REGEN_ENABLED" then
-      if addonTable.StopSelfHighlightTicker then addonTable.StopSelfHighlightTicker() end
-    end
-  end
-end)
-local function UpdateCastbar()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.useCastbar then
-    if not State.castbarPreviewMode then
-      castbarFrame:Hide()
-    end
-    return
-  end
-  if State.castbarPreviewMode then
-    local width = type(profile.castbarWidth) == "number" and profile.castbarWidth or 250
-    local borderSize = type(profile.castbarBorderSize) == "number" and profile.castbarBorderSize or 1
-    local autoWidthSource = profile.castbarAutoWidthSource or "off"
-    if autoWidthSource ~= "off" then
-      if autoWidthSource == "essential" then
-        local widthFromEss = 0
-        if profile.useEssentialBar and State.cachedEssentialBarWidth and State.cachedEssentialBarWidth > 0 then
-          widthFromEss = State.cachedEssentialBarWidth
-        else
-          local essBar = EssentialCooldownViewer
-          if essBar and essBar:IsShown() then
-            local w = essBar:GetWidth()
-            if w and w > 0 then
-              local scale = essBar.GetEffectiveScale and essBar:GetEffectiveScale() or 1
-              local parentScale = UIParent:GetEffectiveScale()
-              if parentScale and parentScale > 0 then
-                widthFromEss = w * (scale / parentScale)
-              else
-                widthFromEss = w
-              end
-            end
-          end
-          if widthFromEss <= 0 and State.standaloneEssentialWidth and State.standaloneEssentialWidth > 0 then
-            widthFromEss = State.standaloneEssentialWidth
-          end
-        end
-        if widthFromEss > 0 then
-          width = widthFromEss
-          if width < 20 then width = 20 end
-        end
-      elseif autoWidthSource == "utility" then
-        local widthFromUtility = 0
-        local utilityBar = UtilityCooldownViewer
-        if utilityBar and utilityBar:IsShown() then
-          local w = utilityBar:GetWidth()
-          if w and w > 0 then
-            local scale = utilityBar.GetEffectiveScale and utilityBar:GetEffectiveScale() or 1
-            local parentScale = UIParent:GetEffectiveScale()
-            if parentScale and parentScale > 0 then
-              widthFromUtility = w * (scale / parentScale)
-            else
-              widthFromUtility = w
-            end
-          end
-        end
-        if widthFromUtility > 0 then
-          width = widthFromUtility
-          if width < 20 then width = 20 end
-        end
-      elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
-        local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
-        local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
-        local cbarWidth = profile[prefix .. "IconSize"] or 28
-        local cbarSpacing = type(profile[prefix .. "Spacing"]) == "number" and profile[prefix .. "Spacing"] or 2
-        local cbarCount = 0
-        local getSpellsFunc = barNum == 1 and addonTable.GetCustomBarSpells or addonTable["GetCustomBar" .. barNum .. "Spells"]
-        if getSpellsFunc then
-          local spells = getSpellsFunc()
-          if spells then cbarCount = #spells end
-        end
-        if cbarCount > 0 then
-          width = (cbarWidth * cbarCount) + (cbarSpacing * (cbarCount - 1))
-          if width < 20 then width = 20 end
-        end
-      elseif autoWidthSource == "prbhealth" or autoWidthSource == "prbpower" then
-        local prbWidth = profile.prbWidth or 220
-        local prbAutoWidth = profile.prbAutoWidthSource or "off"
-        if prbAutoWidth ~= "off" then
-          local essBar = EssentialCooldownViewer
-          if essBar and essBar:IsShown() then
-            local childCount = addonTable.CollectChildren(essBar, State.tmpChildren)
-            local minX, maxX = nil, nil
-            for i = 1, childCount do
-              local child = State.tmpChildren[i]
-              if child and child:IsShown() and child:GetWidth() > 5 then
-                local left = child:GetLeft()
-                local right = child:GetRight()
-                if left and right then
-                  if not minX or left < minX then minX = left end
-                  if not maxX or right > maxX then maxX = right end
-                end
-              end
-            end
-            if minX and maxX then
-              prbWidth = (maxX - minX) - (borderSize * 2)
-              if prbWidth < 20 then prbWidth = 20 end
-            end
-          end
-        end
-        width = prbWidth
-      end
-    end
-    local height = type(profile.castbarHeight) == "number" and profile.castbarHeight or 20
-    local centered = profile.castbarCentered == true
-    local showIcon = profile.castbarShowIcon ~= false
-    local iconSize = height
-    local posX
-    if centered then
-      posX = showIcon and (iconSize / 2) or 0
-    else
-      posX = type(profile.castbarX) == "number" and profile.castbarX or 0
-    end
-    local posY = type(profile.castbarY) == "number" and profile.castbarY or -250
-    if autoWidthSource ~= "off" and showIcon then
-      width = width - iconSize
-      if width < 20 then width = 20 end
-    end
-    width = math.floor(width)
-    local bgAlpha = (type(profile.castbarBgAlpha) == "number" and profile.castbarBgAlpha or 70) / 100
-    local showTime = profile.castbarShowTime ~= false
-    local showSpellName = profile.castbarShowSpellName ~= false
-    local timeScale = type(profile.castbarTimeScale) == "number" and profile.castbarTimeScale or 1.0
-    local spellNameScale = type(profile.castbarSpellNameScale) == "number" and profile.castbarSpellNameScale or 1.0
-    local spellNameX = type(profile.castbarSpellNameXOffset) == "number" and profile.castbarSpellNameXOffset or 0
-    local spellNameY = type(profile.castbarSpellNameYOffset) == "number" and profile.castbarSpellNameYOffset or 0
-    local timeX = type(profile.castbarTimeXOffset) == "number" and profile.castbarTimeXOffset or 0
-    local timeY = type(profile.castbarTimeYOffset) == "number" and profile.castbarTimeYOffset or 0
-    local timePrecision = profile.castbarTimePrecision or "1"
-    local textR = profile.castbarTextColorR or 1
-    local textG = profile.castbarTextColorG or 1
-    local textB = profile.castbarTextColorB or 1
-    local texturePath = castbarTextures[profile.castbarTexture] or castbarTextures.solid
-    castbarFrame.bar:SetStatusBarTexture(texturePath)
-    local r, g, b
-    if profile.castbarUseClassColor then
-      r, g, b = GetClassColor()
-    else
-      r = profile.castbarColorR or 1
-      g = profile.castbarColorG or 0.7
-      b = profile.castbarColorB or 0
-    end
-    castbarFrame.bar:SetStatusBarColor(r, g, b)
-    PixelUtil.SetSize(castbarFrame, width, height)
-    if not State.castbarDragging then
-      castbarFrame:ClearAllPoints()
-      PixelUtil.SetPoint(castbarFrame, "CENTER", UIParent, "CENTER", posX, posY)
-    end
-    local bgR = profile.castbarBgColorR or 0.1
-    local bgG = profile.castbarBgColorG or 0.1
-    local bgB = profile.castbarBgColorB or 0.1
-    castbarFrame.bg:SetColorTexture(bgR, bgG, bgB, bgAlpha)
-    if showIcon then
-      PixelUtil.SetSize(castbarFrame.icon, iconSize, iconSize)
-      castbarFrame.icon:ClearAllPoints()
-      PixelUtil.SetPoint(castbarFrame.icon, "RIGHT", castbarFrame, "LEFT", 0, 0)
-      castbarFrame.icon:Show()
-    else
-      castbarFrame.icon:Hide()
-    end
-    if borderSize > 0 then
-      castbarFrame.border:ClearAllPoints()
-      if showIcon then
-        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", 0, 0)
-        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", 0, 0)
-      else
-        castbarFrame.border:SetAllPoints(castbarFrame)
-      end
-      castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
-      castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
-      castbarFrame.border:Show()
-    else
-      castbarFrame.border:Hide()
-    end
-    local globalFont, globalOutline = GetGlobalFont()
-    if showSpellName then
-      castbarFrame.spellText:ClearAllPoints()
-      castbarFrame.spellText:SetPoint("LEFT", castbarFrame, "LEFT", 5 + spellNameX, spellNameY)
-      castbarFrame.spellText:SetTextColor(textR, textG, textB)
-      castbarFrame.spellText:SetScale(spellNameScale)
-      castbarFrame.spellText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      castbarFrame.spellText:Show()
-    else
-      castbarFrame.spellText:Hide()
-    end
-    if showTime then
-      castbarFrame.timeText:ClearAllPoints()
-      castbarFrame.timeText:SetPoint("RIGHT", castbarFrame, "RIGHT", -5 + timeX, timeY)
-      local timeFormat = timePrecision == "0" and "%.0f" or (timePrecision == "2" and "%.2f" or "%.1f")
-      castbarFrame.timeText:SetText(string.format(timeFormat, 1.5))
-      castbarFrame.timeText:SetTextColor(textR, textG, textB)
-      castbarFrame.timeText:SetScale(timeScale)
-      castbarFrame.timeText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      castbarFrame.timeText:Show()
-    else
-      castbarFrame.timeText:Hide()
-    end
-    for i = 1, 10 do
-      castbarFrame.ticks[i]:Hide()
-    end
-    return
-  end
-  local name, text, texture, startTimeMS, endTimeMS, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo("player")
-  local isChanneling = false
-  if not name then
-    name, text, texture, startTimeMS, endTimeMS, isTradeSkill, notInterruptible, spellID = UnitChannelInfo("player")
-    isChanneling = name ~= nil
-  end
-  if not name then
-    castbarFrame:Hide()
-    State.castbarActive = false
-    State.castbarTickKey = nil
-    castbarFrame._fallbackSpellID = nil
-    castbarFrame._fallbackChanneling = nil
-    castbarFrame._fallbackStart = nil
-    castbarFrame._fallbackDuration = nil
-    castbarFrame.spellText._lastText = nil
-    castbarFrame.icon.texture._lastTexture = nil
-    for i = 1, 10 do
-      castbarFrame.ticks[i]:Hide()
-    end
-    return
-  end
-  local width = type(profile.castbarWidth) == "number" and profile.castbarWidth or 250
-  local borderSize = type(profile.castbarBorderSize) == "number" and profile.castbarBorderSize or 1
-  local autoWidthSource = profile.castbarAutoWidthSource or "off"
-  if autoWidthSource ~= "off" then
-    if autoWidthSource == "essential" then
-      local widthFromEss = 0
-      if profile.useEssentialBar and State.cachedEssentialBarWidth and State.cachedEssentialBarWidth > 0 then
-        widthFromEss = State.cachedEssentialBarWidth
-      else
-        local essBar = EssentialCooldownViewer
-        if essBar and essBar:IsShown() then
-          local w = essBar:GetWidth()
-          if w and w > 0 then
-            local scale = essBar.GetEffectiveScale and essBar:GetEffectiveScale() or 1
-            local parentScale = UIParent:GetEffectiveScale()
-            if parentScale and parentScale > 0 then
-              widthFromEss = w * (scale / parentScale)
-            else
-              widthFromEss = w
-            end
-          end
-        end
-        if widthFromEss <= 0 and State.standaloneEssentialWidth and State.standaloneEssentialWidth > 0 then
-          widthFromEss = State.standaloneEssentialWidth
-        end
-      end
-      if widthFromEss > 0 then
-        width = widthFromEss
-        if width < 20 then width = 20 end
-      end
-    elseif autoWidthSource == "utility" then
-      local widthFromUtility = 0
-      local utilityBar = UtilityCooldownViewer
-      if utilityBar and utilityBar:IsShown() then
-        local w = utilityBar:GetWidth()
-        if w and w > 0 then
-          local scale = utilityBar.GetEffectiveScale and utilityBar:GetEffectiveScale() or 1
-          local parentScale = UIParent:GetEffectiveScale()
-          if parentScale and parentScale > 0 then
-            widthFromUtility = w * (scale / parentScale)
-          else
-            widthFromUtility = w
-          end
-        end
-      end
-      if widthFromUtility > 0 then
-        width = widthFromUtility
-        if width < 20 then width = 20 end
-      end
-    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
-      local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
-      local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
-      local cbarWidth = profile[prefix .. "IconSize"] or 28
-      local cbarSpacing = type(profile[prefix .. "Spacing"]) == "number" and profile[prefix .. "Spacing"] or 2
-      local cbarCount = 0
-      local getSpellsFunc = barNum == 1 and addonTable.GetCustomBarSpells or addonTable["GetCustomBar" .. barNum .. "Spells"]
-      if getSpellsFunc then
-        local spells = getSpellsFunc()
-        if spells then cbarCount = #spells end
-      end
-      if cbarCount > 0 then
-        width = (cbarWidth * cbarCount) + (cbarSpacing * (cbarCount - 1))
-        if width < 20 then width = 20 end
-      end
-    elseif autoWidthSource == "prbhealth" or autoWidthSource == "prbpower" then
-      local prbWidth = profile.prbWidth or 220
-      local prbAutoWidth = profile.prbAutoWidthSource or "off"
-      if prbAutoWidth ~= "off" then
-        local essBar = EssentialCooldownViewer
-        if essBar and essBar:IsShown() then
-          local childCount = addonTable.CollectChildren(essBar, State.tmpChildren)
-          local minX, maxX = nil, nil
-          for i = 1, childCount do
-            local child = State.tmpChildren[i]
-            if child and child:IsShown() and child:GetWidth() > 5 then
-              local left = child:GetLeft()
-              local right = child:GetRight()
-              if left and right then
-                if not minX or left < minX then minX = left end
-                if not maxX or right > maxX then maxX = right end
-              end
-            end
-          end
-          if minX and maxX then
-            prbWidth = (maxX - minX) - (borderSize * 2)
-            if prbWidth < 20 then prbWidth = 20 end
-          end
-        end
-      end
-      width = prbWidth
-    end
-  end
-  local height = type(profile.castbarHeight) == "number" and profile.castbarHeight or 20
-  local centered = profile.castbarCentered == true
-  local showIcon = profile.castbarShowIcon ~= false
-  local iconSize = height
-  local posX
-  if centered then
-    posX = showIcon and (iconSize / 2) or 0
-  else
-    posX = type(profile.castbarX) == "number" and profile.castbarX or 0
-  end
-  local posY = type(profile.castbarY) == "number" and profile.castbarY or -250
-  if autoWidthSource ~= "off" and showIcon then
-    width = width - iconSize
-    if width < 20 then width = 20 end
-  end
-  width = math.floor(width)
-  local bgAlpha = (type(profile.castbarBgAlpha) == "number" and profile.castbarBgAlpha or 70) / 100
-  local showTime = profile.castbarShowTime ~= false
-  local showSpellName = profile.castbarShowSpellName ~= false
-  local timeScale = type(profile.castbarTimeScale) == "number" and profile.castbarTimeScale or 1.0
-  local spellNameScale = type(profile.castbarSpellNameScale) == "number" and profile.castbarSpellNameScale or 1.0
-  local spellNameX = type(profile.castbarSpellNameXOffset) == "number" and profile.castbarSpellNameXOffset or 0
-  local spellNameY = type(profile.castbarSpellNameYOffset) == "number" and profile.castbarSpellNameYOffset or 0
-  local timeX = type(profile.castbarTimeXOffset) == "number" and profile.castbarTimeXOffset or 0
-  local timeY = type(profile.castbarTimeYOffset) == "number" and profile.castbarTimeYOffset or 0
-  local timePrecision = profile.castbarTimePrecision or "1"
-  local textR = profile.castbarTextColorR or 1
-  local textG = profile.castbarTextColorG or 1
-  local textB = profile.castbarTextColorB or 1
-  local texturePath = castbarTextures[profile.castbarTexture] or castbarTextures.solid
-  local castIconShown = showIcon and texture
-  local r, g, b
-  if profile.castbarUseClassColor then
-    r, g, b = GetClassColor()
-  else
-    r = profile.castbarColorR or 1
-    g = profile.castbarColorG or 0.7
-    b = profile.castbarColorB or 0
-  end
-  local bgR = profile.castbarBgColorR or 0.1
-  local bgG = profile.castbarBgColorG or 0.1
-  local bgB = profile.castbarBgColorB or 0.1
-  local layoutKey = table.concat({
-    width, height, posX, posY, autoWidthSource, borderSize, castIconShown and 1 or 0, iconSize,
-    texturePath, r, g, b, bgR, bgG, bgB, bgAlpha,
-    showSpellName and 1 or 0, spellNameScale, spellNameX, spellNameY,
-    showTime and 1 or 0, timeScale, timeX, timeY, timePrecision, textR, textG, textB
-  }, "|")
-  if State.castbarLayoutKey ~= layoutKey then
-    State.castbarLayoutKey = layoutKey
-    castbarFrame.bar:SetStatusBarTexture(texturePath)
-    castbarFrame.bar:SetStatusBarColor(r, g, b)
-    PixelUtil.SetSize(castbarFrame, width, height)
-    if not State.castbarDragging then
-      castbarFrame:ClearAllPoints()
-      PixelUtil.SetPoint(castbarFrame, "CENTER", UIParent, "CENTER", posX, posY)
-    end
-    castbarFrame.bg:SetColorTexture(bgR, bgG, bgB, bgAlpha)
-    if castIconShown then
-      PixelUtil.SetSize(castbarFrame.icon, iconSize, iconSize)
-      castbarFrame.icon:ClearAllPoints()
-      PixelUtil.SetPoint(castbarFrame.icon, "RIGHT", castbarFrame, "LEFT", 0, 0)
-      castbarFrame.icon:Show()
-    else
-      castbarFrame.icon:Hide()
-    end
-    if borderSize > 0 then
-      castbarFrame.border:ClearAllPoints()
-      if castIconShown then
-        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", 0, 0)
-        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", 0, 0)
-      else
-        castbarFrame.border:SetAllPoints(castbarFrame)
-      end
-      castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
-      castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
-      castbarFrame.border:Show()
-    else
-      castbarFrame.border:Hide()
-    end
-    local globalFont, globalOutline = GetGlobalFont()
-    if showSpellName then
-      castbarFrame.spellText:ClearAllPoints()
-      castbarFrame.spellText:SetPoint("LEFT", castbarFrame, "LEFT", 5 + spellNameX, spellNameY)
-      castbarFrame.spellText:SetTextColor(textR, textG, textB)
-      castbarFrame.spellText:SetScale(spellNameScale)
-      castbarFrame.spellText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      castbarFrame.spellText:Show()
-    else
-      castbarFrame.spellText:Hide()
-    end
-    if showTime then
-      castbarFrame.timeText:ClearAllPoints()
-      castbarFrame.timeText:SetPoint("RIGHT", castbarFrame, "RIGHT", -5 + timeX, timeY)
-      castbarFrame.timeText:SetTextColor(textR, textG, textB)
-      castbarFrame.timeText:SetScale(timeScale)
-      castbarFrame.timeText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-      castbarFrame.timeText:Show()
-    else
-      castbarFrame.timeText:Hide()
-    end
-  end
-  if castIconShown and castbarFrame.icon.texture._lastTexture ~= texture then
-    castbarFrame.icon.texture:SetTexture(texture)
-    castbarFrame.icon.texture._lastTexture = texture
-  end
-  local okStart, startTime = pcall(function() return startTimeMS / 1000 end)
-  local okEnd, endTime = pcall(function() return endTimeMS / 1000 end)
-  if not okStart or not okEnd then
-    local now = GetTime()
-    local fallbackDuration = castbarFrame._fallbackDuration or 1.5
-    local fallbackElapsed = castbarFrame._fallbackStart and (now - castbarFrame._fallbackStart) or 0
-    if (not castbarFrame._fallbackStart) or (castbarFrame._fallbackChanneling ~= isChanneling) or (fallbackElapsed > (fallbackDuration + 0.05)) then
-      castbarFrame._fallbackChanneling = isChanneling
-      castbarFrame._fallbackStart = now
-      castbarFrame._fallbackDuration = 1.5
-    end
-    local duration = castbarFrame._fallbackDuration or 1.5
-    local elapsed = math.max(0, now - (castbarFrame._fallbackStart or now))
-    local progress = isChanneling and (1 - (elapsed / duration)) or (elapsed / duration)
-    progress = math.max(0, math.min(1, progress))
-    castbarFrame.bar:SetMinMaxValues(0, 1)
-    castbarFrame.bar:SetValue(progress)
-    if showSpellName and name then castbarFrame.spellText:SetText(name) end
-    if showTime then
-      local remaining = math.max(0, duration - elapsed)
-      local timeDirection = profile.castbarTimeDirection or "remaining"
-      local timeValue = timeDirection == "elapsed" and elapsed or remaining
-      local timeFormat = timePrecision == "0" and "%.0f" or (timePrecision == "2" and "%.2f" or "%.1f")
-      castbarFrame.timeText:SetText(string.format(timeFormat, timeValue))
-      castbarFrame.timeText:Show()
-    else
-      castbarFrame.timeText:Hide()
-    end
-    castbarFrame:Show()
-    State.castbarActive = true
-    return
-  end
-  castbarFrame._fallbackSpellID = nil
-  castbarFrame._fallbackChanneling = nil
-  castbarFrame._fallbackStart = nil
-  castbarFrame._fallbackDuration = nil
-  local currentTime = GetTime()
-  local duration = endTime - startTime
-  local elapsed = currentTime - startTime
-  local progress
-  if isChanneling then
-    progress = (endTime - currentTime) / duration
-  else
-    progress = elapsed / duration
-  end
-  progress = math.max(0, math.min(1, progress))
-  castbarFrame.bar:SetMinMaxValues(0, 1)
-  castbarFrame.bar:SetValue(progress)
-  if showSpellName then
-    castbarFrame.spellText:SetText(name)
-  else
-    castbarFrame.spellText:Hide()
-  end
-  if showTime then
-    local remaining = math.max(0, endTime - currentTime)
-    local elapsedTime = math.max(0, currentTime - startTime)
-    local timeDirection = profile.castbarTimeDirection or "remaining"
-    local timeValue = timeDirection == "elapsed" and elapsedTime or remaining
-    local timeFormat = timePrecision == "0" and "%.0f" or (timePrecision == "2" and "%.2f" or "%.1f")
-    castbarFrame.timeText:SetText(string.format(timeFormat, timeValue))
-  else
-    castbarFrame.timeText:Hide()
-  end
-  local showTicks = profile.castbarShowTicks ~= false
-  if isChanneling and showTicks and spellID and channelTickData[spellID] then
-    local numTicks = channelTickData[spellID]
-    local barWidth = castbarFrame:GetWidth()
-    local barHeight = castbarFrame:GetHeight()
-    local tickKey = table.concat({spellID, numTicks, barWidth, barHeight}, "|")
-    if State.castbarTickKey ~= tickKey then
-      State.castbarTickKey = tickKey
-      for i = 1, 10 do
-        if i <= numTicks then
-          local tickPos = (i / numTicks) * barWidth
-          castbarFrame.ticks[i]:ClearAllPoints()
-          castbarFrame.ticks[i]:SetPoint("LEFT", castbarFrame.bar, "LEFT", tickPos - 1, 0)
-          castbarFrame.ticks[i]:SetSize(2, barHeight)
-          castbarFrame.ticks[i]:SetColorTexture(1, 1, 1, 0.7)
-          castbarFrame.ticks[i]:Show()
-        else
-          castbarFrame.ticks[i]:Hide()
-        end
-      end
-    end
-  else
-    if State.castbarTickKey ~= nil then
-      State.castbarTickKey = nil
-      for i = 1, 10 do
-        castbarFrame.ticks[i]:Hide()
-      end
-    end
-  end
-  State.castbarActive = true
-  castbarFrame:Show()
-end
-addonTable.UpdateCastbar = UpdateCastbar
-local function SetBlizzardCastbarVisibility(show)
-  local castingBar = PlayerCastingBarFrame
-  if not castingBar then return end
-  if show then
-    castingBar:RegisterEvent("UNIT_SPELLCAST_START")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_STOP")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_FAILED")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_INTERRUPTIBLE")
-    castingBar:RegisterEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE")
-    castingBar:Show()
-  else
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_START")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_STOP")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_FAILED")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTED")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_START")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_STOP")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_CHANNEL_UPDATE")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_INTERRUPTIBLE")
-    castingBar:UnregisterEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE")
-    castingBar:Hide()
-  end
-end
-addonTable.SetBlizzardCastbarVisibility = SetBlizzardCastbarVisibility
-local function StartCastbarTicker()
-  if State.castbarTicker then return end
-  SetBlizzardCastbarVisibility(false)
-  State.castbarTicker = C_Timer.NewTicker(0.02, UpdateCastbar)
-end
-local function StopCastbarTicker()
-  local newCastName = UnitCastingInfo("player")
-  if not newCastName then
-    newCastName = UnitChannelInfo("player")
-  end
-  if newCastName then
-    return
-  end
-  local hadTicker = State.castbarTicker ~= nil
-  if State.castbarTicker then
-    State.castbarTicker:Cancel()
-    State.castbarTicker = nil
-  end
-  State.castbarActive = false
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if State.castbarPreviewMode then
-    C_Timer.After(0.1, function()
-      if State.castbarPreviewMode and not State.castbarActive then
-        addonTable.ShowCastbarPreview()
-      end
-    end)
-  else
-    castbarFrame:Hide()
-  end
-  if hadTicker and (not profile or not profile.useCastbar) then
-    SetBlizzardCastbarVisibility(true)
-  end
-end
-addonTable.StartCastbarTicker = StartCastbarTicker
-addonTable.StopCastbarTicker = StopCastbarTicker
-local castbarEventFrame = CreateFrame("Frame")
-local function SetupCastbarEvents()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.useCastbar then
-    castbarEventFrame:UnregisterAllEvents()
-    return
-  end
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_START", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START", "player")
-  castbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP", "player")
-end
-castbarEventFrame:SetScript("OnEvent", function(self, event, unit, ...)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.useCastbar then return end
-  if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_EMPOWER_START" then
-    StartCastbarTicker()
-  elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or
-         event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" or
-         event == "UNIT_SPELLCAST_EMPOWER_STOP" then
-    C_Timer.After(0.05, function()
-      local castName = UnitCastingInfo("player")
-      if not castName then castName = UnitChannelInfo("player") end
-      if not castName then
-        StopCastbarTicker()
-      end
-    end)
-  end
-end)
-addonTable.SetupCastbarEvents = SetupCastbarEvents
-local function ShowCastbarPreview()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  State.castbarPreviewMode = true
-  local width = type(profile.castbarWidth) == "number" and profile.castbarWidth or 250
-  local borderSize = type(profile.castbarBorderSize) == "number" and profile.castbarBorderSize or 1
-  local autoWidthSource = profile.castbarAutoWidthSource or "off"
-  if autoWidthSource ~= "off" then
-    if autoWidthSource == "essential" then
-      local essBar = EssentialCooldownViewer
-      if essBar and essBar:IsShown() then
-        local childCount = addonTable.CollectChildren(essBar, State.tmpChildren)
-        local minX, maxX = nil, nil
-        for i = 1, childCount do
-          local child = State.tmpChildren[i]
-          if child and child:IsShown() and child:GetWidth() > 5 then
-            local left = child:GetLeft()
-            local right = child:GetRight()
-            if left and right then
-              if not minX or left < minX then minX = left end
-              if not maxX or right > maxX then maxX = right end
-            end
-          end
-        end
-        if minX and maxX then
-          width = (maxX - minX)
-          if width < 20 then width = 20 end
-        end
-      end
-    elseif autoWidthSource == "utility" then
-      local utilityBar = UtilityCooldownViewer
-      if utilityBar and utilityBar:IsShown() then
-        local childCount = addonTable.CollectChildren(utilityBar, State.tmpChildren)
-        local minX, maxX = nil, nil
-        for i = 1, childCount do
-          local child = State.tmpChildren[i]
-          if child and child:IsShown() and child:GetWidth() > 5 then
-            local left = child:GetLeft()
-            local right = child:GetRight()
-            if left and right then
-              if not minX or left < minX then minX = left end
-              if not maxX or right > maxX then maxX = right end
-            end
-          end
-        end
-        if minX and maxX then
-          width = (maxX - minX)
-          if width < 20 then width = 20 end
-        end
-      end
-    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
-      local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
-      local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
-      local cbarWidth = profile[prefix .. "IconSize"] or 28
-      local cbarSpacing = type(profile[prefix .. "Spacing"]) == "number" and profile[prefix .. "Spacing"] or 2
-      local cbarCount = 0
-      local getSpellsFunc = barNum == 1 and addonTable.GetCustomBarSpells or addonTable["GetCustomBar" .. barNum .. "Spells"]
-      if getSpellsFunc then
-        local spells = getSpellsFunc()
-        if spells then cbarCount = #spells end
-      end
-      if cbarCount > 0 then
-        width = (cbarWidth * cbarCount) + (cbarSpacing * (cbarCount - 1))
-        if width < 20 then width = 20 end
-      end
-    elseif autoWidthSource == "prbhealth" or autoWidthSource == "prbpower" then
-      local prbWidth = profile.prbWidth or 220
-      local prbAutoWidth = profile.prbAutoWidthSource or "off"
-        if prbAutoWidth ~= "off" then
-          local essBar = EssentialCooldownViewer
-          if essBar and essBar:IsShown() then
-            local childCount = addonTable.CollectChildren(essBar, State.tmpChildren)
-            local minX, maxX = nil, nil
-            for i = 1, childCount do
-              local child = State.tmpChildren[i]
-              if child and child:IsShown() and child:GetWidth() > 5 then
-                local left = child:GetLeft()
-                local right = child:GetRight()
-              if left and right then
-                if not minX or left < minX then minX = left end
-                if not maxX or right > maxX then maxX = right end
-              end
-            end
-          end
-          if minX and maxX then
-            prbWidth = (maxX - minX) - (borderSize * 2)
-            if prbWidth < 20 then prbWidth = 20 end
-          end
-        end
-      end
-      width = prbWidth
-    end
-  end
-  local height = type(profile.castbarHeight) == "number" and profile.castbarHeight or 20
-  local showIcon = profile.castbarShowIcon ~= false
-  local iconSize = height
-  local posX
-  if profile.castbarCentered then
-    posX = showIcon and (iconSize / 2) or 0
-  else
-    posX = type(profile.castbarX) == "number" and profile.castbarX or 0
-  end
-  local posY = type(profile.castbarY) == "number" and profile.castbarY or -250
-  if autoWidthSource ~= "off" and showIcon then
-    width = width - iconSize
-    if width < 20 then width = 20 end
-  end
-  width = math.floor(width)
-  local bgAlpha = (type(profile.castbarBgAlpha) == "number" and profile.castbarBgAlpha or 70) / 100
-  local showTime = profile.castbarShowTime ~= false
-  local showSpellName = profile.castbarShowSpellName ~= false
-  local timeScale = type(profile.castbarTimeScale) == "number" and profile.castbarTimeScale or 1.0
-  local spellNameScale = type(profile.castbarSpellNameScale) == "number" and profile.castbarSpellNameScale or 1.0
-  local spellNameX = type(profile.castbarSpellNameXOffset) == "number" and profile.castbarSpellNameXOffset or 0
-  local spellNameY = type(profile.castbarSpellNameYOffset) == "number" and profile.castbarSpellNameYOffset or 0
-  local timeX = type(profile.castbarTimeXOffset) == "number" and profile.castbarTimeXOffset or 0
-  local timeY = type(profile.castbarTimeYOffset) == "number" and profile.castbarTimeYOffset or 0
-  local timePrecision = profile.castbarTimePrecision or "1"
-  local textR = profile.castbarTextColorR or 1
-  local textG = profile.castbarTextColorG or 1
-  local textB = profile.castbarTextColorB or 1
-  local texturePath = castbarTextures[profile.castbarTexture] or castbarTextures.solid
-  castbarFrame.bar:SetStatusBarTexture(texturePath)
-  local r, g, b
-  if profile.castbarUseClassColor then
-    r, g, b = GetClassColor()
-  else
-    r = profile.castbarColorR or 1
-    g = profile.castbarColorG or 0.7
-    b = profile.castbarColorB or 0
-  end
-  castbarFrame.bar:SetStatusBarColor(r, g, b)
-  PixelUtil.SetSize(castbarFrame, width, height)
-  castbarFrame:ClearAllPoints()
-  PixelUtil.SetPoint(castbarFrame, "CENTER", UIParent, "CENTER", posX, posY)
-  local bgR = profile.castbarBgColorR or 0.1
-  local bgG = profile.castbarBgColorG or 0.1
-  local bgB = profile.castbarBgColorB or 0.1
-  castbarFrame.bg:SetColorTexture(bgR, bgG, bgB, bgAlpha)
-  if showIcon then
-    PixelUtil.SetSize(castbarFrame.icon, iconSize, iconSize)
-    castbarFrame.icon.texture:SetTexture(136116)
-    castbarFrame.icon:ClearAllPoints()
-    PixelUtil.SetPoint(castbarFrame.icon, "RIGHT", castbarFrame, "LEFT", 0, 0)
-    castbarFrame.icon:Show()
-  else
-    castbarFrame.icon:Hide()
-  end
-  if borderSize > 0 then
-    castbarFrame.border:ClearAllPoints()
-    if showIcon then
-      castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", 0, 0)
-      castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", 0, 0)
-    else
-      castbarFrame.border:SetAllPoints(castbarFrame)
-    end
-    castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
-    castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
-    castbarFrame.border:Show()
-  else
-    castbarFrame.border:Hide()
-  end
-  castbarFrame.bar:SetMinMaxValues(0, 1)
-  castbarFrame.bar:SetValue(0.65)
-  local globalFont, globalOutline = GetGlobalFont()
-  if showSpellName then
-    castbarFrame.spellText:ClearAllPoints()
-    castbarFrame.spellText:SetPoint("LEFT", castbarFrame, "LEFT", 5 + spellNameX, spellNameY)
-    castbarFrame.spellText:SetText("Preview Spell")
-    castbarFrame.spellText:SetTextColor(textR, textG, textB)
-    castbarFrame.spellText:SetScale(spellNameScale)
-    castbarFrame.spellText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-    castbarFrame.spellText:Show()
-  else
-    castbarFrame.spellText:Hide()
-  end
-  if showTime then
-    castbarFrame.timeText:ClearAllPoints()
-    castbarFrame.timeText:SetPoint("RIGHT", castbarFrame, "RIGHT", -5 + timeX, timeY)
-    local timeFormat = timePrecision == "0" and "1" or (timePrecision == "2" and "1.50" or "1.5")
-    castbarFrame.timeText:SetText(timeFormat)
-    castbarFrame.timeText:SetTextColor(textR, textG, textB)
-    castbarFrame.timeText:SetScale(timeScale)
-    castbarFrame.timeText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-    castbarFrame.timeText:Show()
-  else
-    castbarFrame.timeText:Hide()
-  end
-  castbarFrame:Show()
-end
-local function StopCastbarPreview()
-  State.castbarPreviewMode = false
-  if State.castbarPreviewTimer then
-    State.castbarPreviewTimer:Cancel()
-    State.castbarPreviewTimer = nil
-  end
-  if not State.castbarActive then
-    castbarFrame:Hide()
-  end
-end
-addonTable.ShowCastbarPreview = ShowCastbarPreview
-addonTable.StopCastbarPreview = StopCastbarPreview
-addonTable.FocusCastbarFrame = CreateFrame("Frame", "CCMFocusCastbar", UIParent, "BackdropTemplate")
-addonTable.FocusCastbarFrame:SetSize(250, 20)
-addonTable.FocusCastbarFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -210)
-addonTable.FocusCastbarFrame:SetFrameStrata("MEDIUM")
-addonTable.FocusCastbarFrame:SetClampedToScreen(true)
-addonTable.FocusCastbarFrame:SetMovable(false)
-addonTable.FocusCastbarFrame:EnableMouse(true)
-addonTable.FocusCastbarFrame:RegisterForDrag("LeftButton")
-addonTable.FocusCastbarFrame:Hide()
-addonTable.FocusCastbarFrame.bar = CreateFrame("StatusBar", nil, addonTable.FocusCastbarFrame)
-addonTable.FocusCastbarFrame.bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
-addonTable.FocusCastbarFrame.bar:SetStatusBarColor(1, 0.7, 0)
-addonTable.FocusCastbarFrame.bar:SetAllPoints()
-addonTable.FocusCastbarFrame.bg = addonTable.FocusCastbarFrame.bar:CreateTexture(nil, "BACKGROUND")
-addonTable.FocusCastbarFrame.bg:SetAllPoints()
-addonTable.FocusCastbarFrame.bg:SetColorTexture(0.1, 0.1, 0.1, 0.7)
-addonTable.FocusCastbarFrame.textOverlay = CreateFrame("Frame", nil, addonTable.FocusCastbarFrame)
-addonTable.FocusCastbarFrame.textOverlay:SetAllPoints()
-addonTable.FocusCastbarFrame.textOverlay:SetFrameLevel(addonTable.FocusCastbarFrame:GetFrameLevel() + 10)
-addonTable.FocusCastbarFrame.spellText = addonTable.FocusCastbarFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-addonTable.FocusCastbarFrame.spellText:SetPoint("LEFT", addonTable.FocusCastbarFrame, "LEFT", 5, 0)
-addonTable.FocusCastbarFrame.timeText = addonTable.FocusCastbarFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-addonTable.FocusCastbarFrame.timeText:SetPoint("RIGHT", addonTable.FocusCastbarFrame, "RIGHT", -5, 0)
-addonTable.FocusCastbarFrame.icon = CreateFrame("Frame", nil, addonTable.FocusCastbarFrame)
-addonTable.FocusCastbarFrame.icon:SetSize(24, 24)
-addonTable.FocusCastbarFrame.icon:SetPoint("RIGHT", addonTable.FocusCastbarFrame, "LEFT", -4, 0)
-addonTable.FocusCastbarFrame.icon.texture = addonTable.FocusCastbarFrame.icon:CreateTexture(nil, "ARTWORK")
-addonTable.FocusCastbarFrame.icon.texture:SetAllPoints()
-addonTable.FocusCastbarFrame.icon.texture:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-addonTable.FocusCastbarFrame.border = CreateFrame("Frame", nil, addonTable.FocusCastbarFrame, "BackdropTemplate")
-addonTable.FocusCastbarFrame.border:SetFrameLevel(addonTable.FocusCastbarFrame:GetFrameLevel() + 20)
-addonTable.FocusCastbarFrame.border:SetAllPoints()
-addonTable.FocusCastbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-addonTable.FocusCastbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
-addonTable.FocusCastbarFrame.ticks = {}
-for i = 1, 10 do
-  local tick = addonTable.FocusCastbarFrame.bar:CreateTexture(nil, "OVERLAY")
-  tick:SetColorTexture(1, 1, 1, 0.7)
-  tick:SetSize(2, 1)
-  tick:Hide()
-  addonTable.FocusCastbarFrame.ticks[i] = tick
-end
-addonTable.FocusCastbarFrame:SetScript("OnDragStart", function(self)
-  if not addonTable.GetGUIOpen or not addonTable.GetGUIOpen() then return end
-  self:StartMoving()
-  State.focusCastbarDragging = true
-end)
-addonTable.FocusCastbarFrame:SetScript("OnDragStop", function(self)
-  if not State.focusCastbarDragging then return end
-  self:StopMovingOrSizing()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if profile then
-    local _, _, _, newX, newY = self:GetPoint(1)
-    profile.focusCastbarX = newX
-    profile.focusCastbarY = newY
-    if addonTable.UpdateFocusCastbarSliders then addonTable.UpdateFocusCastbarSliders(newX, newY) end
-  end
-  State.focusCastbarDragging = false
-end)
-addonTable.FocusCastbarFrame:SetScript("OnMouseUp", function(self, button)
-  if button == "LeftButton" and not State.focusCastbarDragging then
-    self:StopMovingOrSizing()
-    State.focusCastbarDragging = false
-  end
-end)
-local function SetBlizzardFocusCastbarVisibility(show)
-  if FocusFrameSpellBar then
-    if show then
-      FocusFrameSpellBar:SetAlpha(1)
-      FocusFrameSpellBar:Show()
-      if FocusFrameSpellBar.Border then FocusFrameSpellBar.Border:Show() end
-      if FocusFrameSpellBar.Text then FocusFrameSpellBar.Text:Show() end
-      if FocusFrameSpellBar.TextBorder then FocusFrameSpellBar.TextBorder:Show() end
-    else
-      FocusFrameSpellBar:SetAlpha(0)
-      if FocusFrameSpellBar.Border then FocusFrameSpellBar.Border:Hide() end
-      if FocusFrameSpellBar.Text then FocusFrameSpellBar.Text:Hide() end
-      if FocusFrameSpellBar.TextBorder then FocusFrameSpellBar.TextBorder:Hide() end
-      FocusFrameSpellBar:Hide()
-    end
-  end
-  if FocusCastingBarFrame then
-    if show then
-      FocusCastingBarFrame:SetAlpha(1)
-      FocusCastingBarFrame:Show()
-    else
-      FocusCastingBarFrame:SetAlpha(0)
-      FocusCastingBarFrame:Hide()
-    end
-  end
-end
-addonTable.SetBlizzardFocusCastbarVisibility = SetBlizzardFocusCastbarVisibility
-local function ShouldHideDefaultFocusCastbar()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  return profile and profile.useFocusCastbar == true
-end
-if FocusFrameSpellBar and not FocusFrameSpellBar._ccmHideHooked then
-  FocusFrameSpellBar:HookScript("OnShow", function(self)
-    if ShouldHideDefaultFocusCastbar() then
-      self:SetAlpha(0)
-      if self.Border then self.Border:Hide() end
-      if self.Text then self.Text:Hide() end
-      if self.TextBorder then self.TextBorder:Hide() end
-      self:Hide()
-    end
-  end)
-  FocusFrameSpellBar._ccmHideHooked = true
-end
-if FocusCastingBarFrame and not FocusCastingBarFrame._ccmHideHooked then
-  FocusCastingBarFrame:HookScript("OnShow", function(self)
-    if ShouldHideDefaultFocusCastbar() then
-      self:SetAlpha(0)
-      self:Hide()
-    end
-  end)
-  FocusCastingBarFrame._ccmHideHooked = true
-end
-addonTable.UpdateFocusCastbar = function()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local frame = addonTable.FocusCastbarFrame
-  if not frame then return end
-  if not profile or not profile.useFocusCastbar then
-    frame:Hide()
-    State.focusCastbarActive = false
-    SetBlizzardFocusCastbarVisibility(true)
-    return
-  end
-  SetBlizzardFocusCastbarVisibility(false)
-  local name, text, texture, startTimeMS, endTimeMS, _, _, _, spellID = UnitCastingInfo("focus")
-  local isChanneling = false
-  if not name then
-    name, text, texture, startTimeMS, endTimeMS, _, _, spellID = UnitChannelInfo("focus")
-    isChanneling = name ~= nil
-  end
-  if name and addonTable.StartFocusCastbarTicker then
-    addonTable.StartFocusCastbarTicker()
-  end
-  if not name and not State.focusCastbarPreviewMode then
-    frame:Hide()
-    State.focusCastbarActive = false
-    State.focusCastbarTickKey = nil
-    frame._fallbackSpellID = nil
-    frame._fallbackChanneling = nil
-    frame._fallbackStart = nil
-    frame._fallbackDuration = nil
-    return
-  end
-  local width = type(profile.focusCastbarWidth) == "number" and profile.focusCastbarWidth or 250
-  local borderSize = type(profile.focusCastbarBorderSize) == "number" and profile.focusCastbarBorderSize or 1
-  width = math.max(20, math.floor(width))
-  local height = type(profile.focusCastbarHeight) == "number" and profile.focusCastbarHeight or 20
-  local showIcon = profile.focusCastbarShowIcon ~= false
-  local iconSize = height
-  local posX = type(profile.focusCastbarX) == "number" and profile.focusCastbarX or 0
-  local posY = type(profile.focusCastbarY) == "number" and profile.focusCastbarY or -210
-  if profile.focusCastbarCentered then
-    posX = showIcon and (iconSize / 2) or 0
-  end
-  local bgAlpha = (type(profile.focusCastbarBgAlpha) == "number" and profile.focusCastbarBgAlpha or 70) / 100
-  local showTime = profile.focusCastbarShowTime ~= false
-  local showSpellName = profile.focusCastbarShowSpellName ~= false
-  local timeScale = type(profile.focusCastbarTimeScale) == "number" and profile.focusCastbarTimeScale or 1.0
-  local spellNameScale = type(profile.focusCastbarSpellNameScale) == "number" and profile.focusCastbarSpellNameScale or 1.0
-  local spellNameX = type(profile.focusCastbarSpellNameXOffset) == "number" and profile.focusCastbarSpellNameXOffset or 0
-  local spellNameY = type(profile.focusCastbarSpellNameYOffset) == "number" and profile.focusCastbarSpellNameYOffset or 0
-  local timeX = type(profile.focusCastbarTimeXOffset) == "number" and profile.focusCastbarTimeXOffset or 0
-  local timeY = type(profile.focusCastbarTimeYOffset) == "number" and profile.focusCastbarTimeYOffset or 0
-  local timePrecision = profile.focusCastbarTimePrecision or "1"
-  local function FormatFocusTimeValue(rawValue)
-    local num = nil
-    if type(rawValue) == "number" then
-      num = rawValue
-    else
-      local rawText = tostring(rawValue or "")
-      num = tonumber(rawText)
-      if not num then
-        local parsedText = string.match(rawText, "[-+]?%d*%.?%d+")
-        num = tonumber(parsedText)
-      end
-    end
-    if num ~= nil then
-      local timeFormat = timePrecision == "0" and "%.0f" or (timePrecision == "2" and "%.2f" or "%.1f")
-      return string.format(timeFormat, num)
-    end
-    return tostring(rawValue or "")
-  end
-  local textR = profile.focusCastbarTextColorR or 1
-  local textG = profile.focusCastbarTextColorG or 1
-  local textB = profile.focusCastbarTextColorB or 1
-  frame.bar:SetStatusBarTexture(castbarTextures[profile.focusCastbarTexture] or castbarTextures.solid)
-  local r = profile.focusCastbarColorR or 1
-  local g = profile.focusCastbarColorG or 0.7
-  local b = profile.focusCastbarColorB or 0
-  frame.bar:SetStatusBarColor(r, g, b)
-  PixelUtil.SetSize(frame, width, height)
-  if not State.focusCastbarDragging then
-    frame:ClearAllPoints()
-    PixelUtil.SetPoint(frame, "CENTER", UIParent, "CENTER", posX, posY)
-  end
-  frame.bg:SetColorTexture(profile.focusCastbarBgColorR or 0.1, profile.focusCastbarBgColorG or 0.1, profile.focusCastbarBgColorB or 0.1, bgAlpha)
-  if showIcon and texture then
-    PixelUtil.SetSize(frame.icon, iconSize, iconSize)
-    frame.icon.texture:SetTexture(texture)
-    frame.icon:ClearAllPoints()
-    PixelUtil.SetPoint(frame.icon, "RIGHT", frame, "LEFT", 0, 0)
-    frame.icon:Show()
-  else
-    frame.icon:Hide()
-  end
-  if borderSize > 0 then
-    frame.border:ClearAllPoints()
-    if showIcon and texture then
-      frame.border:SetPoint("TOPLEFT", frame.icon, "TOPLEFT", 0, 0)
-      frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
-    else
-      frame.border:SetAllPoints(frame)
-    end
-    frame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
-    frame.border:SetBackdropBorderColor(0, 0, 0, 1)
-    frame.border:Show()
-  else
-    frame.border:Hide()
-  end
-  local globalFont, globalOutline = GetGlobalFont()
-  local focusTextStyleKey = table.concat({
-    showSpellName and 1 or 0, showTime and 1 or 0,
-    spellNameScale, spellNameX, spellNameY,
-    timeScale, timeX, timeY,
-    textR, textG, textB,
-    globalFont, globalOutline ~= "" and globalOutline or "OUTLINE"
-  }, "|")
-  if frame._textStyleKey ~= focusTextStyleKey then
-    frame._textStyleKey = focusTextStyleKey
-    frame.spellText:ClearAllPoints()
-    frame.spellText:SetPoint("LEFT", frame, "LEFT", 5 + spellNameX, spellNameY)
-    frame.spellText:SetTextColor(textR, textG, textB)
-    frame.spellText:SetScale(spellNameScale)
-    frame.spellText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-    frame.timeText:ClearAllPoints()
-    frame.timeText:SetPoint("RIGHT", frame, "RIGHT", -5 + timeX, timeY)
-    frame.timeText:SetTextColor(textR, textG, textB)
-    frame.timeText:SetScale(timeScale)
-    frame.timeText:SetFont(globalFont, 12, globalOutline ~= "" and globalOutline or "OUTLINE")
-  end
-  if showSpellName then
-    frame.spellText:SetText(name or "Focus Cast")
-    frame.spellText:Show()
-  else
-    frame.spellText:Hide()
-  end
-  local durationObject = nil
-  if name then
-    if isChanneling and UnitChannelDuration then
-      local okDur, durObj = pcall(UnitChannelDuration, "focus")
-      if okDur then durationObject = durObj end
-    elseif UnitCastingDuration then
-      local okDur, durObj = pcall(UnitCastingDuration, "focus")
-      if okDur then durationObject = durObj end
-    end
-  end
-  if name and durationObject and frame.bar and frame.bar.SetTimerDuration then
-    local interpolation = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or nil
-    local timerDirection = Enum and Enum.StatusBarTimerDirection and (isChanneling and Enum.StatusBarTimerDirection.RemainingTime or Enum.StatusBarTimerDirection.ElapsedTime) or nil
-    local okTimer = pcall(frame.bar.SetTimerDuration, frame.bar, durationObject, interpolation, timerDirection)
-    if okTimer then
-      if showTime then
-        local okRemaining, remaining = pcall(function()
-          return durationObject:GetRemainingDuration()
-        end)
-        local timeValue = okRemaining and remaining or nil
-        local timeDirection = profile.focusCastbarTimeDirection or "remaining"
-        if timeDirection == "elapsed" and okRemaining then
-          local okTotal, totalDuration = pcall(function()
-            return durationObject:GetTotalDuration()
-          end)
-          if okTotal and totalDuration ~= nil then
-            local okElapsed, elapsedValue = pcall(function()
-              return totalDuration - remaining
-            end)
-            if okElapsed then
-              timeValue = elapsedValue
-            end
-          end
-        end
-        if timeValue ~= nil then
-          frame.timeText:SetText(FormatFocusTimeValue(timeValue))
-          frame.timeText:Show()
-        else
-          frame.timeText:Hide()
-        end
-      else
-        frame.timeText:Hide()
-      end
-      local showTicks = profile.focusCastbarShowTicks ~= false
-      if isChanneling and showTicks and spellID and channelTickData[spellID] then
-        local numTicks = channelTickData[spellID]
-        local barWidth = frame:GetWidth()
-        local barHeight = frame:GetHeight()
-        local tickKey = table.concat({spellID, numTicks, barWidth, barHeight}, "|")
-        if State.focusCastbarTickKey ~= tickKey then
-          State.focusCastbarTickKey = tickKey
-          for i = 1, 10 do
-            if i <= numTicks then
-              local tickPos = (i / numTicks) * barWidth
-              frame.ticks[i]:ClearAllPoints()
-              frame.ticks[i]:SetPoint("LEFT", frame.bar, "LEFT", tickPos - 1, 0)
-              frame.ticks[i]:SetSize(2, barHeight)
-              frame.ticks[i]:SetColorTexture(1, 1, 1, 0.7)
-              frame.ticks[i]:Show()
-            else
-              frame.ticks[i]:Hide()
-            end
-          end
-        end
-      else
-        State.focusCastbarTickKey = nil
-        for i = 1, 10 do frame.ticks[i]:Hide() end
-      end
-      frame:Show()
-      State.focusCastbarActive = true
-      return
-    end
-  end
-  if name and startTimeMS and endTimeMS then
-    local okStart, startTime = pcall(function() return startTimeMS / 1000 end)
-    local okEnd, endTime = pcall(function() return endTimeMS / 1000 end)
-    if not okStart or not okEnd then
-      local now = GetTime()
-      local fallbackDuration = 1.5
-      if type(spellID) == "number" then
-        local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
-        if info then
-          local castTime = tonumber(info.castTimeMS) or tonumber(info.castTime)
-          local okCastTime, hasPositiveCastTime = pcall(function()
-            return castTime and castTime > 0
-          end)
-          if okCastTime and hasPositiveCastTime then
-            fallbackDuration = castTime / 1000
-          end
-        end
-      end
-      if (not frame._fallbackStart) or (frame._fallbackChanneling ~= isChanneling) then
-        frame._fallbackSpellID = nil
-        frame._fallbackChanneling = isChanneling
-        frame._fallbackStart = now
-        frame._fallbackDuration = fallbackDuration
-      end
-      local duration = frame._fallbackDuration or 1.5
-      local elapsed = math.max(0, now - (frame._fallbackStart or now))
-      local progress = isChanneling and (1 - (elapsed / duration)) or (elapsed / duration)
-      progress = math.max(0, math.min(1, progress))
-      frame.bar:SetMinMaxValues(0, 1)
-      frame.bar:SetValue(progress)
-      if showTime then
-        local barValue = frame.bar:GetValue()
-        local remaining = math.max(0, duration * (1 - barValue))
-        local elapsedFromBar = math.max(0, duration * barValue)
-        local timeDirection = profile.focusCastbarTimeDirection or "remaining"
-        local timeValue = timeDirection == "elapsed" and elapsedFromBar or remaining
-        frame.timeText:SetText(FormatFocusTimeValue(timeValue))
-        frame.timeText:Show()
-      else
-        frame.timeText:Hide()
-      end
-      frame:Show()
-      State.focusCastbarActive = true
-      return
-    end
-    frame._fallbackSpellID = nil
-    frame._fallbackChanneling = nil
-    frame._fallbackStart = nil
-    frame._fallbackDuration = nil
-    local currentTime = GetTime()
-    local duration = endTime - startTime
-    local progress = 0
-    if duration > 0 then
-      if isChanneling then
-        progress = (endTime - currentTime) / duration
-      else
-        progress = (currentTime - startTime) / duration
-      end
-    end
-    progress = math.max(0, math.min(1, progress))
-    frame.bar:SetMinMaxValues(0, 1)
-    frame.bar:SetValue(progress)
-    if showTime then
-      local barValue = frame.bar:GetValue()
-      local remaining = math.max(0, duration * (1 - barValue))
-      local elapsedFromBar = math.max(0, duration * barValue)
-      local timeDirection = profile.focusCastbarTimeDirection or "remaining"
-      local timeValue = timeDirection == "elapsed" and elapsedFromBar or remaining
-      frame.timeText:SetText(FormatFocusTimeValue(timeValue))
-      frame.timeText:Show()
-    else
-      frame.timeText:Hide()
-    end
-    local showTicks = profile.focusCastbarShowTicks ~= false
-    if isChanneling and showTicks and spellID and channelTickData[spellID] then
-      local numTicks = channelTickData[spellID]
-      local barWidth = frame:GetWidth()
-      local barHeight = frame:GetHeight()
-      local tickKey = table.concat({spellID, numTicks, barWidth, barHeight}, "|")
-      if State.focusCastbarTickKey ~= tickKey then
-        State.focusCastbarTickKey = tickKey
-        for i = 1, 10 do
-          if i <= numTicks then
-            local tickPos = (i / numTicks) * barWidth
-            frame.ticks[i]:ClearAllPoints()
-            frame.ticks[i]:SetPoint("LEFT", frame.bar, "LEFT", tickPos - 1, 0)
-            frame.ticks[i]:SetSize(2, barHeight)
-            frame.ticks[i]:SetColorTexture(1, 1, 1, 0.7)
-            frame.ticks[i]:Show()
-          else
-            frame.ticks[i]:Hide()
-          end
-        end
-      end
-    else
-      State.focusCastbarTickKey = nil
-      for i = 1, 10 do frame.ticks[i]:Hide() end
-    end
-  else
-    frame.bar:SetMinMaxValues(0, 1)
-    frame.bar:SetValue(0.65)
-    if showTime then
-      frame.timeText:SetText(FormatFocusTimeValue(1.5))
-      frame.timeText:Show()
-    else
-      frame.timeText:Hide()
-    end
-    for i = 1, 10 do frame.ticks[i]:Hide() end
-  end
-  State.focusCastbarActive = true
-  frame:Show()
-end
-addonTable.StartFocusCastbarTicker = function()
-  if State.focusCastbarTicker then return end
-  SetBlizzardFocusCastbarVisibility(false)
-  State.focusCastbarTicker = C_Timer.NewTicker(0.02, addonTable.UpdateFocusCastbar)
-end
-addonTable.StopFocusCastbarTicker = function()
-  local castName = UnitCastingInfo("focus")
-  if not castName then castName = UnitChannelInfo("focus") end
-  if castName then return end
-  if State.focusCastbarTicker then
-    State.focusCastbarTicker:Cancel()
-    State.focusCastbarTicker = nil
-  end
-  State.focusCastbarActive = false
-  State.focusCastbarTickKey = nil
-  if not State.focusCastbarPreviewMode and addonTable.FocusCastbarFrame then
-    addonTable.FocusCastbarFrame:Hide()
-  end
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.useFocusCastbar then
-    SetBlizzardFocusCastbarVisibility(true)
-  end
-end
-local focusCastbarEventFrame = CreateFrame("Frame")
-addonTable.SetupFocusCastbarEvents = function()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.useFocusCastbar then
-    focusCastbarEventFrame:UnregisterAllEvents()
-    return
-  end
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_START", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_START", "focus")
-  focusCastbarEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_EMPOWER_STOP", "focus")
-end
-focusCastbarEventFrame:SetScript("OnEvent", function(_, event)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.useFocusCastbar then return end
-  if event == "UNIT_SPELLCAST_START" or event == "UNIT_SPELLCAST_CHANNEL_START" or event == "UNIT_SPELLCAST_EMPOWER_START" then
-    addonTable.StartFocusCastbarTicker()
-  elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_CHANNEL_STOP" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" or event == "UNIT_SPELLCAST_EMPOWER_STOP" then
-    C_Timer.After(0.05, function()
-      local castName = UnitCastingInfo("focus")
-      if not castName then castName = UnitChannelInfo("focus") end
-      if not castName then addonTable.StopFocusCastbarTicker() end
-    end)
-  end
-end)
-addonTable.ShowFocusCastbarPreview = function()
-  State.focusCastbarPreviewMode = true
-  addonTable.UpdateFocusCastbar()
-end
-addonTable.StopFocusCastbarPreview = function()
-  State.focusCastbarPreviewMode = false
-  State.focusCastbarTickKey = nil
-  if addonTable.FocusCastbarFrame then
-    for i = 1, 10 do addonTable.FocusCastbarFrame.ticks[i]:Hide() end
-  end
-  local castName = UnitCastingInfo("focus")
-  if not castName then castName = UnitChannelInfo("focus") end
-  if not castName and addonTable.FocusCastbarFrame then
-    addonTable.FocusCastbarFrame:Hide()
-  end
-end
-local debuffSkinningActive = false
-local debuffUpdateTicker = nil
-local debuffIcons = {}
-local debuffFrame = nil
-local MAX_DEBUFF_ICONS = 16
-local function CreateDebuffIcon(parent, index)
-  local size = 32
-  local icon = CreateFrame("Button", "CCMDebuffIcon"..index, parent, "BackdropTemplate")
-  icon:SetSize(size, size)
-  icon:EnableMouse(false)
-  icon:Hide()
-  icon.icon = icon:CreateTexture(nil, "ARTWORK")
-  icon.icon:SetAllPoints()
-  icon.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  icon.border = CreateFrame("Frame", nil, icon, "BackdropTemplate")
-  icon.border:SetAllPoints()
-  icon.border:SetFrameLevel(icon:GetFrameLevel() + 1)
-  icon.cooldown = CreateFrame("Cooldown", nil, icon, "CooldownFrameTemplate")
-  icon.cooldown:SetAllPoints()
-  icon.cooldown:SetDrawEdge(false)
-  icon.cooldown:SetDrawBling(false)
-  icon.cooldown:SetDrawSwipe(true)
-  icon.cooldown:SetReverse(true)
-  icon.cooldown:SetHideCountdownNumbers(false)
-  return icon
-end
-local function CreateDebuffFrame()
-  if debuffFrame then return debuffFrame end
-  debuffFrame = CreateFrame("Frame", "CCMPlayerDebuffFrame", UIParent)
-  debuffFrame:SetSize(400, 50)
-  debuffFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
-  debuffFrame:SetFrameStrata("MEDIUM")
-  debuffFrame:SetMovable(true)
-  debuffFrame:EnableMouse(true)
-  debuffFrame:RegisterForDrag("LeftButton")
-  debuffFrame:SetScript("OnDragStart", function(self)
-    if State.debuffPreviewMode then
-      local profile = addonTable.GetProfile and addonTable.GetProfile()
-      if profile then
-        State.debuffDragStartX = profile.playerDebuffX or 0
-        State.debuffDragStartY = profile.playerDebuffY or 0
-      end
-      State.debuffDragStartCX, State.debuffDragStartCY = self:GetCenter()
-      self:StartMoving()
-      State.debuffDragging = true
-    end
-  end)
-  debuffFrame:SetScript("OnDragStop", function(self)
-    self:StopMovingOrSizing()
-    if State.debuffPreviewMode then
-      local startCX, startCY = State.debuffDragStartCX, State.debuffDragStartCY
-      local curCX, curCY = self:GetCenter()
-      if startCX and startCY and curCX and curCY then
-        local deltaX = curCX - startCX
-        local deltaY = curCY - startCY
-        local baseX = State.debuffDragStartX or 0
-        local baseY = State.debuffDragStartY or 0
-        local newX = math.floor((baseX + deltaX) + 0.5)
-        local newY = math.floor((baseY + deltaY) + 0.5)
-        local profile = addonTable.GetProfile and addonTable.GetProfile()
-        if profile then
-          profile.playerDebuffX = newX
-          profile.playerDebuffY = newY
-          if addonTable.debuffs then
-            if addonTable.debuffs.xSlider then
-              addonTable.debuffs.xSlider._updating = true
-              addonTable.debuffs.xSlider:SetValue(newX)
-              addonTable.debuffs.xSlider._updating = false
-              addonTable.debuffs.xSlider.valueText:SetText(newX)
-            end
-            if addonTable.debuffs.ySlider then
-              addonTable.debuffs.ySlider._updating = true
-              addonTable.debuffs.ySlider:SetValue(newY)
-              addonTable.debuffs.ySlider._updating = false
-              addonTable.debuffs.ySlider.valueText:SetText(newY)
-            end
-          end
-          self:ClearAllPoints()
-          self:SetPoint("TOPLEFT", PlayerFrame, "BOTTOMLEFT", newX, newY)
-        end
-      end
-    end
-    State.debuffDragging = false
-    State.debuffDragStartX, State.debuffDragStartY = nil, nil
-    State.debuffDragStartCX, State.debuffDragStartCY = nil, nil
-  end)
-  for i = 1, MAX_DEBUFF_ICONS do
-    debuffIcons[i] = CreateDebuffIcon(debuffFrame, i)
-  end
-  return debuffFrame
-end
-local function UpdateDebuffIconStyle(icon, profile)
-  local borderSize = profile.playerDebuffBorderSize or 1
-  local iconSize = profile.playerDebuffSize or 32
-  icon:SetSize(iconSize, iconSize)
-  if borderSize > 0 then
-    icon.border:SetBackdrop({
-      edgeFile = "Interface\\Buttons\\WHITE8x8",
-      edgeSize = borderSize,
-    })
-    icon.border:SetBackdropBorderColor(0.8, 0, 0, 1)
-    icon.border:Show()
-  else
-    icon.border:Hide()
-  end
-end
-local function UpdatePlayerDebuffs()
-  if State.debuffPreviewMode then
-    return
-  end
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.enablePlayerDebuffs or profile.enableUnitFrameCustomization == false then
-    if debuffFrame then debuffFrame:Hide() end
-    return
-  end
-  if not debuffFrame then
-    CreateDebuffFrame()
-  end
-  local iconSize = profile.playerDebuffSize or 32
-  local spacing = profile.playerDebuffSpacing or 2
-  local iconsPerRow = profile.playerDebuffIconsPerRow or 10
-  local sortDirection = profile.playerDebuffSortDirection or "right"
-  local rowGrowth = profile.playerDebuffRowGrowDirection or "down" 
-  local debuffFilter = "HARMFUL"
-  local continuationToken, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8,
-        slot9, slot10, slot11, slot12, slot13, slot14, slot15, slot16 = C_UnitAuras.GetAuraSlots("player", debuffFilter)
-  local slots = {slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8,
-                 slot9, slot10, slot11, slot12, slot13, slot14, slot15, slot16}
-  local visibleCount = 0
-  for i = 1, MAX_DEBUFF_ICONS do
-    local slot = slots[i]
-    if slot then
-      local data = C_UnitAuras.GetAuraDataBySlot("player", slot)
-      if data then
-        visibleCount = visibleCount + 1
-        local icon = debuffIcons[visibleCount]
-        if icon then
-          if data.icon then
-            icon.icon:SetTexture(data.icon)
-          end
-          if data.auraInstanceID then
-            local durationObj = C_UnitAuras.GetAuraDuration("player", data.auraInstanceID)
-            if durationObj then
-              icon.cooldown:SetCooldownFromDurationObject(durationObj)
-              icon.cooldown:Show()
-            else
-              icon.cooldown:Hide()
-            end
-          end
-          UpdateDebuffIconStyle(icon, profile)
-          local index = visibleCount - 1
-          local col = index % iconsPerRow
-          local row = math.floor(index / iconsPerRow)
-          local xPos
-          if sortDirection == "left" then
-            xPos = -col * (iconSize + spacing)
-          else 
-            xPos = col * (iconSize + spacing)
-          end
-          local yPos
-          if rowGrowth == "up" then
-            yPos = row * (iconSize + spacing)
-          else 
-            yPos = -row * (iconSize + spacing)
-          end
-          icon:ClearAllPoints()
-          icon:SetPoint("TOPLEFT", debuffFrame, "TOPLEFT", xPos, yPos)
-          icon:Show()
-        end
-      end
-    end
-  end
-  for i = visibleCount + 1, MAX_DEBUFF_ICONS do
-    if debuffIcons[i] then
-      debuffIcons[i]:Hide()
-    end
-  end
-  local numRows = math.ceil(visibleCount / iconsPerRow)
-  local iconsInFirstRow = math.min(visibleCount, iconsPerRow)
-  local totalWidth = iconsInFirstRow * iconSize + math.max(0, iconsInFirstRow - 1) * spacing
-  local totalHeight = numRows * iconSize + math.max(0, numRows - 1) * spacing
-  debuffFrame:SetSize(math.max(totalWidth, 1), math.max(totalHeight, 1))
-  local xOffset = profile.playerDebuffX or 0
-  local yOffset = profile.playerDebuffY or 0
-  debuffFrame:ClearAllPoints()
-  debuffFrame:SetPoint("TOPLEFT", PlayerFrame, "BOTTOMLEFT", xOffset, yOffset)
-  debuffFrame:Show()
-end
-local function StartPlayerDebuffsTicker()
-  if debuffUpdateTicker then return end
-  if not debuffFrame then CreateDebuffFrame() end
-  debuffFrame:RegisterUnitEvent("UNIT_AURA", "player")
-  debuffFrame:SetScript("OnEvent", function(self, event, unit)
-    if event == "UNIT_AURA" and unit == "player" then
-      UpdatePlayerDebuffs()
-    end
-  end)
-  debuffUpdateTicker = true
-  UpdatePlayerDebuffs()
-end
-local function StopPlayerDebuffsTicker()
-  if debuffUpdateTicker then
-    if type(debuffUpdateTicker) == "table" and debuffUpdateTicker.Cancel then
-      debuffUpdateTicker:Cancel()
-    end
-    debuffUpdateTicker = nil
-  end
-  if debuffFrame then
-    debuffFrame:UnregisterAllEvents()
-    debuffFrame:SetScript("OnEvent", nil)
-  end
-end
-local function ShowDebuffPreview()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  if not debuffFrame then
-    CreateDebuffFrame()
-  end
-  State.debuffPreviewMode = true
-  local iconSize = profile.playerDebuffSize or 32
-  local spacing = profile.playerDebuffSpacing or 2
-  local sortDirection = profile.playerDebuffSortDirection or "right"
-  local iconsPerRow = profile.playerDebuffIconsPerRow or 10
-  local rowGrowth = profile.playerDebuffRowGrowDirection or "down"
-  local previewTextures = {
-    136122,
-    135849,
-    136139,
-  }
-  for i = 1, 3 do
-    local icon = debuffIcons[i]
-    if icon then
-      icon.icon:SetTexture(previewTextures[i])
-      local startTime = GetTime()
-      local duration = 5 + i * 2
-      icon.cooldown:SetCooldown(startTime, duration)
-      icon.cooldown:Show()
-      UpdateDebuffIconStyle(icon, profile)
-      local index = i - 1
-      local col = index % iconsPerRow
-      local row = math.floor(index / iconsPerRow)
-      local xPos
-      if sortDirection == "left" then
-        xPos = -col * (iconSize + spacing)
-      else
-        xPos = col * (iconSize + spacing)
-      end
-      local yPos
-      if rowGrowth == "up" then
-        yPos = row * (iconSize + spacing)
-      else
-        yPos = -row * (iconSize + spacing)
-      end
-      icon:ClearAllPoints()
-      icon:SetPoint("TOPLEFT", debuffFrame, "TOPLEFT", xPos, yPos)
-      icon:Show()
-    end
-  end
-  for i = 4, MAX_DEBUFF_ICONS do
-    if debuffIcons[i] then
-      debuffIcons[i]:Hide()
-    end
-  end
-  local numRows = math.ceil(3 / iconsPerRow)
-  local iconsInFirstRow = math.min(3, iconsPerRow)
-  local totalWidth = iconsInFirstRow * iconSize + math.max(0, iconsInFirstRow - 1) * spacing
-  local totalHeight = numRows * iconSize + math.max(0, numRows - 1) * spacing
-  debuffFrame:SetSize(math.max(totalWidth, 1), math.max(totalHeight, 1))
-  if not State.debuffDragging then
-    local xOffset = profile.playerDebuffX or 0
-    local yOffset = profile.playerDebuffY or 0
-    debuffFrame:ClearAllPoints()
-    debuffFrame:SetPoint("TOPLEFT", PlayerFrame, "BOTTOMLEFT", xOffset, yOffset)
-  end
-  debuffFrame:Show()
-end
-local function StopDebuffPreview()
-  State.debuffPreviewMode = false
-  if debuffFrame then
-    debuffFrame:Hide()
-  end
-  for i = 1, MAX_DEBUFF_ICONS do
-    if debuffIcons[i] then
-      debuffIcons[i]:Hide()
-    end
-  end
-end
-local function RestorePlayerDebuffs()
-  StopPlayerDebuffsTicker()
-  if debuffFrame then
-    debuffFrame:Hide()
-  end
-  for i = 1, MAX_DEBUFF_ICONS do
-    if debuffIcons[i] then
-      debuffIcons[i]:Hide()
-    end
-  end
-  debuffSkinningActive = false
-end
-local function ApplyPlayerDebuffsSkinning()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile or not profile.enablePlayerDebuffs then
-    RestorePlayerDebuffs()
-    return
-  end
-  StartPlayerDebuffsTicker()
-  UpdatePlayerDebuffs()
-  debuffSkinningActive = true
-end
-addonTable.ShowDebuffPreview = ShowDebuffPreview
-addonTable.StopDebuffPreview = StopDebuffPreview
-addonTable.ApplyPlayerDebuffsSkinning = ApplyPlayerDebuffsSkinning
-addonTable.RestorePlayerDebuffs = RestorePlayerDebuffs
-addonTable.UpdatePlayerDebuffs = UpdatePlayerDebuffs
-local actionBarHideFrame = CreateFrame("Frame", "CCMActionBarHideFrame", UIParent)
-actionBarHideFrame:RegisterEvent("PLAYER_REGEN_DISABLED")
-actionBarHideFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
-actionBarHideFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+addonTable.FitTextToBar = FitTextToBar
 local HideBlizzBarPreviews, HideBlizzBarDragOverlays
-local function GetActionBar1Frames()
-  local frames = {}
-  local names = {
-    "MainMenuBar", "MainMenuBarArtFrame", "MainMenuBarArtFrameBackground",
-    "MicroButtonAndBagsBar", "MainMenuBarBackpackButton",
-  }
-  for _, name in ipairs(names) do
-    local f = _G[name]
-    if f then table.insert(frames, f) end
-  end
-  return frames
-end
-local function GetActionButtons()
-  local buttons = {}
-  for i = 1, 12 do
-    local btn = _G["ActionButton" .. i]
-    if btn then table.insert(buttons, btn) end
-  end
-  return buttons
-end
-local function GetStanceButtons()
-  local buttons = {}
-  for i = 1, 10 do
-    local btn = _G["StanceButton" .. i]
-    if btn then table.insert(buttons, btn) end
-  end
-  return buttons
-end
-local function GetStanceBarFrames()
-  local frames = {}
-  local names = {"StanceBar", "StanceBarFrame"}
-  for _, name in ipairs(names) do
-    local f = _G[name]
-    if f then table.insert(frames, f) end
-  end
-  return frames
-end
-local function GetPetButtons()
-  local buttons = {}
-  for i = 1, 10 do
-    local btn = _G["PetActionButton" .. i]
-    if btn then table.insert(buttons, btn) end
-  end
-  return buttons
-end
-local function GetPetBarFrames()
-  local frames = {}
-  local names = {"PetActionBarFrame", "PetActionBar"}
-  for _, name in ipairs(names) do
-    local f = _G[name]
-    if f then table.insert(frames, f) end
-  end
-  return frames
-end
-local function SetActionBar1Alpha(alpha)
-  for _, btn in ipairs(GetActionButtons()) do
-    if btn and btn.SetAlpha then btn:SetAlpha(alpha) end
-  end
-  for _, f in ipairs(GetActionBar1Frames()) do
-    if f and f.SetAlpha then f:SetAlpha(alpha) end
-  end
-end
-local function SetStanceBarAlpha(alpha)
-  for _, f in ipairs(GetStanceBarFrames()) do
-    if f and f.SetAlpha then f:SetAlpha(alpha) end
-  end
-  for _, btn in ipairs(GetStanceButtons()) do
-    if btn and btn.SetAlpha then btn:SetAlpha(alpha) end
-  end
-end
-local function SetPetBarAlpha(alpha)
-  for _, f in ipairs(GetPetBarFrames()) do
-    if f and f.SetAlpha then f:SetAlpha(alpha) end
-  end
-  for _, btn in ipairs(GetPetButtons()) do
-    if btn and btn.SetAlpha then btn:SetAlpha(alpha) end
-  end
-end
-local function SetActionBars2to8Alpha(alpha)
-  local barNames = {
-    "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
-    "MultiBar5", "MultiBar6", "MultiBar7",
-  }
-  for _, name in ipairs(barNames) do
-    local bar = _G[name]
-    if bar and bar.SetAlpha then bar:SetAlpha(alpha) end
-  end
-end
-local ab1MouseoverFrame = CreateFrame("Frame", "CCMAB1MouseoverFrame", UIParent)
-ab1MouseoverFrame:SetFrameStrata("BACKGROUND")
-ab1MouseoverFrame:SetFrameLevel(1)
-ab1MouseoverFrame:SetSize(800, 80)
-ab1MouseoverFrame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 0)
-ab1MouseoverFrame:EnableMouse(false)
-ab1MouseoverFrame:Show()
-local ab2MouseoverFrame = CreateFrame("Frame", "CCMAB2MouseoverFrame", UIParent)
-ab2MouseoverFrame:SetFrameStrata("BACKGROUND")
-ab2MouseoverFrame:SetFrameLevel(1)
-ab2MouseoverFrame:SetSize(800, 80)
-ab2MouseoverFrame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 80)
-ab2MouseoverFrame:EnableMouse(false)
-ab2MouseoverFrame:Show()
-local stanceMouseoverFrame = CreateFrame("Frame", "CCMStanceMouseoverFrame", UIParent)
-stanceMouseoverFrame:SetFrameStrata("BACKGROUND")
-stanceMouseoverFrame:SetFrameLevel(1)
-stanceMouseoverFrame:SetSize(200, 60)
-stanceMouseoverFrame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
-stanceMouseoverFrame:EnableMouse(false)
-stanceMouseoverFrame:Show()
-local ab2to8DetectionFrames = {}
-local function UpdateMouseoverDetectionFrames()
-  local mainBar = _G["MainMenuBar"]
-  if mainBar and mainBar:IsShown() then
-    ab1MouseoverFrame:ClearAllPoints()
-    ab1MouseoverFrame:SetSize(mainBar:GetWidth() or 800, (mainBar:GetHeight() or 40) + 40)
-    local point, relativeTo, relativePoint, x, y = mainBar:GetPoint()
-    if point then
-      ab1MouseoverFrame:SetPoint(point, relativeTo or UIParent, relativePoint or point, x or 0, (y or 0) - 20)
-    else
-      ab1MouseoverFrame:SetPoint("BOTTOM", UIParent, "BOTTOM", 0, 0)
-    end
-  end
-  local barNames = {"MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft", "MultiBar5", "MultiBar6", "MultiBar7"}
-  for i, barName in ipairs(barNames) do
-    local bar = _G[barName]
-    if bar and bar:IsShown() then
-      if not ab2to8DetectionFrames[barName] then
-        local df = CreateFrame("Frame", "CCM" .. barName .. "DetectionFrame", UIParent)
-        df:SetFrameStrata("BACKGROUND")
-        df:SetFrameLevel(1)
-        df:EnableMouse(false)
-        df:Show()
-        ab2to8DetectionFrames[barName] = df
-      end
-      local df = ab2to8DetectionFrames[barName]
-      df:ClearAllPoints()
-      df:SetSize((bar:GetWidth() or 400) + 20, (bar:GetHeight() or 40) + 20)
-      local point, relativeTo, relativePoint, x, y = bar:GetPoint()
-      if point then
-        df:SetPoint(point, relativeTo or UIParent, relativePoint or point, x or 0, y or 0)
-      end
-      df:Show()
-    end
-  end
-  local stanceBar = _G["StanceBar"]
-  if stanceBar and stanceBar:IsShown() then
-    stanceMouseoverFrame:ClearAllPoints()
-    stanceMouseoverFrame:SetSize((stanceBar:GetWidth() or 200) + 40, (stanceBar:GetHeight() or 40) + 20)
-    local point, relativeTo, relativePoint, x, y = stanceBar:GetPoint()
-    if point then
-      stanceMouseoverFrame:SetPoint(point, relativeTo or UIParent, relativePoint or point, x or 0, y or 0)
-    else
-      stanceMouseoverFrame:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", 0, 0)
-    end
-  end
-end
-C_Timer.After(2, UpdateMouseoverDetectionFrames)
-local function IsMouseOverAB2to8DetectionFrames()
-  for _, df in pairs(ab2to8DetectionFrames) do
-    if df and df:IsShown() and df:IsMouseOver() then
-      return true
-    end
-  end
-  return false
-end
-local ab2to8BarsConst = {
-  "MultiBarBottomLeft", "MultiBarBottomRight", "MultiBarRight", "MultiBarLeft",
-  "MultiBar5", "MultiBar6", "MultiBar7",
-}
-local function IsMouseOverFrameOrChildren(frame)
-  if not frame then return false end
-  if frame:IsMouseOver() then return true end
-  for i = 1, select('#', frame:GetChildren()) do
-    local child = select(i, frame:GetChildren())
-    if child and child:IsMouseOver() then
-      return true
-    end
-  end
-  return false
-end
-local function StartMouseCheck()
-  if State.mouseCheckTicker then return end
-  State.mouseCheckTicker = C_Timer.NewTicker(0.15, function()
-    local profile = addonTable.GetProfile and addonTable.GetProfile()
-    if not profile then return end
-    if not InCombatLockdown() then
-      if State.actionBar1Hidden then
-        SetActionBar1Alpha(1)
-        State.actionBar1Hidden = false
-      end
-      if State.actionBars2to8Hidden then
-        SetActionBars2to8Alpha(1)
-        State.actionBars2to8Hidden = false
-      end
-      if State.stanceBarHidden then
-        SetStanceBarAlpha(1)
-        State.stanceBarHidden = false
-      end
-      if State.petBarHidden then
-        SetPetBarAlpha(1)
-        State.petBarHidden = false
-      end
-      return
-    end
-    local mouseOverAB1 = false
-    local mouseOverAB2to8 = false
-    local mouseOverStance = false
-    local mouseOverPet = false
-    local ab1Mouseover = profile.hideActionBar1Mouseover == true
-    local ab2to8Mouseover = profile.hideActionBars2to8Mouseover == true
-    local stanceMouseover = profile.hideStanceBarMouseover == true
-    local petMouseover = profile.hidePetBarMouseover == true
-    local mouseOverCCMFrames = false
-    if BuffIconCooldownViewer then
-      if IsMouseOverFrameOrChildren(BuffIconCooldownViewer) then mouseOverCCMFrames = true end
-    end
-    if EssentialCooldownViewer then
-      if IsMouseOverFrameOrChildren(EssentialCooldownViewer) then mouseOverCCMFrames = true end
-    end
-    if UtilityCooldownViewer then
-      if IsMouseOverFrameOrChildren(UtilityCooldownViewer) then mouseOverCCMFrames = true end
-    end
-    for _, overlay in pairs(State.blizzBarDragOverlays) do
-      if overlay and overlay:IsMouseOver() then
-        mouseOverCCMFrames = true
-        break
-      end
-    end
-    if customBarFrame and customBarFrame:IsShown() and IsMouseOverFrameOrChildren(customBarFrame) then
-      mouseOverCCMFrames = true
-    end
-    if customBar2Frame and customBar2Frame:IsShown() and IsMouseOverFrameOrChildren(customBar2Frame) then
-      mouseOverCCMFrames = true
-    end
-    if customBar3Frame and customBar3Frame:IsShown() and IsMouseOverFrameOrChildren(customBar3Frame) then
-      mouseOverCCMFrames = true
-    end
-    if prbFrame and prbFrame:IsShown() and IsMouseOverFrameOrChildren(prbFrame) then
-      mouseOverCCMFrames = true
-    end
-    if mouseOverCCMFrames then
-      mouseOverAB1 = false
-      mouseOverAB2to8 = false
-      mouseOverStance = false
-    else
-      local isOverExcludedFrame = false
-      local spellOverlay = SpellActivationOverlayFrame
-      if spellOverlay and spellOverlay:IsShown() and spellOverlay:IsMouseOver() then
-        isOverExcludedFrame = true
-      end
-      local widgetCenter = UIWidgetCenterScreenContainerFrame
-      if widgetCenter and widgetCenter:IsShown() and widgetCenter:IsMouseOver() then
-        isOverExcludedFrame = true
-      end
-      if not isOverExcludedFrame then
-        for _, name in ipairs(ab2to8BarsConst) do
-          local bar = _G[name]
-          if bar and bar:IsShown() and bar:IsMouseOver() then
-            mouseOverAB2to8 = true
-            break
-          end
-        end
-        if not mouseOverAB2to8 and IsMouseOverAB2to8DetectionFrames() then
-          mouseOverAB2to8 = true
-        end
-        if not mouseOverAB2to8 then
-          for _, btn in ipairs(GetActionButtons()) do
-            if btn and btn:IsShown() and btn:IsMouseOver() then
-              mouseOverAB1 = true
-              break
-            end
-          end
-        end
-        if not mouseOverAB1 and ab1MouseoverFrame and ab1MouseoverFrame:IsMouseOver() then
-          mouseOverAB1 = true
-        end
-        for _, btn in ipairs(GetStanceButtons()) do
-          if btn and btn:IsShown() and btn:IsMouseOver() then
-            mouseOverStance = true
-            break
-          end
-        end
-        for _, f in ipairs(GetStanceBarFrames()) do
-          if f and f:IsShown() and f:IsMouseOver() then
-            mouseOverStance = true
-            break
-          end
-        end
-        if not mouseOverStance and stanceMouseoverFrame and stanceMouseoverFrame:IsMouseOver() then
-          mouseOverStance = true
-        end
-        for _, btn in ipairs(GetPetButtons()) do
-          if btn and btn:IsShown() and btn:IsMouseOver() then
-            mouseOverPet = true
-            break
-          end
-        end
-        if not mouseOverPet then
-          for _, f in ipairs(GetPetBarFrames()) do
-            if f and f:IsShown() and f:IsMouseOver() then
-              mouseOverPet = true
-              break
-            end
-          end
-        end
-      end
-    end
-    local mouseOverAnyHiddenBar = false
-    if profile.hideActionBar1InCombat and ab1Mouseover and mouseOverAB1 then mouseOverAnyHiddenBar = true end
-    if profile.hideActionBars2to8InCombat and ab2to8Mouseover and mouseOverAB2to8 then mouseOverAnyHiddenBar = true end
-    if profile.hideStanceBarInCombat and stanceMouseover and mouseOverStance then mouseOverAnyHiddenBar = true end
-    if profile.hidePetBarInCombat and petMouseover and mouseOverPet then mouseOverAnyHiddenBar = true end
-    local ab1HiddenByBlizz = false
-    local ab2to8HiddenByBlizz = false
-    local stanceHiddenByBlizz = false
-    local petHiddenByBlizz = false
-    local mainBar = _G["MainMenuBar"]
-    if mainBar and (not mainBar:IsShown() or mainBar:GetAlpha() < 0.1) then
-      ab1HiddenByBlizz = true
-    end
-    for _, name in ipairs(ab2to8BarsConst) do
-      local bar = _G[name]
-      if bar and (not bar:IsShown() or bar:GetAlpha() < 0.1) then
-        ab2to8HiddenByBlizz = true
-        break
-      end
-    end
-    local stanceBar = _G["StanceBar"]
-    if stanceBar and (not stanceBar:IsShown() or stanceBar:GetAlpha() < 0.1) then
-      stanceHiddenByBlizz = true
-    end
-    local petBar = _G["PetActionBarFrame"] or _G["PetActionBar"]
-    if petBar and (not petBar:IsShown() or petBar:GetAlpha() < 0.1) then
-      petHiddenByBlizz = true
-    end
-    if ab1Mouseover and mouseOverAB1 and ab1HiddenByBlizz then mouseOverAnyHiddenBar = true end
-    if ab2to8Mouseover and mouseOverAB2to8 and ab2to8HiddenByBlizz then mouseOverAnyHiddenBar = true end
-    if stanceMouseover and mouseOverStance and stanceHiddenByBlizz then mouseOverAnyHiddenBar = true end
-    if petMouseover and mouseOverPet and petHiddenByBlizz then mouseOverAnyHiddenBar = true end
-    if profile.hideActionBar1InCombat or ab1HiddenByBlizz then
-      local showAB1 = mouseOverAnyHiddenBar
-      if showAB1 then
-        if State.actionBar1Hidden or ab1HiddenByBlizz then
-          SetActionBar1Alpha(1)
-          State.actionBar1Hidden = false
-        end
-      else
-        if profile.hideActionBar1InCombat and not State.actionBar1Hidden then
-          SetActionBar1Alpha(0)
-          State.actionBar1Hidden = true
-        end
-      end
-    end
-    if profile.hideActionBars2to8InCombat or ab2to8HiddenByBlizz then
-      local showAB2to8 = mouseOverAnyHiddenBar
-      if showAB2to8 then
-        if State.actionBars2to8Hidden or ab2to8HiddenByBlizz then
-          SetActionBars2to8Alpha(1)
-          State.actionBars2to8Hidden = false
-        end
-      else
-        if profile.hideActionBars2to8InCombat and not State.actionBars2to8Hidden then
-          SetActionBars2to8Alpha(0)
-          State.actionBars2to8Hidden = true
-        end
-      end
-    end
-    if profile.hideStanceBarInCombat or stanceHiddenByBlizz then
-      local showStance = mouseOverAnyHiddenBar
-      if showStance then
-        if State.stanceBarHidden or stanceHiddenByBlizz then
-          SetStanceBarAlpha(1)
-          State.stanceBarHidden = false
-        end
-      else
-        if profile.hideStanceBarInCombat and not State.stanceBarHidden then
-          SetStanceBarAlpha(0)
-          State.stanceBarHidden = true
-        end
-      end
-    end
-    if profile.hidePetBarInCombat or petHiddenByBlizz then
-      local showPet = mouseOverAnyHiddenBar
-      if showPet then
-        if State.petBarHidden or petHiddenByBlizz then
-          SetPetBarAlpha(1)
-          State.petBarHidden = false
-        end
-      else
-        if profile.hidePetBarInCombat and not State.petBarHidden then
-          SetPetBarAlpha(0)
-          State.petBarHidden = true
-        end
-      end
-    end
-  end)
-end
-local function StopMouseCheck()
-  if State.mouseCheckTicker then
-    State.mouseCheckTicker:Cancel()
-    State.mouseCheckTicker = nil
-  end
-end
-local function SetupActionBarHiding()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local hideAB1 = profile.hideActionBar1InCombat == true
-  local hideAB2to8 = profile.hideActionBars2to8InCombat == true
-  local hideStance = profile.hideStanceBarInCombat == true
-  local hidePet = profile.hidePetBarInCombat == true
-  local anyMouseover = profile.hideActionBar1Mouseover or profile.hideActionBars2to8Mouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
-  if hideAB1 or hideAB2to8 or hideStance or hidePet or anyMouseover then
-    if InCombatLockdown() then
-      StartMouseCheck()
-      if hideAB1 then
-        SetActionBar1Alpha(0)
-        State.actionBar1Hidden = true
-      end
-      if hideAB2to8 then
-        SetActionBars2to8Alpha(0)
-        State.actionBars2to8Hidden = true
-      end
-      if hideStance then
-        SetStanceBarAlpha(0)
-        State.stanceBarHidden = true
-      end
-      if hidePet then
-        SetPetBarAlpha(0)
-        State.petBarHidden = true
-      end
-    end
-  else
-    StopMouseCheck()
-    if State.actionBar1Hidden then
-      SetActionBar1Alpha(1)
-      State.actionBar1Hidden = false
-    end
-    if State.actionBars2to8Hidden then
-      SetActionBars2to8Alpha(1)
-      State.actionBars2to8Hidden = false
-    end
-    if State.stanceBarHidden then
-      SetStanceBarAlpha(1)
-      State.stanceBarHidden = false
-    end
-    if State.petBarHidden then
-      SetPetBarAlpha(1)
-      State.petBarHidden = false
-    end
-  end
-end
-addonTable.SetupActionBarHiding = SetupActionBarHiding
-local function UpdateActionBarVisibility()
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  local inCombat = InCombatLockdown()
-  if inCombat then
-    if profile.hideActionBar1InCombat then
-      if not State.actionBar1Hidden then
-        SetActionBar1Alpha(0)
-        State.actionBar1Hidden = true
-      end
-    else
-      if State.actionBar1Hidden then
-        SetActionBar1Alpha(1)
-        State.actionBar1Hidden = false
-      end
-    end
-    if profile.hideActionBars2to8InCombat then
-      if not State.actionBars2to8Hidden then
-        SetActionBars2to8Alpha(0)
-        State.actionBars2to8Hidden = true
-      end
-    else
-      if State.actionBars2to8Hidden then
-        SetActionBars2to8Alpha(1)
-        State.actionBars2to8Hidden = false
-      end
-    end
-    if profile.hideStanceBarInCombat then
-      if not State.stanceBarHidden then
-        SetStanceBarAlpha(0)
-        State.stanceBarHidden = true
-      end
-    else
-      if State.stanceBarHidden then
-        SetStanceBarAlpha(1)
-        State.stanceBarHidden = false
-      end
-    end
-    if profile.hidePetBarInCombat then
-      if not State.petBarHidden then
-        SetPetBarAlpha(0)
-        State.petBarHidden = true
-      end
-    else
-      if State.petBarHidden then
-        SetPetBarAlpha(1)
-        State.petBarHidden = false
-      end
-    end
-    local anyHideInCombat = profile.hideActionBar1InCombat or profile.hideActionBars2to8InCombat or profile.hideStanceBarInCombat or profile.hidePetBarInCombat
-    local anyMouseover = profile.hideActionBar1Mouseover or profile.hideActionBars2to8Mouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
-    if anyHideInCombat or anyMouseover then
-      StartMouseCheck()
-    else
-      StopMouseCheck()
-    end
-  else
-    SetActionBar1Alpha(1)
-    SetActionBars2to8Alpha(1)
-    SetStanceBarAlpha(1)
-    SetPetBarAlpha(1)
-    State.actionBar1Hidden = false
-    State.actionBars2to8Hidden = false
-    State.stanceBarHidden = false
-    State.petBarHidden = false
-    StopMouseCheck()
-  end
-end
-addonTable.UpdateActionBarVisibility = UpdateActionBarVisibility
-actionBarHideFrame:SetScript("OnEvent", function(self, event)
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
-  if not profile then return end
-  if event == "PLAYER_REGEN_DISABLED" then
-    HideBlizzBarPreviews()
-    if UpdateMouseoverDetectionFrames then UpdateMouseoverDetectionFrames() end
-    local anyHideInCombat = profile.hideActionBar1InCombat or profile.hideActionBars2to8InCombat or profile.hideStanceBarInCombat or profile.hidePetBarInCombat
-    local anyMouseover = profile.hideActionBar1Mouseover or profile.hideActionBars2to8Mouseover or profile.hideStanceBarMouseover or profile.hidePetBarMouseover
-    if anyHideInCombat or anyMouseover then
-      StartMouseCheck()
-    end
-    if profile.hideActionBar1InCombat then
-      SetActionBar1Alpha(0)
-      State.actionBar1Hidden = true
-    end
-    if profile.hideActionBars2to8InCombat then
-      SetActionBars2to8Alpha(0)
-      State.actionBars2to8Hidden = true
-    end
-    if profile.hideStanceBarInCombat then
-      SetStanceBarAlpha(0)
-      State.stanceBarHidden = true
-    end
-    if profile.hidePetBarInCombat then
-      SetPetBarAlpha(0)
-      State.petBarHidden = true
-    end
-  elseif event == "PLAYER_REGEN_ENABLED" then
-    StopMouseCheck()
-    if State.actionBar1Hidden then
-      SetActionBar1Alpha(1)
-      State.actionBar1Hidden = false
-    end
-    if State.actionBars2to8Hidden then
-      SetActionBars2to8Alpha(1)
-      State.actionBars2to8Hidden = false
-    end
-    if State.stanceBarHidden then
-      SetStanceBarAlpha(1)
-      State.stanceBarHidden = false
-    end
-    if State.petBarHidden then
-      SetPetBarAlpha(1)
-      State.petBarHidden = false
-    end
-    C_Timer.After(0.5, function()
-      if not InCombatLockdown() and UpdateMouseoverDetectionFrames then
-        UpdateMouseoverDetectionFrames()
-      end
-    end)
-  elseif event == "PLAYER_ENTERING_WORLD" then
-    C_Timer.After(1, SetupActionBarHiding)
-    C_Timer.After(3, function()
-      if addonTable.SetupBlizzBarClickHandlers then
-        addonTable.SetupBlizzBarClickHandlers()
-      end
-    end)
-    C_Timer.After(2, function()
-      local profile = addonTable.GetProfile()
-      if profile and profile.useFrameSkin and addonTable.ApplyFrameSkin then
-        addonTable.ApplyFrameSkin()
-      end
-    end)
-  end
-end)
-C_Timer.After(2, SetupActionBarHiding)
 local function HasVisibleBlizzBarContent(bar)
   if not bar then return false end
   if not bar:IsShown() then return false end
@@ -6628,11 +2122,11 @@ local function HideAllHighlights()
     customBar3Frame.highlightVisible = nil
     customBar3Frame:Hide()
   end
-  if prbFrame and prbFrame.highlightVisible then
-    prbFrame.highlightVisible = nil
+  if addonTable.PRBFrame and addonTable.PRBFrame.highlightVisible then
+    addonTable.PRBFrame.highlightVisible = nil
     local profile = addonTable.GetProfile and addonTable.GetProfile()
     if not profile or not profile.usePersonalResourceBar then
-      prbFrame:Hide()
+      addonTable.PRBFrame:Hide()
     end
   end
   if State.guiIsOpen then
@@ -6679,13 +2173,13 @@ local function HighlightCustomBar(tabIdx)
   elseif tabIdx == 6 then
     ShowBlizzBarDragOverlays(true)
   elseif tabIdx == 7 then
-    if prbFrame then
+    if addonTable.PRBFrame then
       local profile = addonTable.GetProfile and addonTable.GetProfile()
       if profile and profile.usePersonalResourceBar then
-        if not prbFrame:IsShown() then
-          prbFrame:SetSize(220, 30)
-          prbFrame:Show()
-          prbFrame.highlightVisible = true
+        if not addonTable.PRBFrame:IsShown() then
+          addonTable.PRBFrame:SetSize(220, 30)
+          addonTable.PRBFrame:Show()
+          addonTable.PRBFrame.highlightVisible = true
         end
         local minY, maxY = 0, 0
         local width = profile.prbWidth or 220
@@ -6774,17 +2268,17 @@ local function HighlightCustomBar(tabIdx)
         local highlightHeight = maxY - minY + 8
         local highlight = CreateHighlightFrame(1)
         highlight:ClearAllPoints()
-        highlight:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", -14, maxY + 14)
-        highlight:SetPoint("BOTTOMRIGHT", prbFrame, "TOPLEFT", width + 14, minY - 24)
+        highlight:SetPoint("TOPLEFT", addonTable.PRBFrame, "TOPLEFT", -14, maxY + 14)
+        highlight:SetPoint("BOTTOMRIGHT", addonTable.PRBFrame, "TOPLEFT", width + 14, minY - 24)
         highlight:Show()
       end
     end
   elseif tabIdx == 8 then
-    if not castbarFrame:IsShown() then
+    if addonTable.CastbarFrame and not addonTable.CastbarFrame:IsShown() then
       if addonTable.ShowCastbarPreview then addonTable.ShowCastbarPreview() end
     end
-    if castbarFrame then
-      HighlightFrame(1, castbarFrame)
+    if addonTable.CastbarFrame then
+      HighlightFrame(1, addonTable.CastbarFrame)
     end
   elseif tabIdx == 9 then
     if addonTable.FocusCastbarFrame and not addonTable.FocusCastbarFrame:IsShown() then
@@ -6794,16 +2288,16 @@ local function HighlightCustomBar(tabIdx)
       HighlightFrame(1, addonTable.FocusCastbarFrame)
     end
   elseif tabIdx == 10 then
-    if not debuffFrame or not debuffFrame:IsShown() then
+    if not addonTable.DebuffFrame or not addonTable.DebuffFrame:IsShown() then
       if addonTable.ShowDebuffPreview then addonTable.ShowDebuffPreview() end
     end
-    if debuffFrame then
+    if addonTable.DebuffFrame then
       local minX, maxX, minY, maxY
-      local frameLeft, frameRight = debuffFrame:GetLeft(), debuffFrame:GetRight()
-      local frameBottom, frameTop = debuffFrame:GetBottom(), debuffFrame:GetTop()
+      local frameLeft, frameRight = addonTable.DebuffFrame:GetLeft(), addonTable.DebuffFrame:GetRight()
+      local frameBottom, frameTop = addonTable.DebuffFrame:GetBottom(), addonTable.DebuffFrame:GetTop()
       if frameLeft and frameRight and frameBottom and frameTop then
-        for i = 1, MAX_DEBUFF_ICONS do
-          local icon = debuffIcons[i]
+        for i = 1, 16 do
+          local icon = addonTable.DebuffIcons[i]
           if icon and icon:IsShown() then
             local l, r = icon:GetLeft(), icon:GetRight()
             local b, t = icon:GetBottom(), icon:GetTop()
@@ -6823,11 +2317,11 @@ local function HighlightCustomBar(tabIdx)
       if minX and maxX and minY and maxY then
         local highlight = CreateHighlightFrame(1)
         highlight:ClearAllPoints()
-        highlight:SetPoint("BOTTOMLEFT", debuffFrame, "BOTTOMLEFT", minX - 4, minY - 4)
-        highlight:SetPoint("TOPRIGHT", debuffFrame, "BOTTOMLEFT", maxX + 4, maxY + 4)
+        highlight:SetPoint("BOTTOMLEFT", addonTable.DebuffFrame, "BOTTOMLEFT", minX - 4, minY - 4)
+        highlight:SetPoint("TOPRIGHT", addonTable.DebuffFrame, "BOTTOMLEFT", maxX + 4, maxY + 4)
         highlight:Show()
       else
-        HighlightFrame(1, debuffFrame)
+        HighlightFrame(1, addonTable.DebuffFrame)
       end
     end
   end
@@ -6835,6 +2329,35 @@ end
 addonTable.HighlightCustomBar = HighlightCustomBar
 addonTable.GetDefaults = function() return defaults end
 addonTable.GetIcons = function() return State.cursorIcons end
+addonTable.ShowCursorIconPreview = function()
+  State.cursorIconPreviewActive = true
+  for _, icon in ipairs(State.cursorIcons) do
+    if not icon._ccmPreviewSaved then
+      icon._ccmPreviewSaved = true
+      icon._ccmPreviewStrata = icon:GetFrameStrata()
+      icon._ccmPreviewLevel = icon:GetFrameLevel()
+      icon._ccmPreviewShown = icon:IsShown()
+    end
+    icon:SetFrameStrata("TOOLTIP")
+    icon:SetFrameLevel(9999)
+    icon:Show()
+  end
+end
+addonTable.StopCursorIconPreview = function()
+  if not State.cursorIconPreviewActive then return end
+  State.cursorIconPreviewActive = false
+  for _, icon in ipairs(State.cursorIcons) do
+    if icon._ccmPreviewSaved then
+      icon:SetFrameStrata(icon._ccmPreviewStrata or "MEDIUM")
+      icon:SetFrameLevel(icon._ccmPreviewLevel or 1)
+      if not icon._ccmPreviewShown then icon:Hide() end
+      icon._ccmPreviewSaved = nil
+      icon._ccmPreviewStrata = nil
+      icon._ccmPreviewLevel = nil
+      icon._ccmPreviewShown = nil
+    end
+  end
+end
 addonTable.SetGUIOpen = function(open) 
   State.guiIsOpen = open
   local rf = addonTable.ringFrame
@@ -6870,7 +2393,7 @@ addonTable.SetGUIOpen = function(open)
     if customBarFrame then customBarFrame:SetMovable(true) end
     if customBar2Frame then customBar2Frame:SetMovable(true) end
     if customBar3Frame then customBar3Frame:SetMovable(true) end
-    if prbFrame then prbFrame:SetMovable(true) end
+    if addonTable.PRBFrame then addonTable.PRBFrame:SetMovable(true) end
     local function updateOverlays()
       if State.guiIsOpen then
         ShowBlizzBarDragOverlays(false)
@@ -6884,7 +2407,7 @@ addonTable.SetGUIOpen = function(open)
     if customBarFrame then customBarFrame:SetMovable(false) end
     if customBar2Frame then customBar2Frame:SetMovable(false) end
     if customBar3Frame then customBar3Frame:SetMovable(false) end
-    if prbFrame then prbFrame:SetMovable(false) end
+    if addonTable.PRBFrame then addonTable.PRBFrame:SetMovable(false) end
     HideAllHighlights()
     HideBlizzBarPreviews()
     HideBlizzBarDragOverlays()
@@ -6968,7 +2491,6 @@ addonTable.MigrateOldCustomBarData = MigrateOldCustomBarData
 local function MigrateRenamedProfileKeys()
   if not CooldownCursorManagerDB or not CooldownCursorManagerDB.profiles then return end
   local keyMap = {
-    useBiggerPlayerHealthframe = "ufCustomizeHealth",
     useBiggerPlayerHealthframeClassColor = "ufClassColor",
     useBiggerPlayerHealthframeTexture = "ufHealthTexture",
     useBiggerPlayerHealthframeDisableGlows = "ufDisableGlows",
@@ -7034,6 +2556,11 @@ local function GetProfile()
   if profile.ufCustomBorderColorB == nil then
     profile.ufCustomBorderColorB = profile.ufBorderPlayerColorB or defaults.profiles.Default.ufCustomBorderColorB
   end
+  if profile.ufUseCustomNameColor == nil then profile.ufUseCustomNameColor = false end
+  if profile.ufUseCustomTextures == nil then profile.ufUseCustomTextures = false end
+  if profile.ufNameColorR == nil then profile.ufNameColorR = defaults.profiles.Default.ufNameColorR end
+  if profile.ufNameColorG == nil then profile.ufNameColorG = defaults.profiles.Default.ufNameColorG end
+  if profile.ufNameColorB == nil then profile.ufNameColorB = defaults.profiles.Default.ufNameColorB end
   if profile.combatTimerEnabled == nil then
     profile.combatTimerEnabled = defaults.profiles.Default.combatTimerEnabled
   end
@@ -7068,6 +2595,7 @@ local function GetProfile()
   if profile.crTimerCentered == nil then profile.crTimerCentered = defaults.profiles.Default.crTimerCentered end
   if profile.crTimerX == nil then profile.crTimerX = defaults.profiles.Default.crTimerX end
   if profile.crTimerY == nil then profile.crTimerY = defaults.profiles.Default.crTimerY end
+  if profile.crTimerScale == nil then profile.crTimerScale = defaults.profiles.Default.crTimerScale end
   if profile.standaloneEssentialSecondRowSize == nil then profile.standaloneEssentialSecondRowSize = defaults.profiles.Default.standaloneEssentialSecondRowSize end
   if profile.standaloneEssentialIconsPerRow == nil then profile.standaloneEssentialIconsPerRow = defaults.profiles.Default.standaloneEssentialIconsPerRow end
   if profile.standaloneEssentialMaxRows == nil then profile.standaloneEssentialMaxRows = defaults.profiles.Default.standaloneEssentialMaxRows end
@@ -7693,7 +3221,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
     if icon.ccmChargeText then
       local globalFont, globalOutline = GetGlobalFont()
       local _, ccmSize = GameFontHighlightLarge:GetFont()
-      icon.ccmChargeText:SetFont(globalFont, ccmSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      icon.ccmChargeText:SetFont(globalFont, ccmSize, globalOutline or "OUTLINE")
     end
     if icon.ccmCooldown then
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
@@ -7705,7 +3233,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
         if region and region:GetObjectType() == "FontString" then
           local _, size = region:GetFont()
           if size then
-            region:SetFont(globalFont, size, globalOutline ~= "" and globalOutline or "OUTLINE")
+            region:SetFont(globalFont, size, globalOutline or "OUTLINE")
           end
         end
       end
@@ -7722,7 +3250,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
             if region and region:GetObjectType() == "FontString" then
               local _, size = region:GetFont()
               if size then
-                region:SetFont(globalFont, size, globalOutline ~= "" and globalOutline or "OUTLINE")
+                region:SetFont(globalFont, size, globalOutline or "OUTLINE")
               end
             end
           end
@@ -7731,7 +3259,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
       local chargeText = (icon.ChargeCount and icon.ChargeCount.Current) or (icon.Applications and icon.Applications.Applications)
       if chargeText then
         local _, ccmSize = GameFontHighlightLarge:GetFont()
-        chargeText:SetFont(globalFont, ccmSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+        chargeText:SetFont(globalFont, ccmSize, globalOutline or "OUTLINE")
       end
     end
     icon.ccmSkinned = doSkinning
@@ -7962,7 +3490,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
     if icon.ccmChargeText then
       local globalFont, globalOutline = GetGlobalFont()
       local _, ccmSize = GameFontHighlightLarge:GetFont()
-      icon.ccmChargeText:SetFont(globalFont, ccmSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      icon.ccmChargeText:SetFont(globalFont, ccmSize, globalOutline or "OUTLINE")
     end
     if icon.ccmCooldown and doSkinning then
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
@@ -7976,7 +3504,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
         if region and region:GetObjectType() == "FontString" then
           local _, size = region:GetFont()
           if size then
-            region:SetFont(globalFont, size, globalOutline ~= "" and globalOutline or "OUTLINE")
+            region:SetFont(globalFont, size, globalOutline or "OUTLINE")
           end
         end
       end
@@ -7993,7 +3521,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
             if region and region:GetObjectType() == "FontString" then
               local _, size = region:GetFont()
               if size then
-                region:SetFont(globalFont, size, globalOutline ~= "" and globalOutline or "OUTLINE")
+                region:SetFont(globalFont, size, globalOutline or "OUTLINE")
               end
             end
           end
@@ -8002,7 +3530,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
       local chargeText = (icon.ChargeCount and icon.ChargeCount.Current) or (icon.Applications and icon.Applications.Applications)
       if chargeText then
         local _, ccmSize = GameFontHighlightLarge:GetFont()
-        chargeText:SetFont(globalFont, ccmSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+        chargeText:SetFont(globalFont, ccmSize, globalOutline or "OUTLINE")
       end
     end
     icon.ccmSkinned = doSkinning
@@ -8150,17 +3678,16 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
   if InCombatLockdown and InCombatLockdown() and frame.IsProtected and frame:IsProtected() then
     canResizeFrame = false
   end
-  if centered then
-    if canResizeFrame then
-      if pinFirstRowY then
-        frame:SetSize(totalWidth, firstRowSize)
-      else
-        frame:SetSize(totalWidth, totalHeight)
-      end
+  if canResizeFrame then
+    if pinFirstRowY then
+      frame:SetSize(totalWidth, firstRowSize)
+    else
+      frame:SetSize(totalWidth, totalHeight)
     end
   end
   local iconIndex = 1
   local yTop = 0
+  local yAbove = 0
   for row = 1, rowCount do
     local iconsInRow = rowIconCounts[row]
     local size = rowSizes[row]
@@ -8168,6 +3695,9 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
     local startX = centered and ((totalWidth - rowWidth) / 2) or 0
     if (not centered) and growLeft then
       startX = totalWidth - rowWidth
+    end
+    if row > 1 and growUp and pinFirstRowY then
+      yAbove = yAbove + rowSpacing + size
     end
     for col = 1, iconsInRow do
       local icon = visibleIcons[iconIndex]
@@ -8179,7 +3709,7 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
       if growUp then
         local yPos
         if pinFirstRowY then
-          yPos = -yTop
+          yPos = row == 1 and 0 or -yAbove
         else
           yPos = totalHeight - yTop - size
         end
@@ -8347,7 +3877,7 @@ local function SkinStandaloneBarIcon(icon, profile)
   if icon.ccmStandaloneChargeText then
     local globalFont, globalOutline = GetGlobalFont()
     local _, ccmSize = GameFontHighlightLarge:GetFont()
-    icon.ccmStandaloneChargeText:SetFont(globalFont, ccmSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+    icon.ccmStandaloneChargeText:SetFont(globalFont, ccmSize, globalOutline or "OUTLINE")
   end
   do
     local iconChildCount = addonTable.CollectChildren(icon, State.tmpIconChildren)
@@ -8364,7 +3894,7 @@ local function SkinStandaloneBarIcon(icon, profile)
           if region and region:GetObjectType() == "FontString" then
             local _, size = region:GetFont()
             if size then
-              region:SetFont(globalFont, size, globalOutline ~= "" and globalOutline or "OUTLINE")
+              region:SetFont(globalFont, size, globalOutline or "OUTLINE")
             end
           end
         end
@@ -8384,7 +3914,7 @@ local function SkinStandaloneBarIcon(icon, profile)
           if region and region:GetObjectType() == "FontString" then
             local _, size = region:GetFont()
             if size then
-              region:SetFont(globalFont, size, globalOutline ~= "" and globalOutline or "OUTLINE")
+              region:SetFont(globalFont, size, globalOutline or "OUTLINE")
             end
           end
         end
@@ -8393,7 +3923,7 @@ local function SkinStandaloneBarIcon(icon, profile)
     local chargeText = (icon.ChargeCount and icon.ChargeCount.Current) or (icon.Applications and icon.Applications.Applications)
     if chargeText then
       local _, ccmSize = GameFontHighlightLarge:GetFont()
-      chargeText:SetFont(globalFont, ccmSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      chargeText:SetFont(globalFont, ccmSize, globalOutline or "OUTLINE")
     end
   end
 end
@@ -8611,7 +4141,6 @@ local function UpdateStandaloneBlizzardBars()
           if doSkinning and essentialEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
             SkinStandaloneBarIcon(icon, profile)
           end
-          icon:SetSize(essentialSize, essentialSize)
           table.insert(visibleIcons, icon)
         end
       end
@@ -8692,9 +4221,19 @@ local function UpdateStandaloneBlizzardBars()
             essentialCentered,
             essentialGrowLeft,
             essentialGrowUp,
-            layoutMaxRows
+            layoutMaxRows,
+            true
           )
           State.standaloneEssentialWidth = layoutWidth or 0
+        end
+        local sizeIdx = 1
+        for ri = 1, math.ceil(#visibleIcons / numCols) do
+          local size = (ri >= 2 and type(essentialSecondRowSize) == "number" and essentialSecondRowSize > 5) and essentialSecondRowSize or iconSize
+          local iconsInRow = math.min(numCols, #visibleIcons - sizeIdx + 1)
+          for _ = 1, iconsInRow do
+            if visibleIcons[sizeIdx] then visibleIcons[sizeIdx]:SetSize(size, size) end
+            sizeIdx = sizeIdx + 1
+          end
         end
       else
         State.standaloneEssentialWidth = 0
@@ -8966,7 +4505,7 @@ local function CreateCustomBarIcons()
       icon.Count:SetTextColor(1, 1, 1, 1)
       local globalFont, globalOutline = GetGlobalFont()
       local _, fontSize = icon.Count:GetFont()
-      icon.Count:SetFont(globalFont, fontSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      icon.Count:SetFont(globalFont, fontSize, globalOutline or "OUTLINE")
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.entryID = id
@@ -9034,6 +4573,7 @@ local function UpdateCustomBar()
   local cooldownMode = profile.customBarCooldownMode or "show"
   local iconsPerRow = type(profile.customBarIconsPerRow) == "number" and profile.customBarIconsPerRow or 20
   local showGCD = profile.customBarShowGCD == true
+  local cbUseBuffOverlay = profile.customBarUseBuffOverlay ~= false
   wipe(State.customBarVisibleIcons)
   local visibleIcons = State.customBarVisibleIcons
   for originalIdx, icon in ipairs(State.customBar1Icons) do
@@ -9062,7 +4602,7 @@ local function UpdateCustomBar()
         itemCount = C_Item.GetItemCount(actualID, false, true)
       end
       if not itemCount or itemCount <= 0 then
-        iconTexture = nil
+        isOnCooldown = true
       end
       cdStart, cdDuration = GetItemCooldown(actualID)
       local shouldShowSwipe = true
@@ -9141,6 +4681,17 @@ local function UpdateCustomBar()
         end
       end
     end
+    local buffOverlayActive = false
+    if not isItem and cbUseBuffOverlay then
+      local buffStart, buffDuration = GetActiveBuffOverlay(activeSpellID)
+      if not buffStart and activeSpellID ~= actualID then
+        buffStart, buffDuration = GetActiveBuffOverlay(actualID)
+      end
+      if buffStart and buffDuration then
+        icon.cooldown:SetCooldown(buffStart, buffDuration)
+        buffOverlayActive = true
+      end
+    end
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -9158,11 +4709,12 @@ local function UpdateCustomBar()
         isChargeSpell = isChargeSpell,
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
-        chargesData = chargesData
+        chargesData = chargesData,
+        buffOverlayActive = buffOverlayActive
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell then
+    if not isChargeSpell and not buffOverlayActive then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -9316,7 +4868,7 @@ local function UpdateCustomBar()
     if not icon.cooldown._ccmFontApplied then
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
-      local oFlag = (go and go ~= "") and go or "OUTLINE"
+      local oFlag = go or ""
       for _, region in ipairs({icon.cooldown:GetRegions()}) do
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
@@ -9326,8 +4878,12 @@ local function UpdateCustomBar()
     end
     local shouldDesaturate = false
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
+    local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
     local isUnavailable = isOnCooldown or notEnoughResources
-    if isChargeSpell and not isItem then
+    if buffOverlayActive then
+      icon:SetAlpha(1)
+      icon.icon:SetDesaturated(false)
+    elseif isChargeSpell and not isItem then
       if cooldownMode == "hide" or cooldownMode == "hideAvailable" or cooldownMode == "desaturate" then
         icon:SetAlpha(1)
         if icon.icon.SetDesaturation then
@@ -9361,14 +4917,18 @@ local function UpdateCustomBar()
         icon.stackText:Hide()
       end
     else
-      local charges = data.chargesData
-      local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, actualID)
-      if safeCharges ~= nil then
-        icon.stackText:SetText(tostring(safeCharges))
-        icon.stackText:SetScale(stackTextScale)
-        icon.stackText:Show()
-      else
+      if buffOverlayActive and not isChargeSpell then
         icon.stackText:Hide()
+      else
+        local charges = data.chargesData
+        local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, actualID)
+        if safeCharges ~= nil then
+          icon.stackText:SetText(tostring(safeCharges))
+          icon.stackText:SetScale(stackTextScale)
+          icon.stackText:Show()
+        else
+          icon.stackText:Hide()
+        end
       end
     end
     if not (isChargeSpell and not isItem) then
@@ -9477,7 +5037,7 @@ local function CreateCustomBar2Icons()
       icon.Count:SetTextColor(1, 1, 1, 1)
       local globalFont, globalOutline = GetGlobalFont()
       local _, fontSize = icon.Count:GetFont()
-      icon.Count:SetFont(globalFont, fontSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      icon.Count:SetFont(globalFont, fontSize, globalOutline or "OUTLINE")
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.entryID = id
@@ -9545,6 +5105,7 @@ local function UpdateCustomBar2()
   local cooldownMode = profile.customBar2CooldownMode or "show"
   local iconsPerRow = type(profile.customBar2IconsPerRow) == "number" and profile.customBar2IconsPerRow or 20
   local showGCD = profile.customBar2ShowGCD == true
+  local cbUseBuffOverlay = profile.customBar2UseBuffOverlay ~= false
   wipe(State.customBar2VisibleIcons)
   local visibleIcons = State.customBar2VisibleIcons
   for originalIdx, icon in ipairs(State.customBar2Icons) do
@@ -9573,7 +5134,7 @@ local function UpdateCustomBar2()
         itemCount = C_Item.GetItemCount(actualID, false, true)
       end
       if not itemCount or itemCount <= 0 then
-        iconTexture = nil
+        isOnCooldown = true
       end
       cdStart, cdDuration = GetItemCooldown(actualID)
       local shouldShowSwipe = true
@@ -9652,6 +5213,17 @@ local function UpdateCustomBar2()
         end
       end
     end
+    local buffOverlayActive = false
+    if not isItem and cbUseBuffOverlay then
+      local buffStart, buffDuration = GetActiveBuffOverlay(activeSpellID)
+      if not buffStart and activeSpellID ~= actualID then
+        buffStart, buffDuration = GetActiveBuffOverlay(actualID)
+      end
+      if buffStart and buffDuration then
+        icon.cooldown:SetCooldown(buffStart, buffDuration)
+        buffOverlayActive = true
+      end
+    end
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -9669,11 +5241,12 @@ local function UpdateCustomBar2()
         isChargeSpell = isChargeSpell,
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
-        chargesData = chargesData
+        chargesData = chargesData,
+        buffOverlayActive = buffOverlayActive
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell then
+    if not isChargeSpell and not buffOverlayActive then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -9827,7 +5400,7 @@ local function UpdateCustomBar2()
     if not icon.cooldown._ccmFontApplied then
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
-      local oFlag = (go and go ~= "") and go or "OUTLINE"
+      local oFlag = go or ""
       for _, region in ipairs({icon.cooldown:GetRegions()}) do
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
@@ -9837,8 +5410,12 @@ local function UpdateCustomBar2()
     end
     local shouldDesaturate = false
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
+    local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
     local isUnavailable = isOnCooldown or notEnoughResources
-    if isChargeSpell and not isItem then
+    if buffOverlayActive then
+      icon:SetAlpha(1)
+      icon.icon:SetDesaturated(false)
+    elseif isChargeSpell and not isItem then
       if cooldownMode == "hide" or cooldownMode == "hideAvailable" or cooldownMode == "desaturate" then
         icon:SetAlpha(1)
         if icon.icon.SetDesaturation then
@@ -9872,14 +5449,18 @@ local function UpdateCustomBar2()
         icon.stackText:Hide()
       end
     else
-      local charges = data.chargesData
-      local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, actualID)
-      if safeCharges ~= nil then
-        icon.stackText:SetText(tostring(safeCharges))
-        icon.stackText:SetScale(stackTextScale)
-        icon.stackText:Show()
-      else
+      if buffOverlayActive and not isChargeSpell then
         icon.stackText:Hide()
+      else
+        local charges = data.chargesData
+        local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, actualID)
+        if safeCharges ~= nil then
+          icon.stackText:SetText(tostring(safeCharges))
+          icon.stackText:SetScale(stackTextScale)
+          icon.stackText:Show()
+        else
+          icon.stackText:Hide()
+        end
       end
     end
     if not (isChargeSpell and not isItem) then
@@ -9988,7 +5569,7 @@ local function CreateCustomBar3Icons()
       icon.Count:SetTextColor(1, 1, 1, 1)
       local globalFont, globalOutline = GetGlobalFont()
       local _, fontSize = icon.Count:GetFont()
-      icon.Count:SetFont(globalFont, fontSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      icon.Count:SetFont(globalFont, fontSize, globalOutline or "OUTLINE")
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.entryID = id
@@ -10056,6 +5637,7 @@ local function UpdateCustomBar3()
   local cooldownMode = profile.customBar3CooldownMode or "show"
   local iconsPerRow = type(profile.customBar3IconsPerRow) == "number" and profile.customBar3IconsPerRow or 20
   local showGCD = profile.customBar3ShowGCD == true
+  local cbUseBuffOverlay = profile.customBar3UseBuffOverlay ~= false
   wipe(State.customBar3VisibleIcons)
   local visibleIcons = State.customBar3VisibleIcons
   for originalIdx, icon in ipairs(State.customBar3Icons) do
@@ -10084,7 +5666,7 @@ local function UpdateCustomBar3()
         itemCount = C_Item.GetItemCount(actualID, false, true)
       end
       if not itemCount or itemCount <= 0 then
-        iconTexture = nil
+        isOnCooldown = true
       end
       cdStart, cdDuration = GetItemCooldown(actualID)
       local shouldShowSwipe = true
@@ -10163,6 +5745,17 @@ local function UpdateCustomBar3()
         end
       end
     end
+    local buffOverlayActive = false
+    if not isItem and cbUseBuffOverlay then
+      local buffStart, buffDuration = GetActiveBuffOverlay(activeSpellID)
+      if not buffStart and activeSpellID ~= actualID then
+        buffStart, buffDuration = GetActiveBuffOverlay(actualID)
+      end
+      if buffStart and buffDuration then
+        icon.cooldown:SetCooldown(buffStart, buffDuration)
+        buffOverlayActive = true
+      end
+    end
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -10180,11 +5773,12 @@ local function UpdateCustomBar3()
         isChargeSpell = isChargeSpell,
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
-        chargesData = chargesData
+        chargesData = chargesData,
+        buffOverlayActive = buffOverlayActive
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell then
+    if not isChargeSpell and not buffOverlayActive then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -10338,7 +5932,7 @@ local function UpdateCustomBar3()
     if not icon.cooldown._ccmFontApplied then
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
-      local oFlag = (go and go ~= "") and go or "OUTLINE"
+      local oFlag = go or ""
       for _, region in ipairs({icon.cooldown:GetRegions()}) do
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
@@ -10348,8 +5942,12 @@ local function UpdateCustomBar3()
     end
     local shouldDesaturate = false
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
+    local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
     local isUnavailable = isOnCooldown or notEnoughResources
-    if isChargeSpell and not isItem then
+    if buffOverlayActive then
+      icon:SetAlpha(1)
+      icon.icon:SetDesaturated(false)
+    elseif isChargeSpell and not isItem then
       if cooldownMode == "hide" or cooldownMode == "hideAvailable" or cooldownMode == "desaturate" then
         icon:SetAlpha(1)
         if icon.icon.SetDesaturation then
@@ -10383,14 +5981,18 @@ local function UpdateCustomBar3()
         icon.stackText:Hide()
       end
     else
-      local charges = data.chargesData
-      local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, actualID)
-      if safeCharges ~= nil then
-        icon.stackText:SetText(tostring(safeCharges))
-        icon.stackText:SetScale(stackTextScale)
-        icon.stackText:Show()
-      else
+      if buffOverlayActive and not isChargeSpell then
         icon.stackText:Hide()
+      else
+        local charges = data.chargesData
+        local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, actualID)
+        if safeCharges ~= nil then
+          icon.stackText:SetText(tostring(safeCharges))
+          icon.stackText:SetScale(stackTextScale)
+          icon.stackText:Show()
+        else
+          icon.stackText:Hide()
+        end
       end
     end
     if not (isChargeSpell and not isItem) then
@@ -10506,7 +6108,7 @@ local function CreateIcons()
       icon.Count:SetTextColor(1, 1, 1, 1)
       local globalFont, globalOutline = GetGlobalFont()
       local _, fontSize = icon.Count:GetFont()
-      icon.Count:SetFont(globalFont, fontSize, globalOutline ~= "" and globalOutline or "OUTLINE")
+      icon.Count:SetFont(globalFont, fontSize, globalOutline or "OUTLINE")
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.spellID = actualID
@@ -10524,6 +6126,16 @@ local function CreateIcons()
   for _, icon in ipairs(State.cursorIcons) do
     UpdateSpellIcon(icon)
   end
+  C_Timer.After(0.1, function()
+    for _, icon in ipairs(State.cursorIcons) do
+      UpdateSpellIcon(icon)
+    end
+  end)
+  C_Timer.After(0.5, function()
+    for _, icon in ipairs(State.cursorIcons) do
+      UpdateSpellIcon(icon)
+    end
+  end)
 end
 addonTable.CreateIcons = CreateIcons
 local onUpdateElapsed = 0
@@ -10577,7 +6189,7 @@ addonTable.CursorTrackingOnUpdate = function(self, elapsed)
     UpdateEssentialBarPosition(x, y, scale, profile, essentialOffset)
   end
   local cursorEnabled = profile.cursorIconsEnabled
-  if not cursorEnabled then return end
+  if not cursorEnabled and not State.cursorIconPreviewActive then return end
   local baseX = (x / scale) + cache.offsetX + cache.totalBarWidth
   local baseY = (y / scale) + cache.offsetY
   local row, col = 0, 0
@@ -10668,6 +6280,9 @@ addonTable.MainOnUpdate = function(self, elapsed)
   end
   if doExpensiveUpdate then
     State.lastBarUpdateTime = now
+    if addonTable.UpdateAllIcons then
+      addonTable.UpdateAllIcons()
+    end
   end
   State.cursorLayoutCache.offsetX = profile.offsetX or 30
   State.cursorLayoutCache.offsetY = profile.offsetY or 45
@@ -10730,6 +6345,29 @@ CCM:SetScript("OnUpdate", addonTable.MainOnUpdate)
 UpdateSpellIcon = function(icon)
   local profile = addonTable.GetProfile()
   if not profile then return end
+  if State.cursorIconPreviewActive then
+    local spellID = icon.spellID
+    local isItem = icon.isItem
+    if isItem then
+      local itemIcon = icon.cachedItemIcon
+      if not itemIcon then
+        itemIcon = GetItemIcon(spellID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(spellID))
+        if not itemIcon then
+          local _, _, _, _, _, _, _, _, _, infoIcon = GetItemInfo(spellID)
+          itemIcon = infoIcon
+        end
+        if itemIcon then icon.cachedItemIcon = itemIcon end
+      end
+      icon.icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
+      if not itemIcon then C_Item.RequestLoadItemDataByID(spellID) end
+    else
+      local activeSpellID = ResolveTrackedSpellID(spellID)
+      local info = C_Spell.GetSpellInfo(activeSpellID)
+      icon.icon:SetTexture(info and info.iconID or "Interface\\Icons\\INV_Misc_QuestionMark")
+    end
+    icon:Show()
+    return
+  end
   if profile.cursorIconsEnabled == false then
     icon:Hide()
     return
@@ -10773,7 +6411,7 @@ UpdateSpellIcon = function(icon)
     if not icon.cooldown._ccmFontApplied then
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
-      local oFlag = (go and go ~= "") and go or "OUTLINE"
+      local oFlag = go or ""
       for _, region in ipairs({icon.cooldown:GetRegions()}) do
         if region and region.GetObjectType and region:GetObjectType() == "FontString" then
           local _, sz = region:GetFont()
@@ -10794,34 +6432,33 @@ UpdateSpellIcon = function(icon)
     else
       icon.cooldown:Clear()
     end
-    local isItemOnCooldown = cdStart and cdDuration and cdStart > 0 and cdDuration > 1.5
+    local itemCount = GetItemCount(spellID, false, true)
+    local itemNotInBags = not itemCount or itemCount <= 0
+    local isItemOnCooldown = itemNotInBags or (cdStart and cdDuration and cdStart > 0 and cdDuration > 1.5)
     local cooldownMode = profile.cooldownIconMode or "show"
     if cooldownMode == "hideAvailable" then
       if not isItemOnCooldown then
         icon:Hide()
         return
       end
-      icon.icon:SetDesaturated(false)
+      icon.icon:SetDesaturated(itemNotInBags)
     elseif cooldownMode == "hide" and isItemOnCooldown then
       icon:Hide()
       return
     elseif cooldownMode == "desaturate" then
       icon.icon:SetDesaturated(isItemOnCooldown)
     else
-      icon.icon:SetDesaturated(false)
+      icon.icon:SetDesaturated(itemNotInBags)
     end
-    local itemCount = GetItemCount(spellID, false, true)
-    if not itemCount or itemCount <= 0 then
-      icon:Hide()
-      return
-    end
-    if itemCount and itemCount > 1 then
-      icon.stackText:SetText(itemCount)
+    if itemNotInBags then
+      icon.stackText:SetText("0")
       local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
       icon.stackText:SetScale(stackTextScale)
       icon.stackText:Show()
-    elseif itemCount == 0 then
-      icon.stackText:SetText("0")
+    elseif itemCount and itemCount > 1 then
+      icon.stackText:SetText(itemCount)
+      local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
+      icon.stackText:SetScale(stackTextScale)
       icon.stackText:Show()
     else
       icon.stackText:Hide()
@@ -10849,7 +6486,7 @@ UpdateSpellIcon = function(icon)
   if not icon.cooldown._ccmFontApplied then
     icon.cooldown._ccmFontApplied = true
     local gf, go = GetGlobalFont()
-    local oFlag = (go and go ~= "") and go or "OUTLINE"
+    local oFlag = go or "OUTLINE"
     for _, region in ipairs({icon.cooldown:GetRegions()}) do
       if region and region.GetObjectType and region:GetObjectType() == "FontString" then
         local _, sz = region:GetFont()
@@ -10907,6 +6544,17 @@ UpdateSpellIcon = function(icon)
       icon.cooldown:Clear()
     end
   end
+  local buffOverlayActive = false
+  if profile.useBuffOverlay ~= false then
+    local buffStart, buffDuration = GetActiveBuffOverlay(activeSpellID)
+    if not buffStart and activeSpellID ~= spellID then
+      buffStart, buffDuration = GetActiveBuffOverlay(spellID)
+    end
+    if buffStart and buffDuration then
+      pcall(icon.cooldown.SetCooldown, icon.cooldown, buffStart, buffDuration)
+      buffOverlayActive = true
+    end
+  end
   local isOnCooldown = false
   local isChargeSpell = IsRealChargeSpell(charges, spellID)
   local start, duration = icon.cooldown:GetCooldownTimes()
@@ -10942,7 +6590,11 @@ UpdateSpellIcon = function(icon)
   end
   local isUnavailable = isOnCooldown or notEnoughResources
   local cooldownMode = profile.cooldownIconMode or "show"
-  if isChargeSpell then
+  if buffOverlayActive then
+    icon:SetAlpha(1)
+    icon.icon:SetDesaturated(false)
+    if not isChargeSpell then icon.stackText:Hide() end
+  elseif isChargeSpell then
     if cooldownMode == "hide" or cooldownMode == "hideAvailable" or cooldownMode == "desaturate" then
       icon:SetAlpha(1)
       if icon.icon.SetDesaturation then
@@ -11191,26 +6843,24 @@ CCM:RegisterEvent("UNIT_SPELLCAST_FAILED_QUIET")
 CCM:RegisterEvent("BAG_UPDATE_COOLDOWN")
 CCM:RegisterEvent("BAG_UPDATE")
 CCM:RegisterEvent("PLAYER_SPECIALIZATION_CHANGED")
+CCM:RegisterEvent("TRAIT_CONFIG_UPDATED")
 CCM:RegisterEvent("PLAYER_TARGET_CHANGED")
 CCM:RegisterEvent("PLAYER_FOCUS_CHANGED")
 CCM:RegisterEvent("PLAYER_ENTERING_WORLD")
 CCM:RegisterEvent("MERCHANT_SHOW")
 CCM:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
 CCM:RegisterUnitEvent("UNIT_AURA", "player")
+CCM:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED")
+CCM:RegisterEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED")
+CCM:RegisterEvent("UNIT_HEAL_PREDICTION")
+CCM:RegisterUnitEvent("UNIT_HEALTH", "player", "target", "focus")
+CCM:RegisterUnitEvent("UNIT_MAXHEALTH", "player", "target", "focus")
 local function GetCharacterSpecKey()
   local playerName = UnitName("player")
   local realmName = GetRealmName()
   local specID = GetSpecialization() or 0
   if playerName and realmName then
     return playerName .. "-" .. realmName .. "-" .. specID
-  end
-  return nil
-end
-local function GetCharacterKey()
-  local playerName = UnitName("player")
-  local realmName = GetRealmName()
-  if playerName and realmName then
-    return playerName .. "-" .. realmName
   end
   return nil
 end
@@ -11285,6 +6935,8 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         UIParent:SetScale(profile.uiScale)
       end
     end
+    ScanSpellBookCharges()
+    ResolveBuffDurations()
     CreateIcons()
     CreateCustomBarIcons()
     CreateCustomBar2Icons()
@@ -11294,8 +6946,8 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     UpdateCustomBar2()
     UpdateCustomBar3()
     UpdateStandaloneBlizzardBars()
-    C_Timer.After(1, function() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
-    C_Timer.After(3, function() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
+    C_Timer.After(1, function() ScanSpellBookCharges() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
+    C_Timer.After(3, function() ScanSpellBookCharges() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
     if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
     if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
     if profile and profile.usePersonalResourceBar then
@@ -11309,8 +6961,8 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         addonTable.SetupCastbarEvents()
       end
     else
-      if castbarFrame then
-        castbarFrame:Hide()
+      if addonTable.CastbarFrame then
+        addonTable.CastbarFrame:Hide()
       end
     end
     if profile and profile.useFocusCastbar then
@@ -11336,6 +6988,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
     if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
   elseif event == "PLAYER_ENTERING_WORLD" then
+    ScanSpellBookCharges()
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
     if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
@@ -11344,6 +6997,22 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
   elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+  elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
+    if (arg1 == "player" or arg1 == "target" or arg1 == "focus") and State.ufBigHBOverlays then
+      local ov = State.ufBigHBOverlays[arg1]
+      if ov and ov.origHP and addonTable.SyncUFBigHBOverlayValue then
+        addonTable.SyncUFBigHBOverlayValue(ov, ov.origHP)
+      end
+      if ov and ov.myHealPredFrame and addonTable.UpdateUFBigHBHealPrediction then
+        addonTable.UpdateUFBigHBHealPrediction(ov, arg1)
+      end
+      if ov and ov.dmgAbsorbFrame and addonTable.UpdateUFBigHBDmgAbsorb then
+        addonTable.UpdateUFBigHBDmgAbsorb(ov, arg1)
+      end
+    end
+    if arg1 == "player" and addonTable.UpdatePRB then
+      addonTable.UpdatePRB()
+    end
   elseif event == "SPELL_UPDATE_COOLDOWN" or event == "SPELL_UPDATE_CHARGES" then
     UpdateGCD()
     addonTable.RequestIconUpdate()
@@ -11355,6 +7024,9 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     C_Timer.After(0.01, UpdateGCD)
     State.iconsDirty = true
     State.customBarsDirty = true
+    if spellID and BuffDurationCache[spellID] then
+      ActiveBuffStart[spellID] = GetTime()
+    end
     addonTable.RequestIconUpdate()
     addonTable.RequestCustomBarUpdate()
   elseif event == "UNIT_SPELLCAST_START" and arg1 == "player" then
@@ -11429,6 +7101,8 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       if addonTable.SetGUIOpen then addonTable.SetGUIOpen(false) end
     end
   elseif event == "PLAYER_SPECIALIZATION_CHANGED" and arg1 == "player" then
+    ScanSpellBookCharges()
+    ResolveBuffDurations()
     ApplyCharacterProfile()
     CreateIcons()
     CreateCustomBarIcons()
@@ -11448,6 +7122,8 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
+  elseif event == "TRAIT_CONFIG_UPDATED" then
+    ResolveBuffDurations()
   elseif event == "UNIT_DISPLAYPOWER" and arg1 == "player" then
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
   elseif event == "UNIT_AURA" and arg1 == "player" then
