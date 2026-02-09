@@ -315,12 +315,13 @@ local function UpdateCastbar()
     if borderSize > 0 then
       castbarFrame.border:ClearAllPoints()
       if showIcon then
-        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", 0, 0)
-        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", 0, 0)
+        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", -borderSize, borderSize)
+        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", borderSize, -borderSize)
       else
-        castbarFrame.border:SetAllPoints(castbarFrame)
+        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame, "TOPLEFT", -borderSize, borderSize)
+        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", borderSize, -borderSize)
       end
-      castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
+      castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
       castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
       castbarFrame.border:Show()
     else
@@ -547,12 +548,13 @@ local function UpdateCastbar()
     if borderSize > 0 then
       castbarFrame.border:ClearAllPoints()
       if castIconShown then
-        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", 0, 0)
-        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", 0, 0)
+        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", -borderSize, borderSize)
+        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", borderSize, -borderSize)
       else
-        castbarFrame.border:SetAllPoints(castbarFrame)
+        castbarFrame.border:SetPoint("TOPLEFT", castbarFrame, "TOPLEFT", -borderSize, borderSize)
+        castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", borderSize, -borderSize)
       end
-      castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
+      castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
       castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
       castbarFrame.border:Show()
     else
@@ -931,12 +933,13 @@ local function ShowCastbarPreview()
   if borderSize > 0 then
     castbarFrame.border:ClearAllPoints()
     if showIcon then
-      castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", 0, 0)
-      castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", 0, 0)
+      castbarFrame.border:SetPoint("TOPLEFT", castbarFrame.icon, "TOPLEFT", -borderSize, borderSize)
+      castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", borderSize, -borderSize)
     else
-      castbarFrame.border:SetAllPoints(castbarFrame)
+      castbarFrame.border:SetPoint("TOPLEFT", castbarFrame, "TOPLEFT", -borderSize, borderSize)
+      castbarFrame.border:SetPoint("BOTTOMRIGHT", castbarFrame, "BOTTOMRIGHT", borderSize, -borderSize)
     end
-    castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
+    castbarFrame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
     castbarFrame.border:SetBackdropBorderColor(0, 0, 0, 1)
     castbarFrame.border:Show()
   else

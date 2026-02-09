@@ -7,10 +7,40 @@ selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
 selfHighlightFrame:SetFrameStrata("TOOLTIP")
 selfHighlightFrame:SetFrameLevel(1000)
 selfHighlightFrame:Hide()
+local function SnapToPixel(v)
+  if addonTable.SnapToPixel then return addonTable:SnapToPixel(v, UIParent) end
+  local scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+  if scale == 0 then scale = 1 end
+  local pixel = 1 / scale
+  return math.floor((v / pixel) + 0.5) * pixel
+end
+local function SnapSize(v, minPixels)
+  if addonTable.SnapSize then return addonTable:SnapSize(v, UIParent, minPixels) end
+  local snapped = SnapToPixel(v)
+  local scale = (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+  if scale == 0 then scale = 1 end
+  local pixel = 1 / scale
+  local minSize = pixel * ((type(minPixels) == "number" and minPixels > 0) and minPixels or 1)
+  if snapped < minSize then snapped = minSize end
+  return snapped
+end
+local function SetPointSnapped(frame, point, relativeTo, relativePoint, xOfs, yOfs)
+  local sx = SnapToPixel(xOfs or 0)
+  local sy = SnapToPixel(yOfs or 0)
+  if PixelUtil and PixelUtil.SetPoint then
+    PixelUtil.SetPoint(frame, point, relativeTo, relativePoint, sx, sy)
+  else
+    frame:SetPoint(point, relativeTo, relativePoint, sx, sy)
+  end
+end
 selfHighlightFrame.lines = {}
 for i = 1, 4 do
-  selfHighlightFrame.lines[i] = selfHighlightFrame:CreateLine(nil, "OVERLAY")
-  selfHighlightFrame.lines[i]:SetColorTexture(1, 1, 1, 1)
+  local tex = selfHighlightFrame:CreateTexture(nil, "OVERLAY")
+  tex:SetTexture("Interface\\Buttons\\WHITE8X8")
+  if tex.SetSnapToPixelGrid then tex:SetSnapToPixelGrid(true) end
+  if tex.SetTexelSnappingBias then tex:SetTexelSnappingBias(0) end
+  tex:SetColorTexture(1, 1, 1, 1)
+  selfHighlightFrame.lines[i] = tex
 end
 addonTable.SelfHighlightFrame = selfHighlightFrame
 local function UpdateSelfHighlight()
@@ -28,42 +58,48 @@ local function UpdateSelfHighlight()
   local b = profile.selfHighlightColorB or 1
   local a = profile.selfHighlightAlpha or 1
   local yOffset = profile.selfHighlightY or 0
+  size = SnapSize(size, 2)
+  yOffset = SnapToPixel(yOffset)
   selfHighlightFrame:SetSize(size, size)
   selfHighlightFrame:ClearAllPoints()
-  selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, yOffset)
+  SetPointSnapped(selfHighlightFrame, "CENTER", UIParent, "CENTER", 0, yOffset)
   if shape == "cross" then
     local lineThickness = thickness == "thin" and 2 or (thickness == "thick" and 6 or 3)
-    local halfSize = size / 2
+    lineThickness = SnapSize(lineThickness, 1)
+    local horizontal = selfHighlightFrame.lines[1]
+    local vertical = selfHighlightFrame.lines[2]
+    local outlineH = selfHighlightFrame.lines[3]
+    local outlineV = selfHighlightFrame.lines[4]
+    horizontal:ClearAllPoints()
+    vertical:ClearAllPoints()
+    outlineH:ClearAllPoints()
+    outlineV:ClearAllPoints()
     if outline then
-      local outlineThickness = lineThickness + 2
-      selfHighlightFrame.lines[3]:SetStartPoint("CENTER", -halfSize, 0)
-      selfHighlightFrame.lines[3]:SetEndPoint("CENTER", halfSize, 0)
-      selfHighlightFrame.lines[3]:SetThickness(outlineThickness)
-      selfHighlightFrame.lines[3]:SetColorTexture(0, 0, 0, a)
-      selfHighlightFrame.lines[3]:SetDrawLayer("OVERLAY", 0)
-      selfHighlightFrame.lines[3]:Show()
-      selfHighlightFrame.lines[4]:SetStartPoint("CENTER", 0, -halfSize)
-      selfHighlightFrame.lines[4]:SetEndPoint("CENTER", 0, halfSize)
-      selfHighlightFrame.lines[4]:SetThickness(outlineThickness)
-      selfHighlightFrame.lines[4]:SetColorTexture(0, 0, 0, a)
-      selfHighlightFrame.lines[4]:SetDrawLayer("OVERLAY", 0)
-      selfHighlightFrame.lines[4]:Show()
+      local outlineThickness = SnapSize(lineThickness + 2, 1)
+      outlineH:SetPoint("CENTER", selfHighlightFrame, "CENTER", 0, 0)
+      outlineH:SetSize(size, outlineThickness)
+      outlineH:SetColorTexture(0, 0, 0, a)
+      outlineH:SetDrawLayer("OVERLAY", 0)
+      outlineH:Show()
+      outlineV:SetPoint("CENTER", selfHighlightFrame, "CENTER", 0, 0)
+      outlineV:SetSize(outlineThickness, size)
+      outlineV:SetColorTexture(0, 0, 0, a)
+      outlineV:SetDrawLayer("OVERLAY", 0)
+      outlineV:Show()
     else
-      selfHighlightFrame.lines[3]:Hide()
-      selfHighlightFrame.lines[4]:Hide()
+      outlineH:Hide()
+      outlineV:Hide()
     end
-    selfHighlightFrame.lines[1]:SetStartPoint("CENTER", -halfSize, 0)
-    selfHighlightFrame.lines[1]:SetEndPoint("CENTER", halfSize, 0)
-    selfHighlightFrame.lines[1]:SetThickness(lineThickness)
-    selfHighlightFrame.lines[1]:SetColorTexture(r, g, b, a)
-    selfHighlightFrame.lines[1]:SetDrawLayer("OVERLAY", 1)
-    selfHighlightFrame.lines[1]:Show()
-    selfHighlightFrame.lines[2]:SetStartPoint("CENTER", 0, -halfSize)
-    selfHighlightFrame.lines[2]:SetEndPoint("CENTER", 0, halfSize)
-    selfHighlightFrame.lines[2]:SetThickness(lineThickness)
-    selfHighlightFrame.lines[2]:SetColorTexture(r, g, b, a)
-    selfHighlightFrame.lines[2]:SetDrawLayer("OVERLAY", 1)
-    selfHighlightFrame.lines[2]:Show()
+    horizontal:SetPoint("CENTER", selfHighlightFrame, "CENTER", 0, 0)
+    horizontal:SetSize(size, lineThickness)
+    horizontal:SetColorTexture(r, g, b, a)
+    horizontal:SetDrawLayer("OVERLAY", 1)
+    horizontal:Show()
+    vertical:SetPoint("CENTER", selfHighlightFrame, "CENTER", 0, 0)
+    vertical:SetSize(lineThickness, size)
+    vertical:SetColorTexture(r, g, b, a)
+    vertical:SetDrawLayer("OVERLAY", 1)
+    vertical:Show()
     selfHighlightFrame:Show()
   end
 end
@@ -154,15 +190,14 @@ State.combatTimerTicker = nil
 local function ApplyCombatTimerStyle(style)
   local frame = addonTable.CombatTimerFrame
   if not frame or not frame.text then return end
+  frame:SetSize(128, 44)
   if style == "minimal" then
-    frame:SetSize(128, 44)
     frame:SetBackdropColor(0, 0, 0, 0)
     frame:SetBackdropBorderColor(0, 0, 0, 0)
     frame.text:SetFont("Fonts\\FRIZQT__.TTF", 34, "OUTLINE")
     frame.text:ClearAllPoints()
     frame.text:SetPoint("CENTER")
   else
-    frame:SetSize(96, 34)
     frame.text:SetFont("Fonts\\FRIZQT__.TTF", 22, "OUTLINE")
     frame.text:ClearAllPoints()
     frame.text:SetPoint("CENTER")
@@ -442,13 +477,17 @@ function addonTable.RefreshCRTimerText()
   end
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local displayMode = profile and profile.crTimerDisplay or "timer"
+  local isVertical = (profile and profile.crTimerLayout ~= "horizontal")
   if displayMode == "count" then
     frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r", charges))
+    if frame.blText then frame.blText:Hide() end
+  elseif isVertical and frame.blText then
+    frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r", charges))
+    frame.blText:SetText(string.format("|cffFFFFFF%s|r", crTimeText))
+    frame.blText:Show()
   else
     frame.crText:SetText(string.format("CR: |cffFFFFFF%d|r / |cffFFFFFF%s|r", charges, crTimeText))
-  end
-  if frame.blText then
-    frame.blText:Hide()
+    if frame.blText then frame.blText:Hide() end
   end
 end
 function addonTable.UpdateCRTimer()
@@ -476,15 +515,22 @@ function addonTable.UpdateCRTimer()
   local ox = centered and 0 or (profile.crTimerX or 0)
   local oy = profile.crTimerY or 150
   frame:SetPoint("CENTER", UIParent, "CENTER", ox / scale, oy / scale)
-  local vertical = profile.crTimerLayout ~= "horizontal"
+  local displayMode = profile.crTimerDisplay or "timer"
+  local vertical = (displayMode ~= "count") and (profile.crTimerLayout ~= "horizontal")
   frame.crText:ClearAllPoints()
   if frame.blText then
     frame.blText:ClearAllPoints()
     frame.blText:Hide()
   end
-  if vertical then
+  if displayMode == "count" then
+    frame.crText:SetPoint("CENTER", frame, "CENTER", 0, 0)
+    frame:SetSize(120, 26)
+  elseif vertical then
     frame.crText:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
-    frame:SetSize(190, 26)
+    if frame.blText then
+      frame.blText:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -22)
+    end
+    frame:SetSize(140, 48)
   else
     frame.crText:SetPoint("LEFT", frame, "LEFT", 0, 0)
     frame:SetSize(190, 26)
@@ -1269,10 +1315,62 @@ C_Timer.After(2, function() if addonTable.SetupFadeMicroMenu then addonTable.Set
 -- Hide Action Bar Borders / Skin Action Bars
 -- ============================================================
 local abSkinState = {}
+local function GetABSkinBorderSize(profile)
+  local mode = profile and profile.actionBarSkinOutlineMode or "medium"
+  if mode == "thin" then return 1 end
+  if mode == "thick" then return 3 end
+  if mode == "middle" then return 2 end
+  return 2
+end
+local function IsActionPlacementCursorActive()
+  if GetCursorInfo then
+    local cursorType = select(1, GetCursorInfo())
+    if cursorType == "spell" or cursorType == "item" or cursorType == "macro"
+      or cursorType == "mount" or cursorType == "companion" or cursorType == "flyout"
+      or cursorType == "petaction" or cursorType == "equipmentset" or cursorType == "action" then
+      return true
+    end
+  end
+  if CursorHasSpell and CursorHasSpell() then return true end
+  if CursorHasItem and CursorHasItem() then return true end
+  if CursorHasMacro and CursorHasMacro() then return true end
+  return false
+end
+local function UpdateSkinnedButtonTexts(btn, hasAction, st)
+  if not btn then return end
+  local has = hasAction
+  if has == nil then
+    has = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
+  end
+  if has then
+    if btn.HotKey then btn.HotKey:SetAlpha(1) end
+    if btn.Name then btn.Name:SetAlpha(1) end
+    if st then st.emptyHidden = false end
+  else
+    local showEmptyHotKey = IsActionPlacementCursorActive()
+    if btn.HotKey then btn.HotKey:SetAlpha(showEmptyHotKey and 1 or 0) end
+    if btn.Name then btn.Name:SetAlpha(0) end
+    if st then st.emptyHidden = true end
+  end
+end
+
+local function ButtonHasAction(btn)
+  if not btn then return false end
+  return (btn.HasAction and btn:HasAction()) or (btn.action and HasAction(btn.action)) or false
+end
+
+local function ButtonHasVisibleOutline(btn, profile)
+  if not btn then return false end
+  if profile and profile.hideEmptyActionBarOutline and not ButtonHasAction(btn) then
+    return false
+  end
+  return true
+end
 
 -- Helper: hide all non-icon textures on a button (used by SkinActionButton and hooks)
 local function ApplyButtonSkin(btn)
   local iconTex = btn.icon or btn.Icon
+  local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
   -- Hide NormalTexture
   if btn.NormalTexture then btn.NormalTexture:SetAlpha(0) end
   local nt = btn:GetNormalTexture()
@@ -1295,12 +1393,17 @@ local function ApplyButtonSkin(btn)
   -- Ensure icon is visible and cropped, apply border
   if iconTex then
     local profile = addonTable.GetProfile and addonTable.GetProfile()
-    local borderSize = profile and type(profile.iconBorderSize) == "number" and profile.iconBorderSize or 1
+    local borderSize = GetABSkinBorderSize(profile)
     iconTex:ClearAllPoints()
     iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", borderSize, -borderSize)
     iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -borderSize, borderSize)
     iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     iconTex:SetAlpha(1)
+    if cooldownFrame then
+      cooldownFrame:ClearAllPoints()
+      cooldownFrame:SetPoint("TOPLEFT", iconTex, "TOPLEFT", 0, 0)
+      cooldownFrame:SetPoint("BOTTOMRIGHT", iconTex, "BOTTOMRIGHT", 0, 0)
+    end
     if borderSize > 0 then
       if not btn._ccmBorderTop then
         btn._ccmBorderTop = btn:CreateTexture(nil, "OVERLAY")
@@ -1336,6 +1439,35 @@ local function ApplyButtonSkin(btn)
       btn._ccmBorderRight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
       btn._ccmBorderRight:SetWidth(borderSize)
       btn._ccmBorderRight:Show()
+      -- Optional: no outline for empty slots.
+      local hasCurrentOutline = ButtonHasVisibleOutline(btn, profile)
+      if not hasCurrentOutline then
+        btn._ccmBorderTop:Hide()
+        btn._ccmBorderBottom:Hide()
+        btn._ccmBorderLeft:Hide()
+        btn._ccmBorderRight:Hide()
+        return
+      end
+      -- Keep shared-edge suppression stable even when Blizzard re-applies visuals (hover/update),
+      -- but only suppress inner edges when both neighboring buttons render an outline.
+      local idx = tonumber(btn._ccmIndex) or 1
+      local mode = btn._ccmSharedEdgeMode
+      local prefix = btn._ccmPrefix
+      local prevBtn = (idx > 1 and prefix) and _G[prefix .. (idx - 1)] or nil
+      local prevHasOutline = ButtonHasVisibleOutline(prevBtn, profile)
+      if mode == "vertical" then
+        if idx > 1 and prevHasOutline then
+          btn._ccmBorderTop:Hide()
+        else
+          btn._ccmBorderTop:Show()
+        end
+      elseif mode == "horizontal" then
+        if idx > 1 and prevHasOutline then
+          btn._ccmBorderLeft:Hide()
+        else
+          btn._ccmBorderLeft:Show()
+        end
+      end
     else
       if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
       if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
@@ -1349,6 +1481,7 @@ local function SkinActionButton(btn, hide)
   if not btn then return end
   local key = btn:GetName() or tostring(btn)
   local iconTex = btn.icon or btn.Icon
+  local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
   if hide then
     if not abSkinState[key] then
       abSkinState[key] = { skinned = false }
@@ -1365,20 +1498,18 @@ local function SkinActionButton(btn, hide)
           s.origIconPoints[i] = {iconTex:GetPoint(i)}
         end
       end
+      if cooldownFrame and cooldownFrame.GetNumPoints and cooldownFrame:GetNumPoints() > 0 then
+        s.origCooldownPoints = {}
+        for i = 1, cooldownFrame:GetNumPoints() do
+          s.origCooldownPoints[i] = {cooldownFrame:GetPoint(i)}
+        end
+      end
     end
     -- Apply the skin
     ApplyButtonSkin(btn)
-    -- For empty slots: hide keybind text and make button fully invisible
+    -- For empty slots: hide text, but keep keybind visible while placing an action from cursor.
     local hasAction = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
-    if not hasAction then
-      if btn.HotKey then btn.HotKey:SetAlpha(0) end
-      if btn.Name then btn.Name:SetAlpha(0) end
-      s.emptyHidden = true
-    else
-      if btn.HotKey then btn.HotKey:SetAlpha(1) end
-      if btn.Name then btn.Name:SetAlpha(1) end
-      s.emptyHidden = false
-    end
+    UpdateSkinnedButtonTexts(btn, hasAction, s)
     -- Hook SetNormalTexture to keep it hidden (Blizzard re-applies on bar swap etc.)
     if not btn._ccmSkinHooked then
       btn._ccmSkinHooked = true
@@ -1441,17 +1572,8 @@ local function SkinActionButton(btn, hide)
         local st = abSkinState[self:GetName() or tostring(self)]
         if not st or not st.skinned then return end
         local has = self.HasAction and self:HasAction() or (self.action and HasAction(self.action))
-        if not has then
-          if self.HotKey then self.HotKey:SetAlpha(0) end
-          if self.Name then self.Name:SetAlpha(0) end
-          st.emptyHidden = true
-          ApplyButtonSkin(self)
-        else
-          if self.HotKey then self.HotKey:SetAlpha(1) end
-          if self.Name then self.Name:SetAlpha(1) end
-          st.emptyHidden = false
-          ApplyButtonSkin(self)
-        end
+        UpdateSkinnedButtonTexts(self, has, st)
+        ApplyButtonSkin(self)
       end)
     end
   else
@@ -1489,6 +1611,16 @@ local function SkinActionButton(btn, hide)
         iconTex:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5])
       end
     end
+    if cooldownFrame then
+      cooldownFrame:ClearAllPoints()
+      if s and s.origCooldownPoints and #s.origCooldownPoints > 0 then
+        for _, pt in ipairs(s.origCooldownPoints) do
+          cooldownFrame:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5])
+        end
+      else
+        cooldownFrame:SetAllPoints(btn)
+      end
+    end
     -- Hide border textures
     if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
     if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
@@ -1504,6 +1636,7 @@ end
 local function SkinBarButtons(barName, prefix, hide, numButtons)
   local bar = _G[barName]
   if not bar then return end
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
   numButtons = numButtons or 12
   -- Hide bar border art and background
   if bar.BorderArt then bar.BorderArt:SetShown(not hide) end
@@ -1530,7 +1663,66 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
   -- Skin each button
   for i = 1, numButtons do
     local btn = _G[prefix .. i]
+    if btn then
+      btn._ccmIndex = i
+      btn._ccmPrefix = prefix
+      btn._ccmNumButtons = numButtons
+    end
     SkinActionButton(btn, hide)
+  end
+  -- Avoid doubled thickness on shared inner edges when buttons are flush.
+  local function NormalizeSharedBorders(isVerticalLayout)
+    local edgeMode = isVerticalLayout and "vertical" or "horizontal"
+    for i = 1, numButtons do
+      local btn = _G[prefix .. i]
+      if btn and btn._ccmBorderTop and btn._ccmBorderBottom and btn._ccmBorderLeft and btn._ccmBorderRight then
+        btn._ccmIndex = i
+        btn._ccmSharedEdgeMode = hide and edgeMode or nil
+        if hide then
+          local prevBtn = (i > 1) and _G[prefix .. (i - 1)] or nil
+          local curHasOutline = ButtonHasVisibleOutline(btn, profile)
+          local prevHasOutline = ButtonHasVisibleOutline(prevBtn, profile)
+          if isVerticalLayout then
+            -- In vertical stacks, top of every button except the first overlaps with previous bottom.
+            if i > 1 and curHasOutline and prevHasOutline then
+              btn._ccmBorderTop:Hide()
+            else
+              btn._ccmBorderTop:Show()
+            end
+            if curHasOutline then
+              btn._ccmBorderBottom:Show()
+              btn._ccmBorderLeft:Show()
+              btn._ccmBorderRight:Show()
+            else
+              btn._ccmBorderBottom:Hide()
+              btn._ccmBorderLeft:Hide()
+              btn._ccmBorderRight:Hide()
+            end
+          else
+            -- In horizontal rows, left of every button except the first overlaps with previous right.
+            if i > 1 and curHasOutline and prevHasOutline then
+              btn._ccmBorderLeft:Hide()
+            else
+              btn._ccmBorderLeft:Show()
+            end
+            if curHasOutline then
+              btn._ccmBorderRight:Show()
+              btn._ccmBorderTop:Show()
+              btn._ccmBorderBottom:Show()
+            else
+              btn._ccmBorderRight:Hide()
+              btn._ccmBorderTop:Hide()
+              btn._ccmBorderBottom:Hide()
+            end
+          end
+        else
+          btn._ccmBorderTop:Show()
+          btn._ccmBorderBottom:Show()
+          btn._ccmBorderLeft:Show()
+          btn._ccmBorderRight:Show()
+        end
+      end
+    end
   end
   -- Compact spacing: reposition buttons with 0 gap
   if not InCombatLockdown() then
@@ -1562,6 +1754,7 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
           end
         end
       end
+      NormalizeSharedBorders(isVertical)
     else
       for i = 2, numButtons do
         local btn = _G[prefix .. i]
@@ -1571,7 +1764,10 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
           btn._ccmOrigPoint = nil
         end
       end
+      NormalizeSharedBorders(isVertical)
     end
+  else
+    NormalizeSharedBorders(false)
   end
 end
 
@@ -1662,6 +1858,77 @@ addonTable.SetupHideABBorders = function()
   SkinBarButtons("StanceBar", "StanceButton", true, 10)
   local petBarName = PetActionBar and "PetActionBar" or "PetActionBarFrame"
   SkinBarButtons(petBarName, "PetActionButton", true, 10)
+end
+local function UpdateAllSkinnedActionButtonHotkeys()
+  local p = addonTable.GetProfile and addonTable.GetProfile()
+  if not p or not p.hideActionBarBorders then return end
+  local function UpdatePrefix(prefix, numButtons)
+    for i = 1, (numButtons or 12) do
+      local btn = _G[prefix .. i]
+      if btn then
+        local key = btn:GetName() or tostring(btn)
+        local st = abSkinState[key]
+        if st and st.skinned then
+          local has = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
+          UpdateSkinnedButtonTexts(btn, has, st)
+        end
+      end
+    end
+  end
+  UpdatePrefix("ActionButton", 12)
+  UpdatePrefix("MultiBarBottomLeftButton", 12)
+  UpdatePrefix("MultiBarBottomRightButton", 12)
+  UpdatePrefix("MultiBarRightButton", 12)
+  UpdatePrefix("MultiBarLeftButton", 12)
+  UpdatePrefix("MultiBar5Button", 12)
+  UpdatePrefix("MultiBar6Button", 12)
+  UpdatePrefix("MultiBar7Button", 12)
+  UpdatePrefix("StanceButton", 10)
+  UpdatePrefix("PetActionButton", 10)
+end
+
+local function RefreshAllSkinnedActionButtonBorders()
+  local p = addonTable.GetProfile and addonTable.GetProfile()
+  if not p or not p.hideActionBarBorders then return end
+  local function RefreshPrefix(prefix, numButtons)
+    for i = 1, (numButtons or 12) do
+      local btn = _G[prefix .. i]
+      if btn then
+        local key = btn:GetName() or tostring(btn)
+        local st = abSkinState[key]
+        if st and st.skinned then
+          ApplyButtonSkin(btn)
+        end
+      end
+    end
+  end
+  RefreshPrefix("ActionButton", 12)
+  RefreshPrefix("MultiBarBottomLeftButton", 12)
+  RefreshPrefix("MultiBarBottomRightButton", 12)
+  RefreshPrefix("MultiBarRightButton", 12)
+  RefreshPrefix("MultiBarLeftButton", 12)
+  RefreshPrefix("MultiBar5Button", 12)
+  RefreshPrefix("MultiBar6Button", 12)
+  RefreshPrefix("MultiBar7Button", 12)
+  RefreshPrefix("StanceButton", 10)
+  RefreshPrefix("PetActionButton", 10)
+end
+do
+  local cursorHotkeyFrame = CreateFrame("Frame")
+  cursorHotkeyFrame:RegisterEvent("CURSOR_CHANGED")
+  cursorHotkeyFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
+  cursorHotkeyFrame:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
+  cursorHotkeyFrame:RegisterEvent("ACTIONBAR_UPDATE_STATE")
+  cursorHotkeyFrame:RegisterEvent("ACTIONBAR_UPDATE_USABLE")
+  cursorHotkeyFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+  cursorHotkeyFrame:SetScript("OnEvent", function()
+    UpdateAllSkinnedActionButtonHotkeys()
+    RefreshAllSkinnedActionButtonBorders()
+    C_Timer.After(0, function()
+      UpdateAllSkinnedActionButtonHotkeys()
+      RefreshAllSkinnedActionButtonBorders()
+    end)
+  end)
 end
 C_Timer.After(2, function()
   local p = addonTable.GetProfile and addonTable.GetProfile()

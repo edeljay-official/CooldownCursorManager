@@ -5,31 +5,109 @@
 --------------------------------------------------------------------------------
 local addonName, CCM = ...
 local addonTable = CCM
-local textureOptions = {
-  {text = "Solid", value = "solid"},
-  {text = "Flat", value = "flat"},
-  {text = "Blizzard", value = "blizzard"},
-  {text = "Blizzard Raid", value = "blizzraid"},
-  {text = "Smooth", value = "normtex"},
-  {text = "Gloss", value = "gloss"},
-  {text = "Melli", value = "melli"},
-  {text = "Melli Dark", value = "mellidark"},
-  {text = "BetterBlizzard", value = "betterblizzard"},
-  {text = "Skyline", value = "skyline"},
-  {text = "Dragonflight", value = "dragonflight"},
-}
-do
+local function BuildTextureOptions()
+  local options = {}
   local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
   if LSM then
     local lsmBars = LSM:HashTable("statusbar")
     if lsmBars then
-      local builtIn = {Solid=true, Flat=true, Blizzard=true, ["Blizzard Raid"]=true, Smooth=true, Gloss=true, Melli=true, MelliDark=true, BetterBlizzard=true, Skyline=true, Dragonflight=true}
+      local names = {}
       for name in pairs(lsmBars) do
-        if not builtIn[name] then
-          table.insert(textureOptions, {text = name, value = "lsm:" .. name})
+        if type(name) == "string" and name ~= "" then
+          names[#names + 1] = name
         end
       end
+      table.sort(names, function(a, b)
+        return string.lower(a) < string.lower(b)
+      end)
+      for _, name in ipairs(names) do
+        options[#options + 1] = {text = name, value = "lsm:" .. name}
+      end
     end
+  end
+  if #options == 0 then
+    options[#options + 1] = {text = "No LSM Statusbars Found", value = "", disabled = true}
+  end
+  return options
+end
+local textureOptions = BuildTextureOptions()
+addonTable.GetTextureOptions = BuildTextureOptions
+local function ApplyTextureOptionsToDropdown(dd)
+  if not dd or not dd.SetOptions then return end
+  dd:SetOptions(textureOptions)
+  dd.refreshOptions = function(self)
+    self:SetOptions((addonTable.GetTextureOptions and addonTable.GetTextureOptions()) or textureOptions)
+  end
+end
+local function RefreshTextureDropdownOptions()
+  textureOptions = BuildTextureOptions()
+  if addonTable.prb then
+    ApplyTextureOptionsToDropdown(addonTable.prb.healthTextureDD)
+    ApplyTextureOptionsToDropdown(addonTable.prb.powerTextureDD)
+    ApplyTextureOptionsToDropdown(addonTable.prb.manaTextureDD)
+  end
+  if addonTable.castbar then
+    ApplyTextureOptionsToDropdown(addonTable.castbar.textureDD)
+  end
+  if addonTable.focusCastbar then
+    ApplyTextureOptionsToDropdown(addonTable.focusCastbar.textureDD)
+  end
+  ApplyTextureOptionsToDropdown(addonTable.ufHealthTextureDD)
+end
+addonTable.RefreshTextureDropdownOptions = RefreshTextureDropdownOptions
+local function BuildFontOptions()
+  local options = {}
+  local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+  local preferredFont = "Friz Quadrata TT"
+  if LSM then
+    local lsmFonts = LSM:HashTable("font")
+    if lsmFonts then
+      local names = {}
+      for name in pairs(lsmFonts) do
+        if type(name) == "string" and name ~= "" then
+          names[#names + 1] = name
+        end
+      end
+      table.sort(names, function(a, b)
+        if a == preferredFont and b ~= preferredFont then return true end
+        if b == preferredFont and a ~= preferredFont then return false end
+        return string.lower(a) < string.lower(b)
+      end)
+      for _, name in ipairs(names) do
+        options[#options + 1] = {text = name, value = "lsm:" .. name}
+      end
+    end
+  end
+  if #options == 0 then
+    options[#options + 1] = {text = "No LSM Fonts Found", value = "", disabled = true}
+  end
+  return options
+end
+local fontOptions = BuildFontOptions()
+addonTable.GetFontOptions = BuildFontOptions
+local function ApplyFontOptionsToDropdown(dd)
+  if not dd or not dd.SetOptions then return end
+  dd:SetOptions(fontOptions)
+  dd.refreshOptions = function(self)
+    self:SetOptions((addonTable.GetFontOptions and addonTable.GetFontOptions()) or fontOptions)
+  end
+end
+local function RefreshFontDropdownOptions()
+  fontOptions = BuildFontOptions()
+  ApplyFontOptionsToDropdown(addonTable.fontDD)
+end
+addonTable.RefreshFontDropdownOptions = RefreshFontDropdownOptions
+do
+  local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+  if LSM and LSM.RegisterCallback and not addonTable._ccmLsmStatusbarRegistered then
+    addonTable._ccmLsmStatusbarRegistered = true
+    LSM.RegisterCallback(addonTable, "LibSharedMedia_Registered", function(_, mediaType)
+      if mediaType == "statusbar" then
+        RefreshTextureDropdownOptions()
+      elseif mediaType == "font" then
+        RefreshFontDropdownOptions()
+      end
+    end)
   end
 end
 local function SetSmoothScroll(scrollFrame, step)
@@ -75,24 +153,7 @@ local function InitTabs()
   SetSmoothScroll(generalScrollFrame)
   local gc = generalScrollChild
   addonTable.fontDD, addonTable.fontLbl = StyledDropdown(gc, "Global Font", 15, -15, 260)
-  local fontOptions = {
-    {text = "Friz Quadrata", value = "default"},
-    {text = "Arial Narrow", value = "arial"},
-    {text = "Morpheus", value = "morpheus"},
-    {text = "Skurri", value = "skurri"},
-  }
-  local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
-  if LSM then
-    local lsmFonts = LSM:HashTable("font")
-    if lsmFonts then
-      for name, path in pairs(lsmFonts) do
-        if name ~= "Friz Quadrata TT" and name ~= "Arial Narrow" then
-          table.insert(fontOptions, {text = name, value = "lsm:" .. name})
-        end
-      end
-    end
-  end
-  addonTable.fontDD:SetOptions(fontOptions)
+  ApplyFontOptionsToDropdown(addonTable.fontDD)
   addonTable.outlineDD, addonTable.outlineLbl = StyledDropdown(gc, "Outline", 280, -15, 120)
   addonTable.outlineDD:SetOptions({
     {text = "None", value = ""},
@@ -201,8 +262,16 @@ local function InitTabs()
   cur.spellScroll:SetPoint("TOPRIGHT", -26, -4)
   cur.spellScroll:SetPoint("BOTTOM", 0, 4)
   cur.spellChild = CreateFrame("Frame", nil, cur.spellScroll)
-  cur.spellChild:SetSize(460, 1)
+  cur.spellChild:SetSize(1, 1)
   cur.spellScroll:SetScrollChild(cur.spellChild)
+  local function SyncCursorSpellChildWidth()
+    local w = cur.spellScroll and cur.spellScroll:GetWidth() or 0
+    if w and w > 1 then
+      cur.spellChild:SetWidth(w)
+    end
+  end
+  cur.spellScroll:HookScript("OnSizeChanged", SyncCursorSpellChildWidth)
+  C_Timer.After(0, SyncCursorSpellChildWidth)
   local cursorSpellScrollBar = _G["CCMCursorSpellScrollScrollBar"]
   if cursorSpellScrollBar then
     cursorSpellScrollBar:SetPoint("TOPLEFT", cur.spellScroll, "TOPRIGHT", 6, -16)
@@ -306,8 +375,16 @@ local function InitTabs()
     cb.spellScroll:SetPoint("TOPRIGHT", -26, -4)
     cb.spellScroll:SetPoint("BOTTOM", 0, 4)
     cb.spellChild = CreateFrame("Frame", nil, cb.spellScroll)
-    cb.spellChild:SetSize(460, 1)
+    cb.spellChild:SetSize(1, 1)
     cb.spellScroll:SetScrollChild(cb.spellChild)
+    local function SyncCustomSpellChildWidth()
+      local w = cb.spellScroll and cb.spellScroll:GetWidth() or 0
+      if w and w > 1 then
+        cb.spellChild:SetWidth(w)
+      end
+    end
+    cb.spellScroll:HookScript("OnSizeChanged", SyncCustomSpellChildWidth)
+    C_Timer.After(0, SyncCustomSpellChildWidth)
     local cbScrollBar = _G["CCMCustomBar" .. barNum .. "ScrollScrollBar"]
     if cbScrollBar then
       cbScrollBar:SetPoint("TOPLEFT", cb.spellScroll, "TOPRIGHT", 6, -16)
@@ -539,7 +616,22 @@ local function InitTabs()
     prb.healthTextYSlider = Slider(pc, "Text Y", COL2 + 6, y, -20, 20, 0, 1)
     y = y - 50
     prb.healthTextureDD, prb.healthTextureLbl = StyledDropdown(pc, "Texture", COL1, y, 140)
-    prb.healthTextureDD:SetOptions(textureOptions)
+    ApplyTextureOptionsToDropdown(prb.healthTextureDD)
+    prb.absorbTextureDD, prb.absorbTextureLbl = StyledDropdown(pc, "Absorb Texture", COL2 + 6, y, 140)
+    prb.absorbTextureDD:SetOptions({
+      {text = "normTex", value = "normtex"},
+      {text = "stripe_overlay", value = "stripe_overlay"},
+    })
+    prb.absorbTextureDD:SetValue("normtex")
+    y = y - 50
+    prb.healAbsorbDD, prb.healAbsorbLbl = StyledDropdown(pc, "Heal Absorb", COL1, y, 140)
+    prb.healAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    prb.dmgAbsorbDD, prb.dmgAbsorbLbl = StyledDropdown(pc, "Dmg Absorb", COL2 + 6, y, 140)
+    prb.dmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
+    y = y - 50
+    prb.healPredDD, prb.healPredLbl = StyledDropdown(pc, "Heal Prediction", COL1, y, 140)
+    prb.healPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", COL2 + 6, y - 20)
     y = y - 50
     prb.healthTextDD, prb.healthTextLbl = StyledDropdown(pc, "Text", COL2 + 6, y - 4, 100)
     prb.healthTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
@@ -554,6 +646,11 @@ local function InitTabs()
       prb.healthYOffsetSlider, prb.healthYOffsetSlider.label, prb.healthYOffsetSlider.valueText, prb.healthYOffsetSlider.valueTextBg, prb.healthYOffsetSlider.upBtn, prb.healthYOffsetSlider.downBtn,
       prb.healthTextScaleSlider, prb.healthTextScaleSlider.label, prb.healthTextScaleSlider.valueText, prb.healthTextScaleSlider.valueTextBg, prb.healthTextScaleSlider.upBtn, prb.healthTextScaleSlider.downBtn,
       prb.healthTextureDD, prb.healthTextureLbl,
+      prb.absorbTextureDD, prb.absorbTextureLbl,
+      prb.healAbsorbDD, prb.healAbsorbLbl,
+      prb.dmgAbsorbDD, prb.dmgAbsorbLbl,
+      prb.healPredDD, prb.healPredLbl,
+      prb.absorbStripesCB, prb.absorbStripesCB.label,
       prb.healthTextYSlider, prb.healthTextYSlider.label, prb.healthTextYSlider.valueText, prb.healthTextYSlider.valueTextBg, prb.healthTextYSlider.upBtn, prb.healthTextYSlider.downBtn,
       prb.healthColorBtn, prb.healthColorSwatch, prb.healthTextColorBtn, prb.healthTextColorSwatch,
       prb.healthTextDD, prb.healthTextLbl,
@@ -567,7 +664,7 @@ local function InitTabs()
     prb.powerTextYSlider = Slider(pc, "Text Y", COL2 + 6, y, -20, 20, 0, 1)
     y = y - 50
     prb.powerTextureDD, prb.powerTextureLbl = StyledDropdown(pc, "Texture", COL1, y, 140)
-    prb.powerTextureDD:SetOptions(textureOptions)
+    ApplyTextureOptionsToDropdown(prb.powerTextureDD)
     y = y - 50
     prb.powerTextDD, prb.powerTextLbl = StyledDropdown(pc, "Text", COL2 + 6, y - 4, 100)
     prb.powerTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
@@ -621,7 +718,7 @@ local function InitTabs()
     prb.manaTextYSlider = Slider(pc, "Text Y", COL2 + 6, y, -20, 20, 0, 1)
     y = y - 50
     prb.manaTextureDD, prb.manaTextureLbl = StyledDropdown(pc, "Texture", COL1, y, 140)
-    prb.manaTextureDD:SetOptions(textureOptions)
+    ApplyTextureOptionsToDropdown(prb.manaTextureDD)
     y = y - 50
     prb.manaTextDD, prb.manaTextLbl = StyledDropdown(pc, "Text", COL2 + 6, y - 4, 100)
     prb.manaTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
@@ -750,7 +847,7 @@ local function InitTabs()
     cbar.borderSlider = Slider(cc, "Border Size", COL2 + 6, y, 0, 5, 1, 1)
     y = y - 50
     cbar.textureDD, cbar.textureLbl = StyledDropdown(cc, "Texture", COL1, y, 140)
-    cbar.textureDD:SetOptions(textureOptions)
+    ApplyTextureOptionsToDropdown(cbar.textureDD)
     cbar.bgColorBtn, cbar.bgColorSwatch = ColorBtn("BG Color", COL2 + 6, y - 17, 0.1, 0.1, 0.1)
     y = y - 55
     CastbarSection("Bar Color")
@@ -851,7 +948,7 @@ local function InitTabs()
     cbar.borderSlider = Slider(cc, "Border Size", COL2 + 6, y, 0, 5, 1, 1)
     y = y - 50
     cbar.textureDD, cbar.textureLbl = StyledDropdown(cc, "Texture", COL1, y, 140)
-    cbar.textureDD:SetOptions(textureOptions)
+    ApplyTextureOptionsToDropdown(cbar.textureDD)
     cbar.bgColorBtn, cbar.bgColorSwatch = ColorBtn("BG Color", COL2 + 6, y - 17, 0.1, 0.1, 0.1)
     y = y - 55
     CastbarSection("Bar Color")
@@ -954,7 +1051,7 @@ local function InitTabs()
     addonTable.useCustomBorderColorCB = Checkbox(uc, "Custom Border Color", 15, -37)
     addonTable.ufClassColorCB = Checkbox(uc, "Use class color", 280, -37)
     addonTable.ufDisableGlowsCB = Checkbox(uc, "Disable Frame Glows", 15, -62)
-    addonTable.ufDisableCombatTextCB = Checkbox(uc, "Disable Player Combat Text", 280, -62)
+    addonTable.ufDisableCombatTextCB = Checkbox(uc, "Disable Player Frame Text", 280, -62)
     addonTable.disableTargetBuffsCB = Checkbox(uc, "Disable Target Buffs", 15, -87)
     addonTable.hideEliteTextureCB = Checkbox(uc, "Hide Elite Texture", 280, -87)
     addonTable.ufUseCustomTexturesCB = Checkbox(uc, "Use Custom Textures", 15, -112)
@@ -968,7 +1065,7 @@ local function InitTabs()
     addonTable.ufBorderColorSwatch:SetBackdropColor(0, 0, 0, 1)
     addonTable.ufBorderColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     addonTable.ufHealthTextureDD = StyledDropdown(uc, nil, 280, -147, 115)
-    addonTable.ufHealthTextureDD:SetOptions(textureOptions)
+    ApplyTextureOptionsToDropdown(addonTable.ufHealthTextureDD)
     addonTable.ufHealthTextureDD:SetEnabled(true)
     addonTable.ufHealthTextureLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     addonTable.ufHealthTextureLbl:SetPoint("BOTTOMLEFT", addonTable.ufHealthTextureDD, "TOPLEFT", 0, 4)
@@ -1054,7 +1151,7 @@ local function InitTabs()
     qolScrollFrame:SetPoint("TOPLEFT", tab12, "TOPLEFT", 0, 0)
     qolScrollFrame:SetPoint("BOTTOMRIGHT", tab12, "BOTTOMRIGHT", -22, 0)
     local qolScrollChild = CreateFrame("Frame", "CCMQOLScrollChild", qolScrollFrame)
-    qolScrollChild:SetSize(490, 2070)
+    qolScrollChild:SetSize(490, 2340)
     qolScrollFrame:SetScrollChild(qolScrollChild)
     local scrollBar10 = _G["CCMQOLScrollFrameScrollBar"]
     if scrollBar10 then
@@ -1068,7 +1165,10 @@ local function InitTabs()
       if down10 then down10:SetAlpha(0); down10:EnableMouse(false) end
     end
     SetSmoothScroll(qolScrollFrame)
-    local qc = qolScrollChild
+    local qcTop = qolScrollChild
+    local qc = CreateFrame("Frame", nil, qolScrollChild)
+    qc:SetSize(490, 2070)
+    qc:SetPoint("TOPLEFT", qolScrollChild, "TOPLEFT", 0, -170)
     Section(qc, "Self Highlight", -12)
     addonTable.selfHighlightDD, addonTable.selfHighlightLbl = StyledDropdown(qc, "Shape", 15, -37, 120)
     addonTable.selfHighlightDD:SetOptions({{text = "Off", value = "off"}, {text = "Cross", value = "cross"}})
@@ -1117,37 +1217,80 @@ local function InitTabs()
     addonTable.noTargetAlertColorSwatch:SetBackdropColor(1, 0, 0, 1)
     addonTable.noTargetAlertColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     Section(qc, "Action Bar Enhancement", -409)
-    addonTable.hideAB1CB = Checkbox(qc, "Hide Action Bar 1 in Combat", 15, -434)
-    addonTable.hideAB1MouseoverCB = Checkbox(qc, "Show on Mouseover", 280, -434)
-    addonTable.hideAB1AlwaysCB = Checkbox(qc, "Hide Action Bar 1 Always", 430, -434)
-    for n = 2, 8 do
-      local y = -434 - (n - 1) * 25
-      addonTable["hideAB"..n.."CB"] = Checkbox(qc, "Hide Bar "..n.." in Combat", 15, y)
-      addonTable["hideAB"..n.."MouseoverCB"] = Checkbox(qc, "Mouseover", 280, y)
-      addonTable["hideAB"..n.."AlwaysCB"] = Checkbox(qc, "Hide Bar "..n.." Always", 430, y)
+    local AB_LABEL_X, AB_DD_X, AB_DD_W = 15, 280, 205
+    local AB_ROW_H = 30
+    local AB_GLOBAL_OPTIONS = {
+      {text = "Per Bar (Custom)", value = "custom"},
+      {text = "Off", value = "off"},
+      {text = "Hide in Combat", value = "combat"},
+      {text = "Hide in Combat + Mouseover", value = "combat_mouseover"},
+      {text = "Hide Always", value = "always"},
+      {text = "Hide Always + Mouseover", value = "always_mouseover"},
+    }
+    local AB_MODE_OPTIONS = {
+      {text = "Off", value = "off"},
+      {text = "Hide in Combat", value = "combat"},
+      {text = "Hide in Combat + Mouseover", value = "combat_mouseover"},
+      {text = "Hide Always", value = "always"},
+      {text = "Hide Always + Mouseover", value = "always_mouseover"},
+    }
+    local function CreateABModeRow(rowKey, labelText, y)
+      local lbl = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      lbl:SetPoint("TOPLEFT", qc, "TOPLEFT", AB_LABEL_X, y - 4)
+      lbl:SetText(labelText)
+      addonTable[rowKey .. "ModeLabel"] = lbl
+      local dd = StyledDropdown(qc, nil, AB_DD_X, y, AB_DD_W)
+      dd:SetOptions(AB_MODE_OPTIONS)
+      dd:SetValue("off")
+      addonTable[rowKey .. "ModeDD"] = dd
     end
-    addonTable.hideStanceBarCB = Checkbox(qc, "Hide Stance Bar in Combat", 15, -634)
-    addonTable.hideStanceBarMouseoverCB = Checkbox(qc, "Show on Mouseover", 280, -634)
-    addonTable.hideStanceBarAlwaysCB = Checkbox(qc, "Hide Stance Bar Always", 430, -634)
-    addonTable.hidePetBarCB = Checkbox(qc, "Hide Pet Bar in Combat", 15, -659)
-    addonTable.hidePetBarMouseoverCB = Checkbox(qc, "Show on Mouseover", 280, -659)
-    addonTable.hidePetBarAlwaysCB = Checkbox(qc, "Hide Pet Bar Always", 430, -659)
-    addonTable.fadeMicroMenuCB = Checkbox(qc, "Fade Micro Menu", 15, -684)
-    addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", 280, -684)
-    addonTable.fadeObjectiveTrackerCB = Checkbox(qc, "Fade Objective Tracker", 15, -709)
-    addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", 280, -709)
+    local abRowY = -434
+    addonTable.actionBarGlobalModeLabel = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    addonTable.actionBarGlobalModeLabel:SetPoint("TOPLEFT", qc, "TOPLEFT", AB_LABEL_X, abRowY - 4)
+    addonTable.actionBarGlobalModeLabel:SetText("All Bars")
+    addonTable.actionBarGlobalModeDD = StyledDropdown(qc, nil, AB_DD_X, abRowY, AB_DD_W)
+    addonTable.actionBarGlobalModeDD:SetOptions(AB_GLOBAL_OPTIONS)
+    addonTable.actionBarGlobalModeDD:SetValue("custom")
+    abRowY = abRowY - AB_ROW_H
+    CreateABModeRow("actionBar1", "Action Bar 1", abRowY)
+    for n = 2, 8 do
+      abRowY = abRowY - AB_ROW_H
+      CreateABModeRow("actionBar" .. n, "Action Bar " .. n, abRowY)
+    end
+    abRowY = abRowY - AB_ROW_H
+    CreateABModeRow("stanceBar", "Stance Bar", abRowY)
+    abRowY = abRowY - AB_ROW_H
+    CreateABModeRow("petBar", "Pet Bar", abRowY)
+    addonTable.fadeMicroMenuCB = Checkbox(qc, "Fade Micro Menu", 15, -774)
+    addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", AB_DD_X, -774)
+    addonTable.abSkinOutlineDD = StyledDropdown(qc, nil, 445, -774, 100)
+    addonTable.abSkinOutlineDD:SetOptions({
+      {text = "Thin", value = "thin"},
+      {text = "Medium", value = "medium"},
+      {text = "Thick", value = "thick"},
+    })
+    addonTable.abSkinOutlineDD:SetValue("medium")
+    addonTable.hideEmptyABOutlineCB = Checkbox(qc, "Hide Empty Slot Outline", AB_DD_X, -799)
+    addonTable.fadeObjectiveTrackerCB = Checkbox(qc, "Fade Objective Tracker", 15, -799)
+    addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", AB_DD_X, -824)
     local abNote = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    abNote:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -734)
+    abNote:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -849)
     abNote:SetText("|cff888888Note: Action Bars have to be set in Edit Mode to Always Visible.|r")
-    Section(qc, "Radial Circle", -764)
-    addonTable.radialCB = Checkbox(qc, "Enable Radial Circle", 15, -789)
-    addonTable.radialCombatCB = Checkbox(qc, "Combat Only", 200, -789)
-    addonTable.radialGcdCB = Checkbox(qc, "Show GCD on Radial", 350, -789)
-    addonTable.radiusSlider = Slider(qc, "Radius", 15, -829, 10, 60, 30, 1)
-    addonTable.thicknessSlider = Slider(qc, "Thickness", 280, -829, 1, 10, 4, 1)
-    addonTable.colorBtn = CreateStyledButton(qc, "Ring Color", 80, 24)
-    addonTable.colorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -904)
-    addonTable.colorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
+    Section(qcTop, "Radial Circle", -12)
+    addonTable.radialCB = Checkbox(qcTop, "Enable Radial Circle", 15, -37)
+    addonTable.radialCombatCB = Checkbox(qcTop, "Combat Only", 200, -37)
+    addonTable.radialGcdCB = Checkbox(qcTop, "Show GCD on Radial", 350, -37)
+    addonTable.radiusSlider = Slider(qcTop, "Radius", 15, -77, 10, 60, 30, 1)
+    addonTable.radialThicknessDD, addonTable.radialThicknessLbl = StyledDropdown(qcTop, "Thickness", 280, -77, 180)
+    addonTable.radialThicknessDD:SetOptions({
+      { text = "Thin", value = "thin" },
+      { text = "Middle", value = "middle" },
+      { text = "Thick", value = "thick" },
+    })
+    addonTable.radialThicknessDD:SetValue("middle")
+    addonTable.colorBtn = CreateStyledButton(qcTop, "Ring Color", 80, 24)
+    addonTable.colorBtn:SetPoint("TOPLEFT", qcTop, "TOPLEFT", 15, -152)
+    addonTable.colorSwatch = CreateFrame("Frame", nil, qcTop, "BackdropTemplate")
     addonTable.colorSwatch:SetSize(24, 24)
     addonTable.colorSwatch:SetPoint("LEFT", addonTable.colorBtn, "RIGHT", 8, 0)
     addonTable.colorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
@@ -1202,6 +1345,10 @@ local function InitTabs()
         })
       end
     end)
+    local qcAfterAB = CreateFrame("Frame", nil, qc)
+    qcAfterAB:SetSize(490, 2070)
+    qcAfterAB:SetPoint("TOPLEFT", qc, "TOPLEFT", 0, 115)
+    qc = qcAfterAB
     Section(qc, "Useful Features", -1003)
     addonTable.autoRepairCB = Checkbox(qc, "Auto Repair (Guild > Gold)", 15, -1028)
     addonTable.showTooltipIDsCB = Checkbox(qc, "Show Spell/Item IDs in Tooltip", 280, -1028)

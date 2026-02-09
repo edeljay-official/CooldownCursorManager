@@ -204,12 +204,13 @@ addonTable.UpdateFocusCastbar = function()
   if borderSize > 0 then
     frame.border:ClearAllPoints()
     if showIcon and texture then
-      frame.border:SetPoint("TOPLEFT", frame.icon, "TOPLEFT", 0, 0)
-      frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+      frame.border:SetPoint("TOPLEFT", frame.icon, "TOPLEFT", -borderSize, borderSize)
+      frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", borderSize, -borderSize)
     else
-      frame.border:SetAllPoints(frame)
+      frame.border:SetPoint("TOPLEFT", frame, "TOPLEFT", -borderSize, borderSize)
+      frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", borderSize, -borderSize)
     end
-    frame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize})
+    frame.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = borderSize, insets = {left = borderSize, right = borderSize, top = borderSize, bottom = borderSize}})
     frame.border:SetBackdropBorderColor(0, 0, 0, 1)
     frame.border:Show()
   else

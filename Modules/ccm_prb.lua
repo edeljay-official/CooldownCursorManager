@@ -7,6 +7,42 @@ local IsRealNumber = addonTable.IsRealNumber
 local GetClassPowerConfig = addonTable.GetClassPowerConfig
 local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
 local SetBlizzardPlayerPowerBarsVisibility = addonTable.SetBlizzardPlayerPowerBarsVisibility
+local PRB_OVERLAY_TEX_NORM = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex.tga"
+local PRB_OVERLAY_TEX_STRIPE = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\stripe_overlay.tga"
+local function SafeNum(v)
+  if type(v) ~= "number" then return nil end
+  if issecretvalue and issecretvalue(v) then return nil end
+  return v
+end
+local function HasPositiveValue(v)
+  if v == nil then return false end
+  if issecretvalue and issecretvalue(v) then return true end
+  return type(v) == "number" and v > 0
+end
+local function GetPRBAbsorbTexturePath(profile)
+  if profile and profile.prbAbsorbTexture == "stripe_overlay" then
+    return PRB_OVERLAY_TEX_STRIPE
+  end
+  return PRB_OVERLAY_TEX_NORM
+end
+local function ApplyConsistentFontShadow(fontString, outlineFlag)
+  if not fontString then return end
+  local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
+  if fontString.SetShadowOffset then
+    if hasOutline then
+      pcall(fontString.SetShadowOffset, fontString, 1, -1)
+    else
+      pcall(fontString.SetShadowOffset, fontString, 0, 0)
+    end
+  end
+  if fontString.SetShadowColor then
+    if hasOutline then
+      pcall(fontString.SetShadowColor, fontString, 0, 0, 0, 1)
+    else
+      pcall(fontString.SetShadowColor, fontString, 0, 0, 0, 0)
+    end
+  end
+end
 local TEXTURE_PATHS = {
   solid = "Interface\\Buttons\\WHITE8x8",
   flat = "Interface\\Buttons\\WHITE8x8",
@@ -67,6 +103,7 @@ prbFrame.textOverlay:SetFrameLevel(100)
 prbFrame.healthBar = CreateFrame("StatusBar", nil, prbFrame)
 prbFrame.healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 prbFrame.healthBar:SetStatusBarColor(0, 1, 0)
+if prbFrame.healthBar.SetClipsChildren then prbFrame.healthBar:SetClipsChildren(true) end
 prbFrame.healthBar.bg = prbFrame.healthBar:CreateTexture(nil, "BACKGROUND")
 prbFrame.healthBar.bg:SetAllPoints()
 prbFrame.healthBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
@@ -78,6 +115,88 @@ prbFrame.healthBar.border:SetBackdropBorderColor(0, 0, 0, 1)
 prbFrame.healthBar.text = prbFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 prbFrame.healthBar.text:SetPoint("CENTER")
 prbFrame.healthBar.text:SetTextColor(1, 1, 1)
+prbFrame.healthBar.dmgAbsorbFrame = CreateFrame("StatusBar", nil, prbFrame.healthBar)
+prbFrame.healthBar.dmgAbsorbFrame:SetStatusBarTexture(PRB_OVERLAY_TEX_NORM)
+prbFrame.healthBar.dmgAbsorbFrame:SetMinMaxValues(0, 1)
+prbFrame.healthBar.dmgAbsorbFrame:SetValue(0)
+if prbFrame.healthBar.dmgAbsorbFrame.SetClipsChildren then prbFrame.healthBar.dmgAbsorbFrame:SetClipsChildren(true) end
+if prbFrame.healthBar.dmgAbsorbFrame.SetReverseFill then prbFrame.healthBar.dmgAbsorbFrame:SetReverseFill(false) end
+prbFrame.healthBar.dmgAbsorbTex = prbFrame.healthBar.dmgAbsorbFrame:GetStatusBarTexture()
+if prbFrame.healthBar.dmgAbsorbTex then
+  prbFrame.healthBar.dmgAbsorbTex:SetTexture(PRB_OVERLAY_TEX_NORM)
+  prbFrame.healthBar.dmgAbsorbTex:SetVertexColor(0.65, 0.85, 1.00, 0.90)
+  if prbFrame.healthBar.dmgAbsorbTex.SetBlendMode then prbFrame.healthBar.dmgAbsorbTex:SetBlendMode("ADD") end
+end
+prbFrame.healthBar.dmgAbsorbStripe = prbFrame.healthBar.dmgAbsorbFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+prbFrame.healthBar.dmgAbsorbStripe:SetTexture(PRB_OVERLAY_TEX_STRIPE, "REPEAT", "REPEAT")
+if prbFrame.healthBar.dmgAbsorbTex then
+  prbFrame.healthBar.dmgAbsorbStripe:SetAllPoints(prbFrame.healthBar.dmgAbsorbTex)
+else
+  prbFrame.healthBar.dmgAbsorbStripe:SetAllPoints(prbFrame.healthBar.dmgAbsorbFrame)
+end
+prbFrame.healthBar.dmgAbsorbStripe:SetVertexColor(1, 1, 1, 0.35)
+if prbFrame.healthBar.dmgAbsorbStripe.SetHorizTile then prbFrame.healthBar.dmgAbsorbStripe:SetHorizTile(true) end
+if prbFrame.healthBar.dmgAbsorbStripe.SetVertTile then prbFrame.healthBar.dmgAbsorbStripe:SetVertTile(true) end
+prbFrame.healthBar.dmgAbsorbStripe:Hide()
+prbFrame.healthBar.dmgAbsorbFrame:Hide()
+prbFrame.healthBar.fullDmgAbsorbFrame = CreateFrame("StatusBar", nil, prbFrame.healthBar)
+prbFrame.healthBar.fullDmgAbsorbFrame:SetStatusBarTexture(PRB_OVERLAY_TEX_NORM)
+prbFrame.healthBar.fullDmgAbsorbFrame:SetMinMaxValues(0, 1)
+prbFrame.healthBar.fullDmgAbsorbFrame:SetValue(0)
+if prbFrame.healthBar.fullDmgAbsorbFrame.SetClipsChildren then prbFrame.healthBar.fullDmgAbsorbFrame:SetClipsChildren(true) end
+if prbFrame.healthBar.fullDmgAbsorbFrame.SetReverseFill then prbFrame.healthBar.fullDmgAbsorbFrame:SetReverseFill(false) end
+prbFrame.healthBar.fullDmgAbsorbTex = prbFrame.healthBar.fullDmgAbsorbFrame:GetStatusBarTexture()
+if prbFrame.healthBar.fullDmgAbsorbTex then
+  prbFrame.healthBar.fullDmgAbsorbTex:SetTexture(PRB_OVERLAY_TEX_NORM)
+  prbFrame.healthBar.fullDmgAbsorbTex:SetVertexColor(0.70, 0.90, 1.00, 1.00)
+  if prbFrame.healthBar.fullDmgAbsorbTex.SetBlendMode then prbFrame.healthBar.fullDmgAbsorbTex:SetBlendMode("ADD") end
+end
+prbFrame.healthBar.fullDmgAbsorbFrame:Hide()
+prbFrame.healthBar.dmgAbsorbGlow = prbFrame.healthBar:CreateTexture(nil, "OVERLAY")
+prbFrame.healthBar.dmgAbsorbGlow:SetTexture(PRB_OVERLAY_TEX_NORM)
+prbFrame.healthBar.dmgAbsorbGlow:SetVertexColor(0.70, 0.90, 1.00, 1.00)
+if prbFrame.healthBar.dmgAbsorbGlow.SetBlendMode then prbFrame.healthBar.dmgAbsorbGlow:SetBlendMode("ADD") end
+prbFrame.healthBar.dmgAbsorbGlow:Hide()
+prbFrame.healthBar.myHealPredFrame = CreateFrame("StatusBar", nil, prbFrame.healthBar)
+prbFrame.healthBar.myHealPredFrame:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+prbFrame.healthBar.myHealPredFrame:SetMinMaxValues(0, 1)
+prbFrame.healthBar.myHealPredFrame:SetValue(0)
+if prbFrame.healthBar.myHealPredFrame.SetClipsChildren then prbFrame.healthBar.myHealPredFrame:SetClipsChildren(true) end
+prbFrame.healthBar.myHealPredTex = prbFrame.healthBar.myHealPredFrame:GetStatusBarTexture()
+if prbFrame.healthBar.myHealPredTex then prbFrame.healthBar.myHealPredTex:SetVertexColor(0, 0.827, 0, 0.4) end
+prbFrame.healthBar.myHealPredFrame:Hide()
+prbFrame.healthBar.otherHealPredFrame = CreateFrame("StatusBar", nil, prbFrame.healthBar)
+prbFrame.healthBar.otherHealPredFrame:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+prbFrame.healthBar.otherHealPredFrame:SetMinMaxValues(0, 1)
+prbFrame.healthBar.otherHealPredFrame:SetValue(0)
+if prbFrame.healthBar.otherHealPredFrame.SetClipsChildren then prbFrame.healthBar.otherHealPredFrame:SetClipsChildren(true) end
+prbFrame.healthBar.otherHealPredTex = prbFrame.healthBar.otherHealPredFrame:GetStatusBarTexture()
+if prbFrame.healthBar.otherHealPredTex then prbFrame.healthBar.otherHealPredTex:SetVertexColor(0, 0.631, 0.557, 0.4) end
+prbFrame.healthBar.otherHealPredFrame:Hide()
+prbFrame.healthBar.healAbsorbFrame = CreateFrame("StatusBar", nil, prbFrame.healthBar)
+prbFrame.healthBar.healAbsorbFrame:SetStatusBarTexture(PRB_OVERLAY_TEX_NORM)
+prbFrame.healthBar.healAbsorbFrame:SetMinMaxValues(0, 1)
+prbFrame.healthBar.healAbsorbFrame:SetValue(0)
+if prbFrame.healthBar.healAbsorbFrame.SetClipsChildren then prbFrame.healthBar.healAbsorbFrame:SetClipsChildren(true) end
+if prbFrame.healthBar.healAbsorbFrame.SetReverseFill then prbFrame.healthBar.healAbsorbFrame:SetReverseFill(true) end
+prbFrame.healthBar.healAbsorbTex = prbFrame.healthBar.healAbsorbFrame:GetStatusBarTexture()
+if prbFrame.healthBar.healAbsorbTex then
+  prbFrame.healthBar.healAbsorbTex:SetTexture(PRB_OVERLAY_TEX_NORM)
+  prbFrame.healthBar.healAbsorbTex:SetVertexColor(1.0, 0.0, 0.0, 1.0)
+  if prbFrame.healthBar.healAbsorbTex.SetBlendMode then prbFrame.healthBar.healAbsorbTex:SetBlendMode("ADD") end
+end
+prbFrame.healthBar.healAbsorbStripe = prbFrame.healthBar.healAbsorbFrame:CreateTexture(nil, "OVERLAY", nil, 1)
+prbFrame.healthBar.healAbsorbStripe:SetTexture(PRB_OVERLAY_TEX_STRIPE, "REPEAT", "REPEAT")
+if prbFrame.healthBar.healAbsorbTex then
+  prbFrame.healthBar.healAbsorbStripe:SetAllPoints(prbFrame.healthBar.healAbsorbTex)
+else
+  prbFrame.healthBar.healAbsorbStripe:SetAllPoints(prbFrame.healthBar.healAbsorbFrame)
+end
+prbFrame.healthBar.healAbsorbStripe:SetVertexColor(1, 1, 1, 0.4)
+if prbFrame.healthBar.healAbsorbStripe.SetHorizTile then prbFrame.healthBar.healAbsorbStripe:SetHorizTile(true) end
+if prbFrame.healthBar.healAbsorbStripe.SetVertTile then prbFrame.healthBar.healAbsorbStripe:SetVertTile(true) end
+prbFrame.healthBar.healAbsorbStripe:Hide()
+prbFrame.healthBar.healAbsorbFrame:Hide()
 prbFrame.powerBar = CreateFrame("StatusBar", nil, prbFrame)
 prbFrame.powerBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 prbFrame.powerBar:SetStatusBarColor(0, 0.5, 1)
@@ -166,15 +285,193 @@ prbFrame:SetScript("OnMouseUp", function(self, button)
     end
   end
 end)
+local function HidePRBHealthOverlays()
+  if prbFrame.healthBar.dmgAbsorbFrame then prbFrame.healthBar.dmgAbsorbFrame:Hide() end
+  if prbFrame.healthBar.fullDmgAbsorbFrame then prbFrame.healthBar.fullDmgAbsorbFrame:Hide() end
+  if prbFrame.healthBar.dmgAbsorbGlow then prbFrame.healthBar.dmgAbsorbGlow:Hide() end
+  if prbFrame.healthBar.dmgAbsorbStripe then prbFrame.healthBar.dmgAbsorbStripe:Hide() end
+  if prbFrame.healthBar.myHealPredFrame then prbFrame.healthBar.myHealPredFrame:Hide() end
+  if prbFrame.healthBar.otherHealPredFrame then prbFrame.healthBar.otherHealPredFrame:Hide() end
+  if prbFrame.healthBar.healAbsorbFrame then prbFrame.healthBar.healAbsorbFrame:Hide() end
+  if prbFrame.healthBar.healAbsorbStripe then prbFrame.healthBar.healAbsorbStripe:Hide() end
+end
+local function UpdatePRBHealthOverlays(width, height)
+  local hb = prbFrame.healthBar
+  if not hb or not hb:IsShown() then HidePRBHealthOverlays(); return end
+  if hb.SetClipsChildren then hb:SetClipsChildren(true) end
+  if hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.SetClipsChildren then hb.dmgAbsorbFrame:SetClipsChildren(true) end
+  if hb.fullDmgAbsorbFrame and hb.fullDmgAbsorbFrame.SetClipsChildren then hb.fullDmgAbsorbFrame:SetClipsChildren(true) end
+  if hb.myHealPredFrame and hb.myHealPredFrame.SetClipsChildren then hb.myHealPredFrame:SetClipsChildren(true) end
+  if hb.otherHealPredFrame and hb.otherHealPredFrame.SetClipsChildren then hb.otherHealPredFrame:SetClipsChildren(true) end
+  if hb.healAbsorbFrame and hb.healAbsorbFrame.SetClipsChildren then hb.healAbsorbFrame:SetClipsChildren(true) end
+  local srcMain = PlayerFrame and PlayerFrame.PlayerFrameContent and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain
+  local srcHC = srcMain and srcMain.HealthBarsContainer
+  local srcHP = PlayerFrameHealthBar or (srcHC and srcHC.HealthBar)
+  if not srcHP then
+    HidePRBHealthOverlays()
+    return
+  end
+
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local dmgAbsorbMode = (profile and profile.prbDmgAbsorb) or "bar_glow"
+  if dmgAbsorbMode ~= "bar_glow" and dmgAbsorbMode ~= "bar" and dmgAbsorbMode ~= "off" then
+    dmgAbsorbMode = "bar_glow"
+  end
+  local healPredMode = (profile and profile.prbHealPred) or "on"
+  if healPredMode ~= "on" and healPredMode ~= "off" then
+    healPredMode = "on"
+  end
+  local healAbsorbMode = (profile and profile.prbHealAbsorb) or "on"
+  if healAbsorbMode ~= "on" and healAbsorbMode ~= "off" then
+    healAbsorbMode = "on"
+  end
+  local stripesOn = not profile or profile.prbAbsorbStripes ~= false
+  local overlayTexPath = GetPRBAbsorbTexturePath(profile)
+  local w = math.max(1, SafeNum(width) or SafeNum(hb.GetWidth and hb:GetWidth() or nil) or 1)
+  local h = math.max(1, SafeNum(height) or SafeNum(hb.GetHeight and hb:GetHeight() or nil) or 1)
+
+  if hb.myHealPredFrame and hb.myHealPredFrame.SetStatusBarTexture then hb.myHealPredFrame:SetStatusBarTexture(overlayTexPath) end
+  if hb.otherHealPredFrame and hb.otherHealPredFrame.SetStatusBarTexture then hb.otherHealPredFrame:SetStatusBarTexture(overlayTexPath) end
+  if hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.SetStatusBarTexture then hb.dmgAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
+  if hb.healAbsorbFrame and hb.healAbsorbFrame.SetStatusBarTexture then hb.healAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
+  if hb.fullDmgAbsorbFrame and hb.fullDmgAbsorbFrame.SetStatusBarTexture then hb.fullDmgAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
+  if hb.dmgAbsorbGlow and hb.dmgAbsorbGlow.SetTexture then hb.dmgAbsorbGlow:SetTexture(overlayTexPath) end
+  if hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.GetStatusBarTexture then
+    hb.dmgAbsorbTex = hb.dmgAbsorbFrame:GetStatusBarTexture() or hb.dmgAbsorbTex
+  end
+  if hb.healAbsorbFrame and hb.healAbsorbFrame.GetStatusBarTexture then
+    hb.healAbsorbTex = hb.healAbsorbFrame:GetStatusBarTexture() or hb.healAbsorbTex
+  end
+  if hb.dmgAbsorbStripe then
+    hb.dmgAbsorbStripe:ClearAllPoints()
+    hb.dmgAbsorbStripe:SetAllPoints(hb.dmgAbsorbTex or hb.dmgAbsorbFrame)
+  end
+  if hb.healAbsorbStripe then
+    hb.healAbsorbStripe:ClearAllPoints()
+    hb.healAbsorbStripe:SetAllPoints(hb.healAbsorbTex or hb.healAbsorbFrame)
+  end
+
+  local proxy = hb._ccmUFProxy or {}
+  hb._ccmUFProxy = proxy
+  proxy.healthFrame = hb
+  proxy.bgFrame = hb
+  proxy.origHP = srcHP
+  proxy.fillScale = 1
+  proxy.dmgAbsorbFrame = hb.dmgAbsorbFrame
+  proxy.dmgAbsorbTex = hb.dmgAbsorbTex
+  proxy.fullDmgAbsorbFrame = hb.fullDmgAbsorbFrame
+  proxy.fullDmgAbsorbTex = hb.fullDmgAbsorbTex
+  proxy.dmgAbsorbGlow = hb.dmgAbsorbGlow
+  proxy.myHealPredFrame = hb.myHealPredFrame
+  proxy.myHealPredTex = hb.myHealPredTex or (hb.myHealPredFrame and hb.myHealPredFrame.GetStatusBarTexture and hb.myHealPredFrame:GetStatusBarTexture()) or nil
+  proxy.otherHealPredFrame = hb.otherHealPredFrame
+  proxy.otherHealPredTex = hb.otherHealPredTex or (hb.otherHealPredFrame and hb.otherHealPredFrame.GetStatusBarTexture and hb.otherHealPredFrame:GetStatusBarTexture()) or nil
+  proxy.healAbsorbFrame = hb.healAbsorbFrame
+  proxy.healAbsorbTex = hb.healAbsorbTex or (hb.healAbsorbFrame and hb.healAbsorbFrame.GetStatusBarTexture and hb.healAbsorbFrame:GetStatusBarTexture()) or nil
+  proxy.dmgAbsorbStripe = hb.dmgAbsorbStripe
+  proxy.healAbsorbStripe = hb.healAbsorbStripe
+  proxy.dmgAbsorbCalc = hb._ccmPredCalc
+  proxy.forceDmgAbsorbMode = dmgAbsorbMode
+  proxy.forceHealPredMode = healPredMode
+  proxy.forceHealAbsorbMode = healAbsorbMode
+  proxy.forceNoSecretDmgAbsorbRaw = false
+  proxy.forceNoSecretHealAbsorbRaw = true
+
+  if addonTable.UpdateUFBigHBHealPrediction then
+    addonTable.UpdateUFBigHBHealPrediction(proxy, "player")
+  end
+  if addonTable.UpdateUFBigHBDmgAbsorb then
+    addonTable.UpdateUFBigHBDmgAbsorb(proxy, "player")
+  end
+  hb._ccmPredCalc = proxy.dmgAbsorbCalc
+
+  if hb.dmgAbsorbStripe then
+    if stripesOn and hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.IsShown and hb.dmgAbsorbFrame:IsShown() then
+      hb.dmgAbsorbStripe:Show()
+    else
+      hb.dmgAbsorbStripe:Hide()
+    end
+  end
+  if hb.healAbsorbStripe then
+    if stripesOn and hb.healAbsorbFrame and hb.healAbsorbFrame.IsShown and hb.healAbsorbFrame:IsShown() then
+      hb.healAbsorbStripe:Show()
+    else
+      hb.healAbsorbStripe:Hide()
+    end
+  end
+
+  local overAbsorbGlowShown = (srcHP and srcHP.OverAbsorbGlow and srcHP.OverAbsorbGlow.IsShown and srcHP.OverAbsorbGlow:IsShown()) and true or false
+  local overAbsorbProxyGlowShown = (hb.dmgAbsorbGlow and hb.dmgAbsorbGlow.IsShown and hb.dmgAbsorbGlow:IsShown()) and true or false
+  local overAbsorbNumericShown = false
+  if UnitGetTotalAbsorbs and UnitHealth and UnitHealthMax then
+    local totalAbsorb = SafeNum(UnitGetTotalAbsorbs("player"))
+    local curHealth = SafeNum(UnitHealth("player"))
+    local maxHealth = SafeNum(UnitHealthMax("player"))
+    if totalAbsorb and curHealth and maxHealth and maxHealth > 0 then
+      local missing = maxHealth - curHealth
+      if missing < 0 then missing = 0 end
+      if totalAbsorb > missing then
+        overAbsorbNumericShown = true
+      end
+    end
+  end
+  local overAbsorbShown = overAbsorbGlowShown or overAbsorbProxyGlowShown or overAbsorbNumericShown
+  if not overAbsorbShown and hb.fullDmgAbsorbFrame and hb.fullDmgAbsorbFrame.IsShown and hb.fullDmgAbsorbFrame:IsShown() then
+    overAbsorbShown = true
+  end
+  if dmgAbsorbMode == "off" then
+    overAbsorbShown = false
+  end
+
+  if hb.fullDmgAbsorbFrame then
+    if overAbsorbShown and dmgAbsorbMode ~= "off" then
+      hb.fullDmgAbsorbFrame:ClearAllPoints()
+      hb.fullDmgAbsorbFrame:SetPoint("TOPRIGHT", hb, "TOPRIGHT", 0, 0)
+      hb.fullDmgAbsorbFrame:SetPoint("BOTTOMRIGHT", hb, "BOTTOMRIGHT", 0, 0)
+      local overW = math.max(2, math.floor((w * 0.08) + 0.5))
+      overW = math.max(0, math.min(w, overW))
+      hb.fullDmgAbsorbFrame:SetWidth(overW)
+      pcall(hb.fullDmgAbsorbFrame.SetMinMaxValues, hb.fullDmgAbsorbFrame, 0, math.max(1, overW))
+      pcall(hb.fullDmgAbsorbFrame.SetValue, hb.fullDmgAbsorbFrame, overW)
+      if hb.fullDmgAbsorbFrame.SetReverseFill then hb.fullDmgAbsorbFrame:SetReverseFill(false) end
+      if hb.fullDmgAbsorbTex and hb.fullDmgAbsorbTex.SetTexCoord then hb.fullDmgAbsorbTex:SetTexCoord(0, 1, 0, 1) end
+      hb.fullDmgAbsorbFrame:Show()
+    else
+      hb.fullDmgAbsorbFrame:Hide()
+    end
+  end
+
+  if hb.dmgAbsorbGlow then
+    if overAbsorbShown and dmgAbsorbMode == "bar_glow" then
+      hb.dmgAbsorbGlow:ClearAllPoints()
+      hb.dmgAbsorbGlow:SetPoint("TOPRIGHT", hb, "TOPRIGHT", 0, 0)
+      hb.dmgAbsorbGlow:SetPoint("BOTTOMRIGHT", hb, "BOTTOMRIGHT", 0, 0)
+      hb.dmgAbsorbGlow:SetWidth(math.max(2, math.floor(h * 0.18 + 0.5)))
+      hb.dmgAbsorbGlow:Show()
+    else
+      hb.dmgAbsorbGlow:Hide()
+    end
+  end
+
+  local hbLevel = hb:GetFrameLevel() or 1
+  if hb.dmgAbsorbFrame then hb.dmgAbsorbFrame:SetFrameLevel(hbLevel + 1) end
+  if hb.dmgAbsorbGlow then hb.dmgAbsorbGlow:SetDrawLayer("OVERLAY", 7) end
+  if hb.myHealPredFrame then hb.myHealPredFrame:SetFrameLevel(hbLevel + 2) end
+  if hb.otherHealPredFrame then hb.otherHealPredFrame:SetFrameLevel(hbLevel + 2) end
+  if hb.healAbsorbFrame then hb.healAbsorbFrame:SetFrameLevel(hbLevel + 3) end
+  if hb.fullDmgAbsorbFrame then hb.fullDmgAbsorbFrame:SetFrameLevel(hbLevel + 4) end
+end
 local function UpdatePRB()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile or not profile.usePersonalResourceBar then
+    HidePRBHealthOverlays()
     prbFrame:Hide()
     SetBlizzardPlayerPowerBarsVisibility(false, false)
     return
   end
   local showMode = profile.prbShowMode or "always"
   if showMode == "combat" and not InCombatLockdown() then
+    HidePRBHealthOverlays()
     prbFrame:Hide()
     return
   end
@@ -392,8 +689,8 @@ local function UpdatePRB()
       prbFrame.healthBar.text:SetTextColor(htR, htG, htB)
       prbFrame.healthBar.text:SetScale(healthTextScale)
       local globalFont, globalOutline = GetGlobalFont()
-      local fontSize = 12 * healthTextScale
-      prbFrame.healthBar.text:SetFont(globalFont, 12, globalOutline or "OUTLINE")
+      prbFrame.healthBar.text:SetFont(globalFont, 12, globalOutline or "")
+      ApplyConsistentFontShadow(prbFrame.healthBar.text, globalOutline)
       prbFrame.healthBar.text:ClearAllPoints()
       prbFrame.healthBar.text:SetPoint("CENTER", prbFrame.healthBar, "CENTER", 0, healthTextY)
       if healthTextMode ~= "hidden" then
@@ -428,6 +725,7 @@ local function UpdatePRB()
       else
         prbFrame.healthBar.text:Hide()
       end
+      UpdatePRBHealthOverlays(width, healthHeight)
       if showPower then
         yOff = yOff + healthHeight + spacing
       else
@@ -436,6 +734,7 @@ local function UpdatePRB()
     else
       prbFrame.healthBar:Hide()
       prbFrame.healthBar.text:Hide()
+      HidePRBHealthOverlays()
     end
     if showPower then
       prbFrame.powerBar:Show()
@@ -488,7 +787,8 @@ local function UpdatePRB()
       prbFrame.powerBar.text:SetTextColor(ptR, ptG, ptB)
       prbFrame.powerBar.text:SetScale(powerTextScale)
       local globalFont, globalOutline = GetGlobalFont()
-      prbFrame.powerBar.text:SetFont(globalFont, 12, globalOutline or "OUTLINE")
+      prbFrame.powerBar.text:SetFont(globalFont, 12, globalOutline or "")
+      ApplyConsistentFontShadow(prbFrame.powerBar.text, globalOutline)
       prbFrame.powerBar.text:ClearAllPoints()
       prbFrame.powerBar.text:SetPoint("CENTER", prbFrame.powerBar, "CENTER", 0, powerTextY)
       if powerTextMode ~= "hidden" then
@@ -575,7 +875,8 @@ local function UpdatePRB()
       prbFrame.manaBar.text:SetTextColor(mtR, mtG, mtB)
       prbFrame.manaBar.text:SetScale(manaTextScale)
       local globalFont, globalOutline = GetGlobalFont()
-      prbFrame.manaBar.text:SetFont(globalFont, 12, globalOutline or "OUTLINE")
+      prbFrame.manaBar.text:SetFont(globalFont, 12, globalOutline or "")
+      ApplyConsistentFontShadow(prbFrame.manaBar.text, globalOutline)
       prbFrame.manaBar.text:ClearAllPoints()
       prbFrame.manaBar.text:SetPoint("CENTER", prbFrame.manaBar, "CENTER", 0, manaTextY)
       if manaTextMode ~= "hidden" then
@@ -755,9 +1056,10 @@ local function UpdatePRBFonts()
   UpdatePRB()
 end
 addonTable.UpdatePRBFonts = UpdatePRBFonts
+local PRB_TICK_INTERVAL = 0.03
 local function StartPRBTicker()
   if State.prbTicker then return end
-  State.prbTicker = C_Timer.NewTicker(0.1, UpdatePRB)
+  State.prbTicker = C_Timer.NewTicker(PRB_TICK_INTERVAL, UpdatePRB)
 end
 local function StopPRBTicker()
   if State.prbTicker then

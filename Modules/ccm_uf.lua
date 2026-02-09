@@ -6,6 +6,24 @@ local FitTextToBar = addonTable.FitTextToBar
 local IsRealNumber = addonTable.IsRealNumber
 local GetClassPowerConfig = addonTable.GetClassPowerConfig
 local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
+local function ApplyConsistentFontShadow(fontString, outlineFlag)
+  if not fontString then return end
+  local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
+  if fontString.SetShadowOffset then
+    if hasOutline then
+      pcall(fontString.SetShadowOffset, fontString, 1, -1)
+    else
+      pcall(fontString.SetShadowOffset, fontString, 0, 0)
+    end
+  end
+  if fontString.SetShadowColor then
+    if hasOutline then
+      pcall(fontString.SetShadowColor, fontString, 0, 0, 0, 1)
+    else
+      pcall(fontString.SetShadowColor, fontString, 0, 0, 0, 0)
+    end
+  end
+end
 local texturePaths = {
   solid = "Interface\\Buttons\\WHITE8x8",
   flat = "Interface\\Buttons\\WHITE8x8",
@@ -1083,6 +1101,9 @@ addonTable.ApplyUnitFrameCustomization = function()
       elseif unit == "focus" then dmgAbsorbMode = profile.ufBigHBFocusDmgAbsorb or "bar_glow"
       end
     end
+    if type(o.forceDmgAbsorbMode) == "string" then
+      dmgAbsorbMode = o.forceDmgAbsorbMode
+    end
     if dmgAbsorbMode == "off" then
       HideDmgAbsorb()
       return
@@ -1307,6 +1328,12 @@ addonTable.ApplyUnitFrameCustomization = function()
       local okMM, minV, maxV = pcall(srcDmgAbsorbBar.GetMinMaxValues, srcDmgAbsorbBar)
       local okV, curV = pcall(srcDmgAbsorbBar.GetValue, srcDmgAbsorbBar)
       if not okMM or not okV then return false end
+      if o.forceNoSecretDmgAbsorbRaw then
+        minV = SafeNumeric(minV)
+        maxV = SafeNumeric(maxV)
+        curV = SafeNumeric(curV)
+        if not (minV and maxV and curV) then return false end
+      end
       local statusTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or nil
       local healOff3 = o.healPredTotalPx or 0
       local remainingVis = nil
@@ -1549,6 +1576,9 @@ addonTable.ApplyUnitFrameCustomization = function()
     if missing < 0 then missing = 0 end
 
     local dmgAbsorbTotalRaw = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or nil
+    if o.forceNoSecretDmgAbsorbRaw and IsSecretValue(dmgAbsorbTotalRaw) then
+      dmgAbsorbTotalRaw = nil
+    end
     local dmgAbsorbTotal = SafeNumeric(dmgAbsorbTotalRaw)
     if (not HasPositiveValue(dmgAbsorbTotalRaw)) and CreateUnitHealPredictionCalculator and UnitGetDetailedHealPrediction then
       if not o.dmgAbsorbCalc then
@@ -1566,6 +1596,9 @@ addonTable.ApplyUnitFrameCustomization = function()
         if o.dmgAbsorbCalc.GetDamageAbsorbs then
           local okAbs, dmgAbs = pcall(o.dmgAbsorbCalc.GetDamageAbsorbs, o.dmgAbsorbCalc)
           if okAbs then
+            if o.forceNoSecretDmgAbsorbRaw and IsSecretValue(dmgAbs) then
+              dmgAbs = nil
+            end
             dmgAbsorbTotalRaw = dmgAbs
             dmgAbsorbTotal = SafeNumeric(dmgAbs)
           end
@@ -1696,6 +1729,12 @@ addonTable.ApplyUnitFrameCustomization = function()
         healAbsorbMode = hpProfile.ufBigHBFocusHealAbsorb or "on"
       end
     end
+    if type(o.forceHealPredMode) == "string" then
+      healPredMode = o.forceHealPredMode
+    end
+    if type(o.forceHealAbsorbMode) == "string" then
+      healAbsorbMode = o.forceHealAbsorbMode
+    end
     if healPredMode == "off" and healAbsorbMode == "off" then HideAllHealPred(); return end
     local w = SafeNum(o.healthFrame.GetWidth and o.healthFrame:GetWidth() or nil)
     local h = SafeNum(o.healthFrame.GetHeight and o.healthFrame:GetHeight() or nil)
@@ -1752,6 +1791,20 @@ addonTable.ApplyUnitFrameCustomization = function()
       local ok, hAbs = pcall(o.dmgAbsorbCalc.GetHealAbsorbs, o.dmgAbsorbCalc)
       if ok then healAbsorbsRaw = hAbs end
     end
+    -- Some API/providers can expose heal absorbs as negative numbers; normalize to positive magnitude.
+    if type(healAbsorbsRaw) == "number" and (not IsSecret(healAbsorbsRaw)) and healAbsorbsRaw < 0 then
+      healAbsorbsRaw = -healAbsorbsRaw
+    end
+    -- Fallback: read directly from the original Blizzard heal-absorb statusbar value.
+    if (not HasPositiveValue(healAbsorbsRaw)) and o.origHP and o.origHP.HealAbsorbBar and o.origHP.HealAbsorbBar.GetValue then
+      local okBarVal, barVal = pcall(o.origHP.HealAbsorbBar.GetValue, o.origHP.HealAbsorbBar)
+      if okBarVal and type(barVal) == "number" and (not IsSecret(barVal)) then
+        if barVal < 0 then barVal = -barVal end
+        if barVal > 0 then
+          healAbsorbsRaw = barVal
+        end
+      end
+    end
     local healAbsorbs = SafeNum(healAbsorbsRaw)
     if healAbsorbs and healAbsorbs > 0 then
       local curHealth = SafeNum(o.origHP and o.origHP.GetValue and select(2, pcall(o.origHP.GetValue, o.origHP)) or nil)
@@ -1796,6 +1849,9 @@ addonTable.ApplyUnitFrameCustomization = function()
     local hasMyHealRaw = HasPositiveValue(myIncomingHealRaw)
     local hasOtherHealRaw = HasPositiveValue(otherIncomingHealRaw)
     local hasHealAbsorbRaw = HasPositiveValue(healAbsorbsRaw)
+    if o.forceNoSecretHealAbsorbRaw and IsSecret(healAbsorbsRaw) then
+      hasHealAbsorbRaw = false
+    end
     local hasMyHeal = hasMyHealRaw or (myVisualFallback > 0)
     local hasOtherHeal = hasOtherHealRaw or (otherVisualFallback > 0)
     local hasHealAbsorb = hasHealAbsorbRaw or (healAbsorbVisualFallback > 0)
@@ -2268,8 +2324,8 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     local bgPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_bg_player"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_bg_other"
-    local dmgAbsorbPathPrimary = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_player"
-      or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_other"
+    local dmgAbsorbPathPrimary = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_player.tga"
+      or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_other.tga"
     local dmgAbsorbPathLegacy = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\absorb player"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\absorb other"
     local hX, hY, hW, hH, bX, bY, bW, bH, hScalePct, bScalePct, mX, mY, mW, mH, mScalePct
@@ -2693,17 +2749,11 @@ addonTable.ApplyUnitFrameCustomization = function()
         if not (o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
           o.dmgAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
         end
-        if not (o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
-          o.dmgAbsorbFrame:SetStatusBarTexture(fillPath)
-        end
       end
       o.dmgAbsorbTex = o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture() or o.dmgAbsorbTex
       o.dmgAbsorbTex:SetTexture(dmgAbsorbPathPrimary)
       if not (o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
         o.dmgAbsorbTex:SetTexture(dmgAbsorbPathLegacy)
-      end
-      if not (o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
-        o.dmgAbsorbTex:SetTexture(fillPath)
       end
       if o.dmgAbsorbTex.SetTexCoord then
         o.dmgAbsorbTex:SetTexCoord(0, 1, 0, 1)
@@ -2714,8 +2764,8 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
     end
     if o.fullDmgAbsorbTex then
-      local fullPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\suf_absorb_player_full"
-        or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_other"
+      local fullPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_player_full.tga"
+        or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_absorb_other.tga"
       o.fullDmgAbsorbTex:SetTexture(fullPath)
       o.fullDmgAbsorbTex:SetVertexColor(0.70, 0.90, 1.00, 0.90)
       if o.fullDmgAbsorbTex.SetBlendMode then
@@ -2738,11 +2788,12 @@ addonTable.ApplyUnitFrameCustomization = function()
         if not (o.healAbsorbFrame.GetStatusBarTexture and o.healAbsorbFrame:GetStatusBarTexture()) then
           o.healAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
         end
-        if not (o.healAbsorbFrame.GetStatusBarTexture and o.healAbsorbFrame:GetStatusBarTexture()) then
-          o.healAbsorbFrame:SetStatusBarTexture(fillPath)
-        end
       end
       o.healAbsorbTex = o.healAbsorbFrame.GetStatusBarTexture and o.healAbsorbFrame:GetStatusBarTexture() or o.healAbsorbTex
+      o.healAbsorbTex:SetTexture(dmgAbsorbPathPrimary)
+      if not (o.healAbsorbFrame and o.healAbsorbFrame.GetStatusBarTexture and o.healAbsorbFrame:GetStatusBarTexture()) then
+        o.healAbsorbTex:SetTexture(dmgAbsorbPathLegacy)
+      end
       if o.healAbsorbTex.SetTexCoord then
         o.healAbsorbTex:SetTexCoord(0, 1, 0, 1)
       end
@@ -2755,21 +2806,34 @@ addonTable.ApplyUnitFrameCustomization = function()
     if o.healthTex and o.healthTex.SetDrawLayer then
       o.healthTex:SetDrawLayer("ARTWORK", 2)
     end
-    -- Apply shape mask to sub-bars (absorb, heal prediction) so they clip to the BigHB silhouette
-    local subBars = {o.dmgAbsorbFrame, o.myHealPredFrame, o.otherHealPredFrame, o.healAbsorbFrame}
-    for _, bar in ipairs(subBars) do
-      if bar and bar.GetStatusBarTexture then
-        local barTex = bar:GetStatusBarTexture()
-        if barTex then
-          if not bar._ccmShapeMask then
-            bar._ccmShapeMask = bar:CreateMaskTexture()
-            bar._ccmShapeMask:SetAllPoints(bar)
-          end
-          bar._ccmShapeMask:SetTexture(shapePath)
-          barTex:AddMaskTexture(bar._ccmShapeMask)
+    -- Apply per-bar masks so absorb bars can keep their own leading edge shape.
+    local function ApplyStatusBarMask(bar, maskPath)
+      if not bar or not bar.GetStatusBarTexture then return end
+      local barTex = bar:GetStatusBarTexture()
+      if not barTex then return end
+      if not maskPath or maskPath == "" then
+        if bar._ccmShapeMask and barTex.RemoveMaskTexture then
+          pcall(barTex.RemoveMaskTexture, barTex, bar._ccmShapeMask)
         end
+        if bar._ccmShapeMask and bar._ccmShapeMask.Hide then
+          bar._ccmShapeMask:Hide()
+        end
+        return
       end
+      if not bar._ccmShapeMask then
+        bar._ccmShapeMask = bar:CreateMaskTexture()
+        bar._ccmShapeMask:SetAllPoints(bar)
+      end
+      bar._ccmShapeMask:SetTexture(maskPath)
+      if bar._ccmShapeMask.Show then
+        bar._ccmShapeMask:Show()
+      end
+      barTex:AddMaskTexture(bar._ccmShapeMask)
     end
+    ApplyStatusBarMask(o.dmgAbsorbFrame, dmgAbsorbPathPrimary)
+    ApplyStatusBarMask(o.healAbsorbFrame, dmgAbsorbPathPrimary)
+    ApplyStatusBarMask(o.myHealPredFrame, shapePath)
+    ApplyStatusBarMask(o.otherHealPredFrame, shapePath)
     local maskFixPath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_player_mask_fix"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_other_mask_fix"
     local maskFixR, maskFixG, maskFixB, maskFixA = bigHBBorderR, bigHBBorderG, bigHBBorderB, 1
@@ -2919,6 +2983,24 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
     end
     local maxNameChars = tonumber(profile.ufBigHBNameMaxChars) or 0
+    local function ApplyConsistentFontShadow(fontString, outlineFlag)
+      if not fontString then return end
+      local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
+      if fontString.SetShadowOffset then
+        if hasOutline then
+          pcall(fontString.SetShadowOffset, fontString, 1, -1)
+        else
+          pcall(fontString.SetShadowOffset, fontString, 0, 0)
+        end
+      end
+      if fontString.SetShadowColor then
+        if hasOutline then
+          pcall(fontString.SetShadowColor, fontString, 0, 0, 0, 1)
+        else
+          pcall(fontString.SetShadowColor, fontString, 0, 0, 0, 0)
+        end
+      end
+    end
     local function ApplyUFBigHBScaledFont(fontString, baseFont, baseSize, baseFlags, scale)
       if not fontString or not fontString.SetFont then return end
       -- Use global font to match HP/power bar text styling
@@ -2940,6 +3022,7 @@ addonTable.ApplyUnitFrameCustomization = function()
       if textScale < 0.5 then textScale = 0.5 end
       if textScale > 3 then textScale = 3 end
       pcall(fontString.SetFont, fontString, fontPath, fontSize * textScale, fontFlags or "")
+      ApplyConsistentFontShadow(fontString, fontFlags)
     end
     if key == "target" and bigHBRoot then
       local nameEl = bigHBRoot.Name
@@ -3315,6 +3398,8 @@ addonTable.ApplyUnitFrameCustomization = function()
         local pHP = pHC and pHC.HealthBar
         if not pHP then return end
         SyncUFBigHBOverlayValue(ov, pHP)
+        UpdateUFBigHBHealPrediction(ov, "player")
+        UpdateUFBigHBDmgAbsorb(ov, "player")
         ApplyUFBigHBOverlayHealthColor(ov, pHP, "player")
       end)
     end
@@ -3342,6 +3427,7 @@ addonTable.ApplyUnitFrameCustomization = function()
         local _, sz = fs:GetFont()
         if not sz or sz <= 0 then sz = 12 end
         pcall(fs.SetFont, fs, gf, sz, oFlag)
+        ApplyConsistentFontShadow(fs, oFlag)
       end
       afs(_G["PlayerName"])
       afs(_G["PlayerLevelText"])

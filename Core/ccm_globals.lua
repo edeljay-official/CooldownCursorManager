@@ -105,20 +105,20 @@ end
 function CCM:RegisterMedia()
   if not self.LSM then return end
   local fontPath = self.MEDIA_PATH .. "Fonts\\"
-  local texPath = self.TEXTURES_PATH
   self.LSM:Register("font", "Expressway", fontPath .. "Expressway.ttf")
   self.LSM:Register("font", "Avante", fontPath .. "Avante.ttf")
   self.LSM:Register("font", "AvantGarde Book", fontPath .. "AvantGarde\\Book.ttf")
   self.LSM:Register("font", "AvantGarde BookOblique", fontPath .. "AvantGarde\\BookOblique.ttf")
   self.LSM:Register("font", "AvantGarde Demi", fontPath .. "AvantGarde\\Demi.ttf")
   self.LSM:Register("font", "AvantGarde Regular", fontPath .. "AvantGarde\\Regular.ttf")
-  self.LSM:Register("statusbar", "Smooth", texPath .. "normTex.tga")
-  self.LSM:Register("statusbar", "Gloss", texPath .. "Gloss.tga")
-  self.LSM:Register("statusbar", "Melli", texPath .. "Melli.tga")
-  self.LSM:Register("statusbar", "MelliDark", texPath .. "MelliDark.tga")
-  self.LSM:Register("statusbar", "BetterBlizzard", texPath .. "BetterBlizzard.blp")
-  self.LSM:Register("statusbar", "Skyline", texPath .. "Skyline.tga")
-  self.LSM:Register("statusbar", "Dragonflight", texPath .. "Dragonflight.tga")
+end
+function CCM:FetchLSMStatusBar(value)
+  if not value or type(value) ~= "string" then return nil end
+  if value:sub(1, 4) ~= "lsm:" then return nil end
+  local lsmName = value:sub(5)
+  local LSM = self.LSM
+  if not LSM then return nil end
+  return LSM:Fetch("statusbar", lsmName)
 end
 function CCM:FetchLSMStatusBar(value)
   if not value or type(value) ~= "string" then return nil end
@@ -134,6 +134,29 @@ function CCM:GetPixelPerfectScale()
 end
 function CCM:GetEffectiveScale()
   return UIParent:GetEffectiveScale()
+end
+function CCM:GetPixelSize(scaleRef)
+  local scale = 1
+  if scaleRef and scaleRef.GetEffectiveScale then
+    scale = scaleRef:GetEffectiveScale() or 1
+  elseif UIParent and UIParent.GetEffectiveScale then
+    scale = UIParent:GetEffectiveScale() or 1
+  end
+  if scale == 0 then scale = 1 end
+  return 1 / scale
+end
+function CCM:SnapToPixel(value, scaleRef)
+  if type(value) ~= "number" then return 0 end
+  local pixel = self:GetPixelSize(scaleRef)
+  return math.floor((value / pixel) + 0.5) * pixel
+end
+function CCM:SnapSize(value, scaleRef, minPixels)
+  local snapped = self:SnapToPixel(value, scaleRef)
+  local pixel = self:GetPixelSize(scaleRef)
+  local minCount = (type(minPixels) == "number" and minPixels > 0) and minPixels or 1
+  local minSize = pixel * minCount
+  if snapped < minSize then snapped = minSize end
+  return snapped
 end
 function CCM:HexToRGB(hex)
   hex = hex:gsub("#", "")

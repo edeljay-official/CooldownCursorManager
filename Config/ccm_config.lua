@@ -325,7 +325,7 @@ scrollBar:SetOrientation("VERTICAL")
 scrollBar:SetMinMaxValues(0, 1)
 scrollBar:SetValue(0)
 scrollBar:SetValueStep(1)
-scrollBar:EnableMouseWheel(true)
+scrollBar:EnableMouseWheel(false)
 scrollBar.thumb = scrollBar:CreateTexture(nil, "OVERLAY")
 scrollBar.thumb:SetColorTexture(0.4, 0.4, 0.45, 1)
 scrollBar.thumb:SetSize(8, 40)
@@ -333,19 +333,8 @@ scrollBar:SetThumbTexture(scrollBar.thumb)
 scrollBar:SetScript("OnValueChanged", function(self, value)
   exportImportScrollFrame:SetVerticalScroll(value)
 end)
-scrollBar:SetScript("OnMouseWheel", function(self, delta)
-  local cur = self:GetValue()
-  local min, max = self:GetMinMaxValues()
-  local step = 20
-  if delta > 0 then
-    self:SetValue(math.max(min, cur - step))
-  else
-    self:SetValue(math.min(max, cur + step))
-  end
-end)
-exportImportScrollFrame:SetScript("OnMouseWheel", function(self, delta)
-  scrollBar:GetScript("OnMouseWheel")(scrollBar, delta)
-end)
+scrollBar:SetScript("OnMouseWheel", nil)
+exportImportScrollFrame:SetScript("OnMouseWheel", nil)
 exportImportScrollFrame:SetScript("OnScrollRangeChanged", function(self, xrange, yrange)
   local max = yrange or 0
   scrollBar:SetMinMaxValues(0, max)
@@ -371,9 +360,7 @@ editBoxBg:EnableMouse(true)
 editBoxBg:SetScript("OnMouseDown", function()
   exportImportEditBox:SetFocus()
 end)
-editBoxBg:SetScript("OnMouseWheel", function(self, delta)
-  scrollBar:GetScript("OnMouseWheel")(scrollBar, delta)
-end)
+editBoxBg:SetScript("OnMouseWheel", nil)
 local importContainer = CreateFrame("Frame", nil, exportImportPopup)
 importContainer:SetAllPoints()
 importContainer:Hide()
@@ -1110,16 +1097,8 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   end)
   s:SetScript("OnEnter", function() thumb:SetColorTexture(0.5, 0.5, 0.55, 1) end)
   s:SetScript("OnLeave", function() thumb:SetColorTexture(0.4, 0.4, 0.45, 1) end)
-  s:EnableMouseWheel(true)
-  s:SetScript("OnMouseWheel", function(self, delta)
-    local step = self.step or 1
-    local minVal, maxVal = self:GetMinMaxValues()
-    local currentVal = self:GetValue()
-    local newVal = currentVal + (delta * step)
-    if newVal < minVal then newVal = minVal end
-    if newVal > maxVal then newVal = maxVal end
-    self:SetValue(newVal)
-  end)
+  s:EnableMouseWheel(false)
+  s:SetScript("OnMouseWheel", nil)
   local upBtn = CreateFrame("Button", nil, vtBg)
   upBtn:SetSize(16, 10)
   upBtn:SetPoint("BOTTOMLEFT", vtBg, "BOTTOMRIGHT", 2, 10)
@@ -1280,38 +1259,150 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   dd.list = list
   dd.options = {}
   dd.value = nil
-  function dd:SetOptions(opts)
-    dd.options = opts
-    for _, child in ipairs({list:GetChildren()}) do child:Hide(); child:SetParent(nil) end
-    local yOff = 0
-    for _, opt in ipairs(opts) do
-      local btn = CreateFrame("Button", nil, list, "BackdropTemplate")
-      btn:SetSize(w - 2, 22)
-      btn:SetPoint("TOPLEFT", list, "TOPLEFT", 1, -yOff - 1)
-      btn:SetFrameStrata(list:GetFrameStrata())
-      btn:SetFrameLevel(list:GetFrameLevel() + 1)
-      local btxt = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-      btxt:SetPoint("LEFT", btn, "LEFT", 8, 0)
-      btxt:SetText(opt.text)
-      if opt.disabled then
-        btxt:SetTextColor(0.4, 0.4, 0.4)
-        btn:SetScript("OnEnter", function() end)
-        btn:SetScript("OnLeave", function() end)
-        btn:SetScript("OnClick", function() end)
-      else
-        btxt:SetTextColor(0.9, 0.9, 0.9)
-        btn:SetScript("OnEnter", function() btn:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"}); btn:SetBackdropColor(0.25, 0.25, 0.3, 1) end)
-        btn:SetScript("OnLeave", function() btn:SetBackdrop(nil) end)
-        btn:SetScript("OnClick", function()
-          dd.value = opt.value
-          txt:SetText(opt.text)
-          list:Hide()
-          if dd.onSelect then dd.onSelect(opt.value) end
-        end)
-      end
-      yOff = yOff + 22
+  dd._scrollOffset = 0
+  dd._maxVisibleOptions = 12
+  dd._buttons = {}
+  dd._moreIndicator = nil
+  list:EnableMouseWheel(true)
+  local RenderDropdownOptions
+  local function ScrollDropdownBy(delta)
+    local total = #(dd.options or {})
+    local maxVisible = dd._maxVisibleOptions or 12
+    local maxOffset = math.max(0, total - maxVisible)
+    local curOffset = dd._scrollOffset or 0
+    local nextOffset = curOffset - (delta or 0)
+    if nextOffset < 0 then nextOffset = 0 end
+    if nextOffset > maxOffset then nextOffset = maxOffset end
+    if nextOffset ~= curOffset then
+      dd._scrollOffset = nextOffset
+      RenderDropdownOptions()
     end
-    list:SetHeight(yOff + 2)
+  end
+  RenderDropdownOptions = function()
+    local opts = dd.options or {}
+    local total = #opts
+    local maxVisible = dd._maxVisibleOptions or 12
+    local offset = dd._scrollOffset or 0
+    local maxOffset = math.max(0, total - maxVisible)
+    if offset > maxOffset then
+      offset = maxOffset
+      dd._scrollOffset = offset
+    end
+    if offset < 0 then
+      offset = 0
+      dd._scrollOffset = 0
+    end
+    local hasMoreBelow = offset < maxOffset
+    local optionSlots = maxVisible
+    if hasMoreBelow and optionSlots > 0 then
+      optionSlots = optionSlots - 1
+    end
+    local visibleCount = math.min(optionSlots, total - offset)
+    if visibleCount < 0 then visibleCount = 0 end
+    local buttonWidth = w - 2
+    for i = 1, maxVisible do
+      local btn = dd._buttons[i]
+      if not btn then
+        btn = CreateFrame("Button", nil, list, "BackdropTemplate")
+        btn:SetSize(buttonWidth, 22)
+        btn:SetPoint("TOPLEFT", list, "TOPLEFT", 1, -((i - 1) * 22) - 1)
+        btn:SetFrameStrata(list:GetFrameStrata())
+        btn:SetFrameLevel(list:GetFrameLevel() + 1)
+        btn:EnableMouseWheel(true)
+        btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+        btn.text:SetPoint("LEFT", btn, "LEFT", 8, 0)
+        btn:SetScript("OnMouseWheel", function(_, delta)
+          ScrollDropdownBy(delta)
+        end)
+        dd._buttons[i] = btn
+      end
+      local optIndex = offset + i
+      local opt = (i <= visibleCount) and opts[optIndex] or nil
+      if opt then
+        btn.optValue = opt.value
+        btn.text:SetText(opt.text)
+        if opt.disabled then
+          btn.text:SetTextColor(0.4, 0.4, 0.4)
+          btn:SetScript("OnEnter", nil)
+          btn:SetScript("OnLeave", nil)
+          btn:SetScript("OnClick", function() end)
+        else
+          btn.text:SetTextColor(0.9, 0.9, 0.9)
+          btn:SetScript("OnEnter", function(self)
+            self:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
+            self:SetBackdropColor(0.25, 0.25, 0.3, 1)
+          end)
+          btn:SetScript("OnLeave", function(self)
+            self:SetBackdrop(nil)
+          end)
+          btn:SetScript("OnClick", function()
+            dd.value = opt.value
+            txt:SetText(opt.text)
+            list:Hide()
+            if dd.onSelect then dd.onSelect(opt.value) end
+          end)
+        end
+        btn:Show()
+      else
+        btn:Hide()
+      end
+    end
+    if not dd._moreIndicator then
+      local hint = CreateFrame("Button", nil, list, "BackdropTemplate")
+      hint:SetSize(buttonWidth, 22)
+      hint:SetFrameStrata(list:GetFrameStrata())
+      hint:SetFrameLevel(list:GetFrameLevel() + 1)
+      hint:EnableMouseWheel(true)
+      hint.tex = hint:CreateTexture(nil, "ARTWORK")
+      hint.tex:SetSize(12, 12)
+      hint.tex:SetPoint("CENTER", hint, "CENTER", 0, 0)
+      hint.tex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
+      hint.tex:SetVertexColor(0.95, 0.95, 0.95, 0.95)
+      hint:SetScript("OnEnter", function(self)
+        self:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
+        self:SetBackdropColor(0.22, 0.22, 0.27, 0.9)
+        if self.tex then self.tex:SetVertexColor(1, 0.82, 0, 1) end
+      end)
+      hint:SetScript("OnLeave", function(self)
+        self:SetBackdrop(nil)
+        if self.tex then self.tex:SetVertexColor(0.95, 0.95, 0.95, 0.95) end
+      end)
+      hint:SetScript("OnClick", function()
+        local nextOffset = (dd._scrollOffset or 0) + 1
+        local maxOff = math.max(0, #(dd.options or {}) - (dd._maxVisibleOptions or 12))
+        if nextOffset > maxOff then nextOffset = maxOff end
+        if nextOffset ~= dd._scrollOffset then
+          dd._scrollOffset = nextOffset
+          RenderDropdownOptions()
+        end
+      end)
+      hint:SetScript("OnMouseWheel", function(_, delta)
+        ScrollDropdownBy(delta)
+      end)
+      dd._moreIndicator = hint
+    end
+    local listRows = visibleCount
+    if hasMoreBelow and dd._moreIndicator then
+      dd._moreIndicator:ClearAllPoints()
+      dd._moreIndicator:SetPoint("TOPLEFT", list, "TOPLEFT", 1, -((visibleCount) * 22) - 1)
+      dd._moreIndicator:Show()
+      listRows = listRows + 1
+    elseif dd._moreIndicator then
+      dd._moreIndicator:Hide()
+    end
+    list:SetHeight((listRows * 22) + 2)
+  end
+  dd.RenderOptions = RenderDropdownOptions
+  list:SetScript("OnMouseWheel", function(_, delta)
+    ScrollDropdownBy(delta)
+  end)
+  function dd:SetOptions(opts)
+    dd.options = opts or {}
+    dd._scrollOffset = 0
+    RenderDropdownOptions()
+    if dd.value ~= nil then
+      dd:SetValue(dd.value)
+    end
   end
   function dd:SetValue(val)
     dd.value = val
@@ -1335,6 +1426,11 @@ local function StyledDropdown(p, labelTxt, x, y, w)
     if list:IsShown() then
       list:Hide()
     else
+      if dd.refreshOptions then
+        pcall(dd.refreshOptions, dd)
+      end
+      dd._scrollOffset = 0
+      RenderDropdownOptions()
       list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
       list:Show()
     end

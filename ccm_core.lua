@@ -534,7 +534,7 @@ local defaults = {
       radialColorG = 1.0,
       radialColorB = 1.0,
       radialAlpha = 0.8,
-      globalFont = "Fonts\\FRIZQT__.TTF",
+      globalFont = "lsm:Friz Quadrata TT",
       globalOutline = "OUTLINE",
       enableMasque = false,
       showMinimapButton = false,
@@ -664,6 +664,8 @@ local defaults = {
       hideStanceBarMouseover = false,
       hidePetBarInCombat = false,
       hidePetBarMouseover = false,
+      actionBarGlobalMode = "custom",
+      hideEmptyActionBarOutline = false,
       autoRepair = false,
       showTooltipIDs = false,
       compactMinimapIcons = false,
@@ -708,7 +710,7 @@ local defaults = {
       ufDisableCombatText = false,
       disableTargetBuffs = false,
       hideEliteTexture = false,
-      cdFont = "default",
+      cdFont = "lsm:Friz Quadrata TT",
       usePersonalResourceBar = false,
       prbX = 0,
       prbY = -180,
@@ -724,6 +726,7 @@ local defaults = {
       prbCentered = false,
       prbAutoWidthSource = "off",
       prbHealthTexture = "solid",
+      prbAbsorbTexture = "normtex",
       prbPowerTexture = "solid",
       prbManaTexture = "solid",
       prbHealthTextScale = 1,
@@ -2662,6 +2665,7 @@ local function GetProfile()
   if profile.combatStatusLeaveColorR == nil then profile.combatStatusLeaveColorR = defaults.profiles.Default.combatStatusLeaveColorR end
   if profile.combatStatusLeaveColorG == nil then profile.combatStatusLeaveColorG = defaults.profiles.Default.combatStatusLeaveColorG end
   if profile.combatStatusLeaveColorB == nil then profile.combatStatusLeaveColorB = defaults.profiles.Default.combatStatusLeaveColorB end
+  if type(profile.actionBarSkinOutlineMode) ~= "string" then profile.actionBarSkinOutlineMode = "medium" end
   return profile
 end
 addonTable.GetProfile = GetProfile
@@ -3004,6 +3008,9 @@ end
 local function layoutIndexSort(a, b)
   return (a.layoutIndex or 0) < (b.layoutIndex or 0)
 end
+local SanitizeCooldownViewerChargeState
+local PatchCooldownViewerIconChargeMethods
+local PatchAllCooldownViewerChargeMethods
 local function RestoreBuffBarPosition()
   if InCombatLockdown() then return end
   local buffs = BuffIconCooldownViewer
@@ -3063,6 +3070,9 @@ local function UpdateBuffBarPosition(cursorX, cursorY, uiScale, profile)
   buffs:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", posX / scale, posY / scale)
 end
 local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
+  if PatchAllCooldownViewerChargeMethods then
+    PatchAllCooldownViewerChargeMethods()
+  end
   if profile.disableBlizzCDM == true then
     if State.buffBarActive then
       RestoreBuffBarPosition()
@@ -3103,6 +3113,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
   local childCount = addonTable.CollectChildren(buffs, State.tmpChildren)
   for i = 1, childCount do
     local child = State.tmpChildren[i]
+    PatchCooldownViewerIconChargeMethods(child)
     if child and child:IsShown() and child:GetWidth() > 5 then
       State.buffBarVisibleIcons[#State.buffBarVisibleIcons + 1] = child
     end
@@ -3119,16 +3130,12 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
   end
   buffs:ClearAllPoints()
   buffs:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", posX, posY)
-  if buffs.Layout then buffs.Layout = function() end end
-  if buffs.MarkDirty then buffs.MarkDirty = function() end end
-  if buffs.layout then buffs.layout = nil end
   for i, icon in ipairs(State.buffBarVisibleIcons) do
+    SanitizeCooldownViewerChargeState(icon)
     icon:SetSize(targetSize, targetSize)
     local iconX = (i - 1) * (targetSize + spacing)
     icon:ClearAllPoints()
     icon:SetPoint("BOTTOMLEFT", buffs, "BOTTOMLEFT", iconX, 0)
-    if icon.Layout then icon.Layout = function() end end
-    if icon.MarkDirty then icon.MarkDirty = function() end end
     local iconTexture = icon.Icon or icon.icon
     local doSkinning = profile.blizzardBarSkinning ~= false
     if iconTexture and not icon.ccmStripped and doSkinning then
@@ -3335,6 +3342,9 @@ local function UpdateEssentialBarPosition(cursorX, cursorY, uiScale, profile, bu
   main:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", essentialBarX / scale, posY / scale)
 end
 local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWidth)
+  if PatchAllCooldownViewerChargeMethods then
+    PatchAllCooldownViewerChargeMethods()
+  end
   if profile.disableBlizzCDM == true then
     if State.essentialBarActive then
       RestoreEssentialBarPosition()
@@ -3374,6 +3384,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
   local childCount = addonTable.CollectChildren(main, State.tmpChildren)
   for i = 1, childCount do
     local child = State.tmpChildren[i]
+    PatchCooldownViewerIconChargeMethods(child)
     if child and child:IsShown() and child:GetWidth() > 5 then
       State.essentialBarVisibleIcons[#State.essentialBarVisibleIcons + 1] = child
     end
@@ -3390,17 +3401,13 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
   local padding = spacing
   main:ClearAllPoints()
   main:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", essentialBarX, posY)
-  if main.Layout then main.Layout = function() end end
-  if main.MarkDirty then main.MarkDirty = function() end end
-  if main.layout then main.layout = nil end
   for i, icon in ipairs(State.essentialBarVisibleIcons) do
+    SanitizeCooldownViewerChargeState(icon)
     local targetSize = type(profile.iconSize) == "number" and profile.iconSize or 23
     icon:SetSize(targetSize, targetSize)
     local iconX = (i - 1) * (targetSize + padding)
     icon:ClearAllPoints()
     icon:SetPoint("BOTTOMLEFT", main, "BOTTOMLEFT", iconX, 0)
-    if icon.Layout then icon.Layout = function() end end
-    if icon.MarkDirty then icon.MarkDirty = function() end end
     local iconTexture = icon.Icon or icon.icon
     local doSkinning = profile.blizzardBarSkinning ~= false
     if iconTexture and not icon.ccmStripped and doSkinning then
@@ -3683,6 +3690,367 @@ local function SetPointSnapped(frame, point, relativeTo, relativePoint, xOfs, yO
     frame:SetPoint(point, relativeTo, relativePoint, xOfs or 0, yOfs or 0)
   end
 end
+SanitizeCooldownViewerChargeState = function(icon)
+  if not icon then return end
+  local function IsSecretValue(v)
+    return issecretvalue and issecretvalue(v) or false
+  end
+  local function ToSafeNumber(v, defaultValue)
+    if v == nil then return defaultValue end
+    if IsSecretValue(v) then return defaultValue end
+    local ok, n = pcall(tonumber, v)
+    if ok and type(n) == "number" then return n end
+    return defaultValue
+  end
+  local function ToSafeSpellID(v)
+    local n = ToSafeNumber(v, nil)
+    if type(n) ~= "number" or n <= 0 then return nil end
+    return math.floor(n + 0.5)
+  end
+  local function SanitizeChargeTable(tbl)
+    if type(tbl) ~= "table" then return end
+    if IsSecretValue(tbl.currentCharges) then tbl.currentCharges = nil end
+    if IsSecretValue(tbl.maxCharges) then tbl.maxCharges = nil end
+    if IsSecretValue(tbl.cooldownStartTime) then tbl.cooldownStartTime = nil end
+    if IsSecretValue(tbl.cooldownDuration) then tbl.cooldownDuration = nil end
+    if IsSecretValue(tbl.chargeModRate) then tbl.chargeModRate = nil end
+    local cur = ToSafeNumber(tbl.currentCharges, nil)
+    local maxC = ToSafeNumber(tbl.maxCharges, nil)
+    local st = ToSafeNumber(tbl.cooldownStartTime, nil)
+    local dur = ToSafeNumber(tbl.cooldownDuration, nil)
+    local mod = ToSafeNumber(tbl.chargeModRate, nil)
+    if cur ~= nil then tbl.currentCharges = cur end
+    if maxC ~= nil then tbl.maxCharges = maxC end
+    if st ~= nil then tbl.cooldownStartTime = st end
+    if dur ~= nil then tbl.cooldownDuration = dur end
+    if mod ~= nil then tbl.chargeModRate = mod end
+  end
+
+  icon.previousCooldownChargesCount = ToSafeNumber(icon.previousCooldownChargesCount, 0)
+  icon.cooldownChargesCount = ToSafeNumber(icon.cooldownChargesCount, 0)
+  icon.cooldownStartTime = ToSafeNumber(icon.cooldownStartTime, 0)
+  icon.cooldownDuration = ToSafeNumber(icon.cooldownDuration, 0)
+  icon.cooldownModRate = ToSafeNumber(icon.cooldownModRate, 1)
+  if IsSecretValue(icon.cooldownEnabled) then
+    icon.cooldownEnabled = true
+  end
+
+  SanitizeChargeTable(icon.spellChargeInfo)
+  SanitizeChargeTable(icon.cooldownChargesInfo)
+end
+local function CooldownViewerIsSecretValueError(err)
+  local msg = tostring(err or "")
+  return msg:find("secret value", 1, true) ~= nil
+end
+local function CooldownViewerToSafeNumber(v, defaultValue)
+  if v == nil then return defaultValue end
+  if issecretvalue and issecretvalue(v) then return defaultValue end
+  local ok, n = pcall(tonumber, v)
+  if ok and type(n) == "number" then return n end
+  return defaultValue
+end
+local function CooldownViewerToSafeSpellID(v)
+  local n = CooldownViewerToSafeNumber(v, nil)
+  if type(n) ~= "number" or n <= 0 then return nil end
+  return math.floor(n + 0.5)
+end
+local function ApplyCooldownViewerChargeFallback(icon, count, shown)
+  if not icon then return end
+  local safeCount = CooldownViewerToSafeNumber(count, 0) or 0
+  if safeCount < 0 then safeCount = 0 end
+  local safeShown = shown == true
+  icon.previousCooldownChargesCount = CooldownViewerToSafeNumber(icon.cooldownChargesCount, 0) or 0
+  icon.cooldownChargesCount = safeCount
+  icon.cooldownChargesShown = safeShown
+
+  local chargeText = nil
+  if icon.ChargeCount and icon.ChargeCount.Current then
+    chargeText = icon.ChargeCount.Current
+  elseif icon.Applications and icon.Applications.Applications then
+    chargeText = icon.Applications.Applications
+  end
+  if chargeText and chargeText.SetText then
+    if safeShown then
+      pcall(chargeText.SetText, chargeText, tostring(math.floor(safeCount + 0.5)))
+      if chargeText.Show then pcall(chargeText.Show, chargeText) end
+    else
+      pcall(chargeText.SetText, chargeText, "")
+      if chargeText.Hide then pcall(chargeText.Hide, chargeText) end
+    end
+  end
+end
+local function BuildCooldownViewerFallbackChargeState(icon)
+  local count = CooldownViewerToSafeNumber(icon and icon.cooldownChargesCount, 0) or 0
+  local shown = (icon and icon.cooldownChargesShown == true) or false
+  local spellID = nil
+  if icon and type(icon.cooldownInfo) == "table" then
+    spellID = icon.cooldownInfo.overrideSpellID or icon.cooldownInfo.spellID
+  end
+  if not spellID and icon then
+    spellID = icon.rangeCheckSpellID
+  end
+  spellID = CooldownViewerToSafeSpellID(spellID)
+  if spellID and C_Spell and C_Spell.GetSpellCharges then
+    local okCharges, chargeInfo = pcall(C_Spell.GetSpellCharges, spellID)
+    if okCharges and type(chargeInfo) == "table" then
+      local cur = CooldownViewerToSafeNumber(chargeInfo.currentCharges, nil)
+      local maxC = CooldownViewerToSafeNumber(chargeInfo.maxCharges, nil)
+      if cur ~= nil then count = cur end
+      if maxC ~= nil then
+        shown = maxC > 1
+      end
+    end
+  end
+  if count < 0 then count = 0 end
+  return count, shown
+end
+local function GetPublicSpellCooldownInfo(spellID)
+  local info = { startTime = 0, duration = 0, isEnabled = false, modRate = 1 }
+  local sid = CooldownViewerToSafeSpellID(spellID)
+  if sid and GetSpellCooldown then
+    local ok, st, dur, en, mod = pcall(GetSpellCooldown, sid)
+    if ok then
+      info.startTime = CooldownViewerToSafeNumber(st, info.startTime)
+      info.duration = CooldownViewerToSafeNumber(dur, info.duration)
+      if en ~= nil then
+        info.isEnabled = (en == true or en == 1)
+      end
+      info.modRate = CooldownViewerToSafeNumber(mod, info.modRate)
+    end
+  end
+  if sid and C_Spell and C_Spell.GetSpellCooldown then
+    local ok, cd = pcall(C_Spell.GetSpellCooldown, sid)
+    if ok and type(cd) == "table" then
+      local st = CooldownViewerToSafeNumber(cd.startTime, nil)
+      local dur = CooldownViewerToSafeNumber(cd.duration, nil)
+      local mod = CooldownViewerToSafeNumber(cd.modRate, nil)
+      if st ~= nil then info.startTime = st end
+      if dur ~= nil then info.duration = dur end
+      if mod ~= nil then info.modRate = mod end
+      if cd.isEnabled ~= nil and not (issecretvalue and issecretvalue(cd.isEnabled)) then
+        info.isEnabled = (cd.isEnabled == true)
+      end
+    end
+  end
+  if info.startTime < 0 then info.startTime = 0 end
+  if info.duration < 0 then info.duration = 0 end
+  if info.modRate <= 0 then info.modRate = 1 end
+  return info
+end
+local function SanitizeCooldownViewerSpellCooldownInfo(spellCooldownInfo, spellID)
+  local fallback = GetPublicSpellCooldownInfo(spellID)
+  if type(spellCooldownInfo) ~= "table" then
+    return fallback
+  end
+  local function SafeNum(v, defaultValue)
+    if v == nil then return defaultValue end
+    if issecretvalue and issecretvalue(v) then return defaultValue end
+    local ok, n = pcall(tonumber, v)
+    if ok and type(n) == "number" then return n end
+    return defaultValue
+  end
+  spellCooldownInfo.startTime = SafeNum(spellCooldownInfo.startTime, fallback.startTime)
+  spellCooldownInfo.duration = SafeNum(spellCooldownInfo.duration, fallback.duration)
+  spellCooldownInfo.modRate = SafeNum(spellCooldownInfo.modRate, fallback.modRate)
+  if issecretvalue and issecretvalue(spellCooldownInfo.isEnabled) then
+    spellCooldownInfo.isEnabled = fallback.isEnabled
+  else
+    if spellCooldownInfo.isEnabled == nil then
+      spellCooldownInfo.isEnabled = fallback.isEnabled
+    else
+      spellCooldownInfo.isEnabled = (spellCooldownInfo.isEnabled == true or spellCooldownInfo.isEnabled == 1)
+    end
+  end
+  if spellCooldownInfo.startTime < 0 then spellCooldownInfo.startTime = 0 end
+  if spellCooldownInfo.duration < 0 then spellCooldownInfo.duration = 0 end
+  if spellCooldownInfo.modRate <= 0 then spellCooldownInfo.modRate = 1 end
+  return spellCooldownInfo
+end
+local function PatchCooldownViewerMethodContainer(container)
+  if type(container) ~= "table" then return end
+  local function WrapMethod(methodName, markerName, wrapperFactory)
+    if container[markerName] then return end
+    local original = container[methodName]
+    if type(original) ~= "function" then return end
+    container[methodName] = wrapperFactory(original)
+    container[markerName] = true
+  end
+
+  WrapMethod("SetCachedChargeValues", "_ccmPatchedSetCachedChargeValues", function(originalSetCachedChargeValues)
+    return function(self, count, shown, considerAddingAlert)
+      SanitizeCooldownViewerChargeState(self)
+      local safeCount = CooldownViewerToSafeNumber(count, 0) or 0
+      if safeCount < 0 then safeCount = 0 end
+      local safeShown = shown == true
+      local ok, r1, r2, r3, r4 = pcall(originalSetCachedChargeValues, self, safeCount, safeShown, considerAddingAlert)
+      if ok then
+        SanitizeCooldownViewerChargeState(self)
+        return r1, r2, r3, r4
+      end
+      if not CooldownViewerIsSecretValueError(r1) then error(r1, 0) end
+      ApplyCooldownViewerChargeFallback(self, safeCount, safeShown)
+      return nil
+    end
+  end)
+
+  WrapMethod("CacheChargeValues", "_ccmPatchedCacheChargeValues", function(originalCacheChargeValues)
+    return function(self, ...)
+      SanitizeCooldownViewerChargeState(self)
+      local ok, r1, r2, r3, r4 = pcall(originalCacheChargeValues, self, ...)
+      if ok then
+        SanitizeCooldownViewerChargeState(self)
+        return r1, r2, r3, r4
+      end
+      if not CooldownViewerIsSecretValueError(r1) then error(r1, 0) end
+      local count, shown = BuildCooldownViewerFallbackChargeState(self)
+      if type(self.SetCachedChargeValues) == "function" then
+        local okSet = pcall(self.SetCachedChargeValues, self, count, shown, true)
+        if okSet then return nil end
+      end
+      ApplyCooldownViewerChargeFallback(self, count, shown)
+      return nil
+    end
+  end)
+
+  WrapMethod("CheckCacheCooldownValuesFromSpellCooldown", "_ccmPatchedCheckCacheCooldownValuesFromSpellCooldown", function(originalCheckCacheCooldownValuesFromSpellCooldown)
+    return function(self, timeNow, spellID, spellCooldownInfo, ...)
+      SanitizeCooldownViewerChargeState(self)
+      local safeTimeNow = CooldownViewerToSafeNumber(timeNow, (GetTime and GetTime() or 0))
+      local safeSpellID = spellID
+      if issecretvalue and issecretvalue(spellID) then
+        safeSpellID = nil
+      else
+        local sid = CooldownViewerToSafeSpellID(spellID)
+        if sid ~= nil then safeSpellID = sid end
+      end
+      local refSpellID = safeSpellID
+      if refSpellID == nil and self and type(self.cooldownInfo) == "table" then
+        refSpellID = self.cooldownInfo.overrideSpellID or self.cooldownInfo.spellID
+      end
+      if refSpellID == nil and self then
+        refSpellID = self.rangeCheckSpellID
+      end
+      refSpellID = CooldownViewerToSafeSpellID(refSpellID)
+      local safeInfo = SanitizeCooldownViewerSpellCooldownInfo(spellCooldownInfo, refSpellID)
+      local ok, ret = pcall(originalCheckCacheCooldownValuesFromSpellCooldown, self, safeTimeNow, safeSpellID, safeInfo, ...)
+      if ok then
+        SanitizeCooldownViewerChargeState(self)
+        return ret
+      end
+      if not CooldownViewerIsSecretValueError(ret) then error(ret, 0) end
+      local fallbackInfo = GetPublicSpellCooldownInfo(refSpellID)
+      local ok2, ret2 = pcall(originalCheckCacheCooldownValuesFromSpellCooldown, self, safeTimeNow, refSpellID, fallbackInfo, ...)
+      if ok2 then return ret2 end
+      if not CooldownViewerIsSecretValueError(ret2) then error(ret2, 0) end
+      return true
+    end
+  end)
+
+  WrapMethod("CacheCooldownValues", "_ccmPatchedCacheCooldownValues", function(originalCacheCooldownValues)
+    return function(self, ...)
+      SanitizeCooldownViewerChargeState(self)
+      local ok, r1, r2, r3, r4 = pcall(originalCacheCooldownValues, self, ...)
+      if ok then
+        SanitizeCooldownViewerChargeState(self)
+        return r1, r2, r3, r4
+      end
+      if not CooldownViewerIsSecretValueError(r1) then error(r1, 0) end
+      local sid = nil
+      if self and type(self.cooldownInfo) == "table" then
+        sid = self.cooldownInfo.overrideSpellID or self.cooldownInfo.spellID
+      end
+      if sid == nil and self then
+        sid = self.rangeCheckSpellID
+      end
+      sid = CooldownViewerToSafeSpellID(sid)
+      local fb = GetPublicSpellCooldownInfo(sid)
+      if self then
+        self.cooldownStartTime = fb.startTime or 0
+        self.cooldownDuration = fb.duration or 0
+        self.cooldownModRate = fb.modRate or 1
+        self.cooldownEnabled = fb.isEnabled == true
+        local now = GetTime and GetTime() or 0
+        self.cooldownIsActive = self.cooldownEnabled and (self.cooldownDuration > 0)
+        self.isOnActualCooldown = self.cooldownIsActive and (now < (self.cooldownStartTime + self.cooldownDuration))
+        if self.Cooldown and self.Cooldown.SetCooldown then
+          pcall(self.Cooldown.SetCooldown, self.Cooldown, self.cooldownStartTime, self.cooldownDuration, self.cooldownModRate)
+        end
+      end
+      return nil
+    end
+  end)
+
+  WrapMethod("NeedsAddedAuraUpdate", "_ccmPatchedNeedsAddedAuraUpdate", function(originalNeedsAddedAuraUpdate)
+    return function(self, spellID, ...)
+      SanitizeCooldownViewerChargeState(self)
+      if issecretvalue and issecretvalue(spellID) then return true end
+      local argSpellID = spellID
+      local safeSpellID = CooldownViewerToSafeSpellID(spellID)
+      if safeSpellID ~= nil then
+        argSpellID = safeSpellID
+      end
+      local ok, ret = pcall(originalNeedsAddedAuraUpdate, self, argSpellID, ...)
+      if ok then return ret end
+      if not CooldownViewerIsSecretValueError(ret) then error(ret, 0) end
+      return true
+    end
+  end)
+
+  WrapMethod("SpellIDMatchesAnyAssociatedSpellIDs", "_ccmPatchedSpellIDMatchesAnyAssociatedSpellIDs", function(originalSpellIDMatchesAnyAssociatedSpellIDs)
+    return function(self, spellID, ...)
+      if issecretvalue and issecretvalue(spellID) then return true end
+      local argSpellID = spellID
+      local safeSpellID = CooldownViewerToSafeSpellID(spellID)
+      if safeSpellID ~= nil then
+        argSpellID = safeSpellID
+      end
+      local ok, ret = pcall(originalSpellIDMatchesAnyAssociatedSpellIDs, self, argSpellID, ...)
+      if ok then return ret end
+      if not CooldownViewerIsSecretValueError(ret) then error(ret, 0) end
+      return true
+    end
+  end)
+
+end
+PatchCooldownViewerIconChargeMethods = function(icon)
+  if not icon then return end
+  if icon.GetObjectType and icon:GetObjectType() ~= "Frame" then return end
+
+  SanitizeCooldownViewerChargeState(icon)
+  PatchCooldownViewerMethodContainer(icon)
+end
+PatchAllCooldownViewerChargeMethods = function()
+  local now = GetTime and GetTime() or 0
+  if (not State.cooldownViewerLastGlobalWrapScan) or ((now - State.cooldownViewerLastGlobalWrapScan) >= 2) then
+    for gName, gValue in pairs(_G) do
+      if type(gName) == "string" and gName:find("CooldownViewer") and type(gValue) == "table" then
+        PatchCooldownViewerMethodContainer(gValue)
+      end
+    end
+    State.cooldownViewerLastGlobalWrapScan = now
+  end
+
+  local function PatchFrameChildren(frame, depth)
+    if not frame then return end
+    depth = depth or 0
+    if depth > 6 then return end
+    local childCount = (frame.GetNumChildren and frame:GetNumChildren()) or 0
+    for i = 1, childCount do
+      local child = select(i, frame:GetChildren())
+      PatchCooldownViewerIconChargeMethods(child)
+      PatchFrameChildren(child, depth + 1)
+    end
+  end
+  PatchFrameChildren(BuffIconCooldownViewer, 0)
+  PatchFrameChildren(EssentialCooldownViewer, 0)
+  PatchFrameChildren(UtilityCooldownViewer, 0)
+end
+-- Runtime monkey-patching of Blizzard CooldownViewer methods is unstable with
+-- secret values in combat and can break Blizzard's own refresh logic.
+-- Keep these hooks disabled and only do visual skin/position work.
+SanitizeCooldownViewerChargeState = function() end
+PatchCooldownViewerIconChargeMethods = function() end
+PatchAllCooldownViewerChargeMethods = function() end
 addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRowSize, secondRowSize, spacing, centered, growLeft, growUp, maxRows, pinFirstRowY)
   if not frame or not visibleIcons or #visibleIcons == 0 then return 0, 0 end
   local function SnapHalf(v)
@@ -3769,6 +4137,8 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
 end
 local function SkinStandaloneBarIcon(icon, profile)
   if not icon or not icon:IsShown() or icon:GetWidth() <= 5 then return end
+  PatchCooldownViewerIconChargeMethods(icon)
+  SanitizeCooldownViewerChargeState(icon)
   local iconTexture = icon.Icon or icon.icon
   if not iconTexture then return end
   local doSkinning = profile.blizzardBarSkinning ~= false
@@ -3971,6 +4341,9 @@ local function SkinStandaloneBarIcon(icon, profile)
   end
 end
 local function UpdateStandaloneBlizzardBars()
+  if PatchAllCooldownViewerChargeMethods then
+    PatchAllCooldownViewerChargeMethods()
+  end
   local profile = addonTable.GetProfile()
   if not profile then return end
   local function IsValidStandaloneIcon(icon)
@@ -4023,13 +4396,6 @@ local function UpdateStandaloneBlizzardBars()
   local essentialCentered = profile.standaloneEssentialCentered == true
   local utilityCentered = profile.standaloneUtilityCentered == true
   local anyCentered = buffCentered or essentialCentered or utilityCentered
-  if anyCentered and not needsSkinning and not guiOpen then
-    local now = GetTime()
-    if (now - State.lastStandaloneUpdate) < 0.2 then
-      return
-    end
-    State.lastStandaloneUpdate = now
-  end
   if not needsSkinning and not guiOpen and not anyCentered and State.standaloneSkinActive then
     return
   end
@@ -4074,7 +4440,9 @@ local function UpdateStandaloneBlizzardBars()
       local childCount = addonTable.CollectChildren(buffs, State.tmpChildren)
       for i = 1, childCount do
         local icon = State.tmpChildren[i]
+        PatchCooldownViewerIconChargeMethods(icon)
         if IsValidStandaloneIcon(icon) then
+          SanitizeCooldownViewerChargeState(icon)
           if doSkinning and buffEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
             SkinStandaloneBarIcon(icon, profile)
           end
@@ -4180,7 +4548,9 @@ local function UpdateStandaloneBlizzardBars()
       local childCount = addonTable.CollectChildren(main, State.tmpChildren)
       for i = 1, childCount do
         local icon = State.tmpChildren[i]
+        PatchCooldownViewerIconChargeMethods(icon)
         if IsValidStandaloneIcon(icon) then
+          SanitizeCooldownViewerChargeState(icon)
           if doSkinning and essentialEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
             SkinStandaloneBarIcon(icon, profile)
           end
@@ -4305,7 +4675,9 @@ local function UpdateStandaloneBlizzardBars()
       local childCount = addonTable.CollectChildren(utility, State.tmpChildren)
       for i = 1, childCount do
         local icon = State.tmpChildren[i]
+        PatchCooldownViewerIconChargeMethods(icon)
         if IsValidStandaloneIcon(icon) then
+          SanitizeCooldownViewerChargeState(icon)
           if doSkinning and utilityEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
             SkinStandaloneBarIcon(icon, profile)
           end
@@ -4407,7 +4779,7 @@ local function UpdateStandaloneBlizzardBars()
         local utilityPosY = profile.blizzBarUtilityY or utilityY
         if canReposition and (utilityCentered or profile.blizzBarUtilityX ~= nil or profile.blizzBarUtilityY ~= nil or State.guiIsOpen) then
           utility:ClearAllPoints()
-          utility:SetPoint("CENTER", UIParent, "CENTER", utilityPosX, utilityPosY)
+          SetPointSnapped(utility, "CENTER", UIParent, "CENTER", utilityPosX, utilityPosY)
         end
         local utilityKeyParts = {
           #visibleIcons, numCols, iconSize, utilitySecondRowSize, iconSpacing,
@@ -4451,6 +4823,9 @@ end
 addonTable.UpdateStandaloneBlizzardBars = UpdateStandaloneBlizzardBars
 if CooldownViewerSettings and CooldownViewerSettings.RefreshLayout then
   hooksecurefunc(CooldownViewerSettings, "RefreshLayout", function()
+    if PatchAllCooldownViewerChargeMethods then
+      PatchAllCooldownViewerChargeMethods()
+    end
     if InCombatLockdown() then return end
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
@@ -4458,9 +4833,36 @@ if CooldownViewerSettings and CooldownViewerSettings.RefreshLayout then
 end
 if EditModeManagerFrame then
   hooksecurefunc(EditModeManagerFrame, "ExitEditMode", function()
+    if PatchAllCooldownViewerChargeMethods then
+      PatchAllCooldownViewerChargeMethods()
+    end
     if InCombatLockdown() then return end
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
+  end)
+end
+if C_Timer and C_Timer.After then
+  C_Timer.After(0, function()
+    if PatchAllCooldownViewerChargeMethods then
+      PatchAllCooldownViewerChargeMethods()
+    end
+  end)
+  C_Timer.After(1, function()
+    if PatchAllCooldownViewerChargeMethods then
+      PatchAllCooldownViewerChargeMethods()
+    end
+  end)
+  C_Timer.After(5, function()
+    if PatchAllCooldownViewerChargeMethods then
+      PatchAllCooldownViewerChargeMethods()
+    end
+  end)
+end
+if C_Timer and C_Timer.NewTicker and not State.cooldownViewerChargePatchTicker then
+  State.cooldownViewerChargePatchTicker = C_Timer.NewTicker(1, function()
+    if PatchAllCooldownViewerChargeMethods then
+      PatchAllCooldownViewerChargeMethods()
+    end
   end)
 end
 local function ClearCustomBarIcons()
@@ -4678,9 +5080,6 @@ local function UpdateCustomBar()
         local spellInfo = C_Spell.GetSpellInfo(activeSpellID)
         iconTexture = spellInfo and spellInfo.iconID or nil
         chargesData = C_Spell.GetSpellCharges(activeSpellID)
-        if chargesData and issecretvalue and issecretvalue(chargesData.maxCharges) then
-          chargesData._secretMax = true
-        end
         if chargesData then
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
@@ -4737,6 +5136,7 @@ local function UpdateCustomBar()
         buffOverlayActive = true
       end
     end
+    pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -5213,9 +5613,6 @@ local function UpdateCustomBar2()
         local spellInfo = C_Spell.GetSpellInfo(activeSpellID)
         iconTexture = spellInfo and spellInfo.iconID or nil
         chargesData = C_Spell.GetSpellCharges(activeSpellID)
-        if chargesData and issecretvalue and issecretvalue(chargesData.maxCharges) then
-          chargesData._secretMax = true
-        end
         if chargesData then
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
@@ -5272,6 +5669,7 @@ local function UpdateCustomBar2()
         buffOverlayActive = true
       end
     end
+    pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -5748,9 +6146,6 @@ local function UpdateCustomBar3()
         local spellInfo = C_Spell.GetSpellInfo(activeSpellID)
         iconTexture = spellInfo and spellInfo.iconID or nil
         chargesData = C_Spell.GetSpellCharges(activeSpellID)
-        if chargesData and issecretvalue and issecretvalue(chargesData.maxCharges) then
-          chargesData._secretMax = true
-        end
         if chargesData then
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
@@ -5807,6 +6202,7 @@ local function UpdateCustomBar3()
         buffOverlayActive = true
       end
     end
+    pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -6632,9 +7028,6 @@ UpdateSpellIcon = function(icon)
     end
   end
   local charges = C_Spell.GetSpellCharges(activeSpellID)
-  if charges and issecretvalue and issecretvalue(charges.maxCharges) then
-    charges._secretMax = true
-  end
   local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, spellID)
   if safeCharges ~= nil then
     icon.stackText:SetText(tostring(safeCharges))
@@ -6692,6 +7085,7 @@ UpdateSpellIcon = function(icon)
       buffOverlayActive = true
     end
   end
+  pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
   local isOnCooldown = false
   local isChargeSpell = IsRealChargeSpell(charges, spellID)
   local start, duration = icon.cooldown:GetCooldownTimes()
@@ -6779,7 +7173,12 @@ addonTable.UpdateEnabledCustomBars = function(profile, force)
   if not profile then return false end
   local now = GetTime()
   local hasPending = false
+  local keepPolling = false
   if profile.customBarEnabled then
+    local m = profile.customBarCooldownMode or "show"
+    if m == "hide" or m == "hideAvailable" or m == "desaturate" then
+      keepPolling = true
+    end
     local interval = State.customBar1UpdateInterval or 0.08
     if force or (now - (State.lastCustomBar1Update or 0)) >= interval then
       UpdateCustomBar()
@@ -6789,6 +7188,10 @@ addonTable.UpdateEnabledCustomBars = function(profile, force)
     end
   end
   if profile.customBar2Enabled then
+    local m = profile.customBar2CooldownMode or "show"
+    if m == "hide" or m == "hideAvailable" or m == "desaturate" then
+      keepPolling = true
+    end
     local interval = State.customBar2UpdateInterval or 0.12
     if force or (now - (State.lastCustomBar2Update or 0)) >= interval then
       UpdateCustomBar2()
@@ -6798,6 +7201,10 @@ addonTable.UpdateEnabledCustomBars = function(profile, force)
     end
   end
   if profile.customBar3Enabled then
+    local m = profile.customBar3CooldownMode or "show"
+    if m == "hide" or m == "hideAvailable" or m == "desaturate" then
+      keepPolling = true
+    end
     local interval = State.customBar3UpdateInterval or 0.12
     if force or (now - (State.lastCustomBar3Update or 0)) >= interval then
       UpdateCustomBar3()
@@ -6806,8 +7213,8 @@ addonTable.UpdateEnabledCustomBars = function(profile, force)
       hasPending = true
     end
   end
-  State.customBarsDirty = hasPending
-  return not hasPending
+  State.customBarsDirty = hasPending or keepPolling
+  return not (hasPending or keepPolling)
 end
 addonTable.RequestIconUpdate = function()
   if State.iconUpdatePending then return end
@@ -6861,8 +7268,9 @@ addonTable.MainTickerTick = function()
     addonTable.UpdateEnabledCustomBars(State.tickerProfile, false)
   end
   if State.tickerProfile.standaloneSkinBuff or State.tickerProfile.standaloneSkinEssential or State.tickerProfile.standaloneSkinUtility or State.tickerProfile.standaloneBuffCentered or State.tickerProfile.standaloneEssentialCentered or State.tickerProfile.standaloneUtilityCentered then
+    local centeredStandalone = (State.tickerProfile.standaloneBuffCentered == true) or (State.tickerProfile.standaloneEssentialCentered == true) or (State.tickerProfile.standaloneUtilityCentered == true)
     local fast = State.standaloneFastUntil and now < State.standaloneFastUntil
-    local interval = fast and 0.25 or 1.0
+    local interval = centeredStandalone and 0.1 or (fast and 0.25 or 1.0)
     if State.standaloneNeedsSkinning or (now - (State.lastStandaloneTick or 0)) >= interval then
       UpdateStandaloneBlizzardBars()
       State.lastStandaloneTick = now
@@ -7136,6 +7544,17 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
   elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    if C_Timer and C_Timer.After and State.ufBigHBOverlays and addonTable.UpdateUFBigHBHealPrediction then
+      C_Timer.After(0.02, function()
+        local ov = State.ufBigHBOverlays and State.ufBigHBOverlays["player"]
+        if ov then
+          addonTable.UpdateUFBigHBHealPrediction(ov, "player")
+          if addonTable.UpdateUFBigHBDmgAbsorb then
+            addonTable.UpdateUFBigHBDmgAbsorb(ov, "player")
+          end
+        end
+      end)
+    end
   elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
     if (arg1 == "player" or arg1 == "target" or arg1 == "focus") and State.ufBigHBOverlays then
       local ov = State.ufBigHBOverlays[arg1]
