@@ -621,6 +621,7 @@ local function InitTabs()
     prb.absorbTextureDD:SetOptions({
       {text = "normTex", value = "normtex"},
       {text = "stripe_overlay", value = "stripe_overlay"},
+      {text = "stripe_overlay_prb", value = "stripe_overlay_prb"},
     })
     prb.absorbTextureDD:SetValue("normtex")
     y = y - 50
@@ -1369,7 +1370,7 @@ local function InitTabs()
     addonTable.combatTimerXSlider = Slider(qc, "X Offset", 15, -1218, -1500, 1500, 0, 1)
     addonTable.combatTimerYSlider = Slider(qc, "Y Offset", 280, -1218, -1500, 1500, 200, 1)
     addonTable.combatTimerCenteredCB = Checkbox(qc, "Center X", 15, -1278)
-    addonTable.combatTimerScaleSlider = Slider(qc, "Scale", 15, -1338, 0.6, 2.0, 1.0, 0.05)
+    addonTable.combatTimerScaleSlider = Slider(qc, "Scale", 15, -1338, 0.2, 2.0, 1.0, 0.05)
     addonTable.combatTimerTextColorBtn = CreateStyledButton(qc, "Text Color", 80, 22)
     addonTable.combatTimerTextColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 280, -1282)
     addonTable.combatTimerTextColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
@@ -1405,7 +1406,7 @@ local function InitTabs()
     })
     addonTable.crTimerXSlider = Slider(qc, "X Offset", 15, -1600, -1500, 1500, 0, 1)
     addonTable.crTimerYSlider = Slider(qc, "Y Offset", 280, -1600, -1500, 1500, 150, 1)
-    addonTable.crTimerScaleSlider = Slider(qc, "Scale", 15, -1660, 0.6, 2.0, 1.0, 0.05)
+    addonTable.crTimerScaleSlider = Slider(qc, "Scale", 15, -1660, 0.2, 2.0, 1.0, 0.05)
     addonTable.crTimerCenteredCB = Checkbox(qc, "Center X", 15, -1720)
     Section(qc, "Combat Status", -1775)
     addonTable.combatStatusCB = Checkbox(qc, "Enable Combat Status", 15, -1800)

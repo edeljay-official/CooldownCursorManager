@@ -9,6 +9,7 @@ local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
 local SetBlizzardPlayerPowerBarsVisibility = addonTable.SetBlizzardPlayerPowerBarsVisibility
 local PRB_OVERLAY_TEX_NORM = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex.tga"
 local PRB_OVERLAY_TEX_STRIPE = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\stripe_overlay.tga"
+local PRB_OVERLAY_TEX_STRIPE_PRB = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\stripe_overlay_prb.tga"
 local function SafeNum(v)
   if type(v) ~= "number" then return nil end
   if issecretvalue and issecretvalue(v) then return nil end
@@ -20,10 +21,19 @@ local function HasPositiveValue(v)
   return type(v) == "number" and v > 0
 end
 local function GetPRBAbsorbTexturePath(profile)
+  if profile and profile.prbAbsorbTexture == "stripe_overlay_prb" then
+    return PRB_OVERLAY_TEX_STRIPE_PRB
+  end
   if profile and profile.prbAbsorbTexture == "stripe_overlay" then
     return PRB_OVERLAY_TEX_STRIPE
   end
   return PRB_OVERLAY_TEX_NORM
+end
+local function GetPRBStripeOverlayPath(profile)
+  if profile and profile.prbAbsorbTexture == "stripe_overlay" then
+    return PRB_OVERLAY_TEX_STRIPE
+  end
+  return PRB_OVERLAY_TEX_STRIPE_PRB
 end
 local function ApplyConsistentFontShadow(fontString, outlineFlag)
   if not fontString then return end
@@ -128,15 +138,15 @@ if prbFrame.healthBar.dmgAbsorbTex then
   if prbFrame.healthBar.dmgAbsorbTex.SetBlendMode then prbFrame.healthBar.dmgAbsorbTex:SetBlendMode("ADD") end
 end
 prbFrame.healthBar.dmgAbsorbStripe = prbFrame.healthBar.dmgAbsorbFrame:CreateTexture(nil, "OVERLAY", nil, 1)
-prbFrame.healthBar.dmgAbsorbStripe:SetTexture(PRB_OVERLAY_TEX_STRIPE, "REPEAT", "REPEAT")
+prbFrame.healthBar.dmgAbsorbStripe:SetTexture(PRB_OVERLAY_TEX_STRIPE_PRB)
 if prbFrame.healthBar.dmgAbsorbTex then
   prbFrame.healthBar.dmgAbsorbStripe:SetAllPoints(prbFrame.healthBar.dmgAbsorbTex)
 else
   prbFrame.healthBar.dmgAbsorbStripe:SetAllPoints(prbFrame.healthBar.dmgAbsorbFrame)
 end
-prbFrame.healthBar.dmgAbsorbStripe:SetVertexColor(1, 1, 1, 0.35)
-if prbFrame.healthBar.dmgAbsorbStripe.SetHorizTile then prbFrame.healthBar.dmgAbsorbStripe:SetHorizTile(true) end
-if prbFrame.healthBar.dmgAbsorbStripe.SetVertTile then prbFrame.healthBar.dmgAbsorbStripe:SetVertTile(true) end
+prbFrame.healthBar.dmgAbsorbStripe:SetVertexColor(1, 1, 1, 0.28)
+if prbFrame.healthBar.dmgAbsorbStripe.SetHorizTile then prbFrame.healthBar.dmgAbsorbStripe:SetHorizTile(false) end
+if prbFrame.healthBar.dmgAbsorbStripe.SetVertTile then prbFrame.healthBar.dmgAbsorbStripe:SetVertTile(false) end
 prbFrame.healthBar.dmgAbsorbStripe:Hide()
 prbFrame.healthBar.dmgAbsorbFrame:Hide()
 prbFrame.healthBar.fullDmgAbsorbFrame = CreateFrame("StatusBar", nil, prbFrame.healthBar)
@@ -186,15 +196,15 @@ if prbFrame.healthBar.healAbsorbTex then
   if prbFrame.healthBar.healAbsorbTex.SetBlendMode then prbFrame.healthBar.healAbsorbTex:SetBlendMode("ADD") end
 end
 prbFrame.healthBar.healAbsorbStripe = prbFrame.healthBar.healAbsorbFrame:CreateTexture(nil, "OVERLAY", nil, 1)
-prbFrame.healthBar.healAbsorbStripe:SetTexture(PRB_OVERLAY_TEX_STRIPE, "REPEAT", "REPEAT")
+prbFrame.healthBar.healAbsorbStripe:SetTexture(PRB_OVERLAY_TEX_STRIPE_PRB)
 if prbFrame.healthBar.healAbsorbTex then
   prbFrame.healthBar.healAbsorbStripe:SetAllPoints(prbFrame.healthBar.healAbsorbTex)
 else
   prbFrame.healthBar.healAbsorbStripe:SetAllPoints(prbFrame.healthBar.healAbsorbFrame)
 end
-prbFrame.healthBar.healAbsorbStripe:SetVertexColor(1, 1, 1, 0.4)
-if prbFrame.healthBar.healAbsorbStripe.SetHorizTile then prbFrame.healthBar.healAbsorbStripe:SetHorizTile(true) end
-if prbFrame.healthBar.healAbsorbStripe.SetVertTile then prbFrame.healthBar.healAbsorbStripe:SetVertTile(true) end
+prbFrame.healthBar.healAbsorbStripe:SetVertexColor(1, 1, 1, 0.32)
+if prbFrame.healthBar.healAbsorbStripe.SetHorizTile then prbFrame.healthBar.healAbsorbStripe:SetHorizTile(false) end
+if prbFrame.healthBar.healAbsorbStripe.SetVertTile then prbFrame.healthBar.healAbsorbStripe:SetVertTile(false) end
 prbFrame.healthBar.healAbsorbStripe:Hide()
 prbFrame.healthBar.healAbsorbFrame:Hide()
 prbFrame.powerBar = CreateFrame("StatusBar", nil, prbFrame)
@@ -327,6 +337,7 @@ local function UpdatePRBHealthOverlays(width, height)
   end
   local stripesOn = not profile or profile.prbAbsorbStripes ~= false
   local overlayTexPath = GetPRBAbsorbTexturePath(profile)
+  local stripeTexPath = GetPRBStripeOverlayPath(profile)
   local w = math.max(1, SafeNum(width) or SafeNum(hb.GetWidth and hb:GetWidth() or nil) or 1)
   local h = math.max(1, SafeNum(height) or SafeNum(hb.GetHeight and hb:GetHeight() or nil) or 1)
 
@@ -334,8 +345,11 @@ local function UpdatePRBHealthOverlays(width, height)
   if hb.otherHealPredFrame and hb.otherHealPredFrame.SetStatusBarTexture then hb.otherHealPredFrame:SetStatusBarTexture(overlayTexPath) end
   if hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.SetStatusBarTexture then hb.dmgAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
   if hb.healAbsorbFrame and hb.healAbsorbFrame.SetStatusBarTexture then hb.healAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
-  if hb.fullDmgAbsorbFrame and hb.fullDmgAbsorbFrame.SetStatusBarTexture then hb.fullDmgAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
-  if hb.dmgAbsorbGlow and hb.dmgAbsorbGlow.SetTexture then hb.dmgAbsorbGlow:SetTexture(overlayTexPath) end
+  -- Over-absorb must never be striped: always keep the default smooth texture.
+  if hb.fullDmgAbsorbFrame and hb.fullDmgAbsorbFrame.SetStatusBarTexture then hb.fullDmgAbsorbFrame:SetStatusBarTexture(PRB_OVERLAY_TEX_NORM) end
+  if hb.dmgAbsorbGlow and hb.dmgAbsorbGlow.SetTexture then hb.dmgAbsorbGlow:SetTexture(PRB_OVERLAY_TEX_NORM) end
+  if hb.dmgAbsorbStripe and hb.dmgAbsorbStripe.SetTexture then hb.dmgAbsorbStripe:SetTexture(stripeTexPath) end
+  if hb.healAbsorbStripe and hb.healAbsorbStripe.SetTexture then hb.healAbsorbStripe:SetTexture(stripeTexPath) end
   if hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.GetStatusBarTexture then
     hb.dmgAbsorbTex = hb.dmgAbsorbFrame:GetStatusBarTexture() or hb.dmgAbsorbTex
   end

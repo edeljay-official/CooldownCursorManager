@@ -120,14 +120,6 @@ function CCM:FetchLSMStatusBar(value)
   if not LSM then return nil end
   return LSM:Fetch("statusbar", lsmName)
 end
-function CCM:FetchLSMStatusBar(value)
-  if not value or type(value) ~= "string" then return nil end
-  if value:sub(1, 4) ~= "lsm:" then return nil end
-  local lsmName = value:sub(5)
-  local LSM = self.LSM
-  if not LSM then return nil end
-  return LSM:Fetch("statusbar", lsmName)
-end
 function CCM:GetPixelPerfectScale()
   local _, screenHeight = GetPhysicalScreenSize()
   return 768 / screenHeight
