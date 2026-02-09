@@ -30,6 +30,13 @@ jobs:
             echo "exists=false" >> $GITHUB_OUTPUT
           fi
 
+      - name: Build addon zip
+        if: steps.check_tag.outputs.exists == 'false'
+        run: |
+          mkdir -p build/CooldownCursorManager
+          cp -r Config Core Libraries Modules media ccm_core.lua CooldownCursorManager.toc LICENSE.txt build/CooldownCursorManager/
+          cd build && zip -r ../CooldownCursorManager-${{ steps.version.outputs.tag }}.zip CooldownCursorManager/
+
       - name: Create Release
         if: steps.check_tag.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -37,3 +44,4 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: ${{ steps.version.outputs.tag }}
           generate_release_notes: true
+          files: CooldownCursorManager-${{ steps.version.outputs.tag }}.zip
