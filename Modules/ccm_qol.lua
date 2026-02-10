@@ -1366,7 +1366,6 @@ local function ButtonHasVisibleOutline(btn, profile)
   return true
 end
 
--- Helper: hide all non-icon textures on a button (used by SkinActionButton and hooks)
 local function ApplyButtonSkin(btn)
   local iconTex = btn.icon or btn.Icon
   local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
@@ -1924,7 +1923,6 @@ C_Timer.After(2, function()
   end
 end)
 
--- Re-skin pet bar when it becomes available (pet summoned/dismissed/loaded late)
 do
   local petSkinFrame = CreateFrame("Frame")
   petSkinFrame:RegisterEvent("PET_BAR_UPDATE")
@@ -1938,7 +1936,6 @@ do
     SkinBarButtons(petBarName, "PetActionButton", true, 10)
   end)
 end
--- Re-skin stance bar when shapeshift forms update (spec change, late load)
 do
   local stanceSkinFrame = CreateFrame("Frame")
   stanceSkinFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORMS")
@@ -2058,11 +2055,9 @@ C_Timer.After(2, function() if addonTable.SetupFadeBagBar then addonTable.SetupF
 -- Character Panel Enhancement
 -- ============================================================
 
--- Hidden tooltip for scanning enchant/gem info
 local scanTip = CreateFrame("GameTooltip", "CCMCharScanTip", nil, "GameTooltipTemplate")
 scanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
 
--- Equipment slot definitions: {frameName, slotID, side, canEnchant}
 local EQUIP_SLOTS = {
   {"CharacterHeadSlot", 1, "left", false},
   {"CharacterNeckSlot", 2, "left", false},
@@ -2091,7 +2086,6 @@ local QUALITY_COLORS = {
 local slotOverlays = {}
 local gemPanel = nil
 
--- Helper: Get enchant name from tooltip
 local function GetEnchantText(slotID)
   scanTip:ClearLines()
   scanTip:SetInventoryItem("player", slotID)
@@ -2111,20 +2105,17 @@ local function GetEnchantText(slotID)
   return nil
 end
 
--- Helper: Check enchant from item link
 local function HasEnchant(itemLink)
   if not itemLink then return false end
   local parts = {strsplit(":", itemLink:match("item:([%-?%d:]+)") or "")}
   return (tonumber(parts[2]) or 0) > 0
 end
 
--- Slots that are always enchantable regardless of item type
 local ALWAYS_ENCHANTABLE = {
   [5] = true, [7] = true, [8] = true, [9] = true,
   [11] = true, [12] = true, [15] = true, [16] = true,
 }
 
--- Helper: Check if equipped item in slot can actually be enchanted
 local function CanItemBeEnchanted(slotID)
   if ALWAYS_ENCHANTABLE[slotID] then return true end
   if slotID == 17 then
@@ -2137,7 +2128,6 @@ local function CanItemBeEnchanted(slotID)
   return false
 end
 
--- Helper: Get socket info (total sockets, filled count)
 local function GetSocketInfo(itemLink, slotID)
   if not itemLink then return 0, 0 end
   local parts = {strsplit(":", itemLink:match("item:([%-?%d:]+)") or "")}
@@ -2166,7 +2156,6 @@ local function GetSocketInfo(itemLink, slotID)
 end
 
 
--- Create overlay for a slot
 local function CreateSlotOverlay(slotFrame, side)
   local overlay = CreateFrame("Frame", nil, slotFrame)
   overlay:SetSize(140, 40)
@@ -2218,7 +2207,6 @@ local function CreateSlotOverlay(slotFrame, side)
   return overlay
 end
 
--- Update a single slot overlay
 local function UpdateSlotOverlay(slotInfo)
   local frameName, slotID, side = slotInfo[1], slotInfo[2], slotInfo[3]
   local slotFrame = _G[frameName]
@@ -2310,14 +2298,12 @@ local function UpdateSlotOverlay(slotInfo)
   ov:Show()
 end
 
--- Update all slot overlays
 local function UpdateAllSlotOverlays()
   for _, slotInfo in ipairs(EQUIP_SLOTS) do
     UpdateSlotOverlay(slotInfo)
   end
 end
 
--- Hide all overlays
 local function HideAllSlotOverlays()
   for _, ov in pairs(slotOverlays) do
     ov:Hide()
