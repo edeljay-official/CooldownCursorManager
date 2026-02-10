@@ -1118,11 +1118,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     local hfStrata = (o.healthFrame.GetFrameStrata and o.healthFrame:GetFrameStrata()) or "LOW"
     local hfLevel = (o.healthFrame.GetFrameLevel and o.healthFrame:GetFrameLevel()) or 2
-    local bgLevel = (o.bgFrame and o.bgFrame.GetFrameLevel and o.bgFrame:GetFrameLevel()) or math.max(1, hfLevel - 2)
-    local dmgAbsorbLevel = math.max(bgLevel + 1, hfLevel - 1)
-    if dmgAbsorbLevel >= hfLevel then
-      dmgAbsorbLevel = math.max(1, hfLevel - 1)
-    end
+    local dmgAbsorbLevel = hfLevel + 3
     if o.dmgAbsorbFrame then
       if o.dmgAbsorbFrame.SetFrameStrata then o.dmgAbsorbFrame:SetFrameStrata(hfStrata) end
       if o.dmgAbsorbFrame.SetFrameLevel then o.dmgAbsorbFrame:SetFrameLevel(dmgAbsorbLevel) end
@@ -1139,14 +1135,6 @@ addonTable.ApplyUnitFrameCustomization = function()
     local function ApplyGlow(overDmgAbsorb)
       if not o.dmgAbsorbGlow then return end
       if dmgAbsorbMode ~= "bar_glow" then o.dmgAbsorbGlow:Hide(); return end
-      if not overDmgAbsorb then
-        if o.fullDmgAbsorbFrame and o.fullDmgAbsorbFrame.IsShown and o.fullDmgAbsorbFrame:IsShown() then
-          overDmgAbsorb = true
-        end
-        if not overDmgAbsorb and o.origHP and o.origHP.OverAbsorbGlow and o.origHP.OverAbsorbGlow.IsShown and o.origHP.OverAbsorbGlow:IsShown() then
-          overDmgAbsorb = true
-        end
-      end
       if overDmgAbsorb then
         o.dmgAbsorbGlow:ClearAllPoints()
         o.dmgAbsorbGlow:SetPoint("TOPRIGHT", o.healthFrame, "TOPRIGHT", 2, 0)
@@ -1193,13 +1181,13 @@ addonTable.ApplyUnitFrameCustomization = function()
         local hardCap = remainingVis
         if statusTex then
           o.dmgAbsorbFrame:ClearAllPoints()
-          o.dmgAbsorbFrame:SetPoint("TOPLEFT", statusTex, "TOPRIGHT", healOff, 0)
-          o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", statusTex, "TOPRIGHT", healOff, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff, 0)
         else
           local offsetPx = visW * ratio + healOff
           o.dmgAbsorbFrame:ClearAllPoints()
-          o.dmgAbsorbFrame:SetPoint("TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
-          o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
         end
         o.dmgAbsorbFrame:SetSize(math.max(1, hardCap), h)
         o.dmgAbsorbFrame:SetMinMaxValues(0, math.max(1, hardCap))
@@ -1288,15 +1276,15 @@ addonTable.ApplyUnitFrameCustomization = function()
           HideDmgAbsorb(true)
           return
         end
-        o.dmgAbsorbFrame:SetPoint("TOPLEFT", statusTex, "TOPRIGHT", healOff2, 0)
-        o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff2, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", statusTex, "TOPRIGHT", healOff2, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff2, 0)
         o.dmgAbsorbFrame:SetSize(hardCap, h)
         o.dmgAbsorbFrame:SetMinMaxValues(0, hardCap)
         o.dmgAbsorbFrame:SetValue(dmgAbsorbPx)
       else
         local offsetPx = visW * ratio + healOff2
-        o.dmgAbsorbFrame:SetPoint("TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
-        o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
         o.dmgAbsorbFrame:SetSize(math.max(1, remainingVis), h)
         o.dmgAbsorbFrame:SetMinMaxValues(0, math.max(1, remainingVis))
         o.dmgAbsorbFrame:SetValue(dmgAbsorbPx)
@@ -1382,12 +1370,12 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
       if not hardCap or hardCap <= 1 then return false end
       if statusTex then
-        o.dmgAbsorbFrame:SetPoint("TOPLEFT", statusTex, "TOPRIGHT", healOff3, 0)
-        o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff3, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", statusTex, "TOPRIGHT", healOff3, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff3, 0)
       else
         local offsetPx = visW * Clamp01(fillRatio) + healOff3
-        o.dmgAbsorbFrame:SetPoint("TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
-        o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
+        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
       end
       o.dmgAbsorbFrame:SetSize(hardCap, h)
       if o.dmgAbsorbFrame.SetMinMaxValues then pcall(o.dmgAbsorbFrame.SetMinMaxValues, o.dmgAbsorbFrame, minV, maxV) end
@@ -1615,11 +1603,6 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
       end
     end
-    if type(dmgAbsorbTotalRaw) == "number" and not IsSecretValue(dmgAbsorbTotalRaw) and dmgAbsorbTotalRaw <= 0 then
-      HideDmgAbsorb()
-      ApplyGlow(false)
-      return
-    end
     local totalDmgAbsorbPx = nil
     if HasPositiveValue(dmgAbsorbTotalRaw) then
       local statusTex, remainingVis, ratio, healOff4 = GetDmgAbsorbAnchorAndRemaining(fillRatio)
@@ -1627,13 +1610,13 @@ addonTable.ApplyUnitFrameCustomization = function()
         local hardCap = remainingVis
         if statusTex then
           o.dmgAbsorbFrame:ClearAllPoints()
-          o.dmgAbsorbFrame:SetPoint("TOPLEFT", statusTex, "TOPRIGHT", healOff4, 0)
-          o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff4, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", statusTex, "TOPRIGHT", healOff4, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff4, 0)
         else
           local offsetPx = visW * ratio + healOff4
           o.dmgAbsorbFrame:ClearAllPoints()
-          o.dmgAbsorbFrame:SetPoint("TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
-          o.dmgAbsorbFrame:SetPoint("BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
+          PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
         end
         o.dmgAbsorbFrame:SetSize(math.max(1, hardCap), h)
         if o.dmgAbsorbFrame.SetMinMaxValues then
@@ -1646,8 +1629,6 @@ addonTable.ApplyUnitFrameCustomization = function()
         o.dmgAbsorbFrame:Show()
         if o.fullDmgAbsorbFrame then o.fullDmgAbsorbFrame:Hide() end
         if dmgAbsorbTotal and missing and dmgAbsorbTotal > missing then
-          overDmgAbsorb = true
-        elseif fillRatio and fillRatio >= 0.99 then
           overDmgAbsorb = true
         end
         ApplyGlow(overDmgAbsorb)
@@ -1668,20 +1649,12 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     if not totalDmgAbsorbPx or totalDmgAbsorbPx <= 0 then
       HideDmgAbsorb()
-      if dmgAbsorbTotal and missing and dmgAbsorbTotal > missing then
-        ApplyGlow(true)
-      elseif fillRatio and fillRatio >= 0.99 and HasPositiveValue(dmgAbsorbTotalRaw) then
-        ApplyGlow(true)
-      else
-        ApplyGlow(overDmgAbsorb)
-      end
+      ApplyGlow(false)
       return
     end
     local statusTex, clampedPx, overflowPx = setupDmgAbsorbClamp(totalDmgAbsorbPx, fillRatio)
     local hasOverflow = setupDmgAbsorbOverShift(statusTex, clampedPx, overflowPx, totalDmgAbsorbPx, fillRatio)
     if dmgAbsorbTotal and missing and dmgAbsorbTotal > missing then
-      hasOverflow = true
-    elseif fillRatio and fillRatio >= 0.99 then
       hasOverflow = true
     end
     ApplyGlow(hasOverflow or overDmgAbsorb)
@@ -2357,8 +2330,8 @@ addonTable.ApplyUnitFrameCustomization = function()
       bW = 16.0; bH = 32.5; bX = -4.5; bY = 3.0; bScalePct = 0.0
       mW = 18.0; mH = -12.5; mX = -10.0; mY = 4.5; mScalePct = 0.5
     else
-      hW = 2.5; hH = 11.0; hX = 2.5; hY = 7.0; hScalePct = 0.0
-      bW = 21.5; bH = 30.5; bX = 7.0; bY = 1.0; bScalePct = 0.0
+      hW = 2.5; hH = 11.0; hX = 3.0; hY = 7.0; hScalePct = 0.0
+      bW = 19.5; bH = 30.5; bX = 7.0; bY = 1.0; bScalePct = 0.0
       mW = -76.5; mH = 18.5; mX = 84.0; mY = 1.0; mScalePct = -8.5
     end
     local hpW = hp:GetWidth() or 0
@@ -2720,11 +2693,11 @@ addonTable.ApplyUnitFrameCustomization = function()
         o.healthFrame:SetFrameLevel(healthLevel)
       end
       o.dmgAbsorbFrame:SetFrameStrata(strata)
-      o.dmgAbsorbFrame:SetFrameLevel(math.max(1, healthLevel - 1))
+      o.dmgAbsorbFrame:SetFrameLevel(healthLevel + 3)
     end
     if o.fullDmgAbsorbFrame then
       o.fullDmgAbsorbFrame:SetFrameStrata(strata)
-      o.fullDmgAbsorbFrame:SetFrameLevel(math.max(1, healthLevel - 1))
+      o.fullDmgAbsorbFrame:SetFrameLevel(healthLevel + 3)
     end
     local healPredLevel = math.max(1, healthLevel - 1)
     if o.myHealPredFrame then

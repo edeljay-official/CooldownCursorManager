@@ -2725,7 +2725,7 @@ local function InitHandlers()
            "prbSpacing", "prbBorderSize", "prbBackgroundAlpha", "prbClampBars", "prbClampAnchor",
            "prbBgColorR", "prbBgColorG", "prbBgColorB",
            "prbShowHealth", "prbShowPower", "prbShowClassPower",
-           "prbHealthHeight", "prbHealthYOffset", "prbHealthTexture", "prbAbsorbTexture", "prbHealAbsorb", "prbDmgAbsorb", "prbHealPred", "prbAbsorbStripes", "prbHealthTextMode", "prbHealthTextScale", "prbHealthTextY",
+           "prbHealthHeight", "prbHealthYOffset", "prbHealthTexture", "prbAbsorbTexture", "prbHealAbsorb", "prbDmgAbsorb", "prbHealPred", "prbAbsorbStripes", "prbOverAbsorbBar", "prbHealthTextMode", "prbHealthTextScale", "prbHealthTextY",
            "prbHealthColorR", "prbHealthColorG", "prbHealthColorB",
            "prbHealthTextColorR", "prbHealthTextColorG", "prbHealthTextColorB", "prbUseClassColor",
            "prbPowerHeight", "prbPowerYOffset", "prbPowerTexture", "prbPowerTextMode", "prbPowerTextScale", "prbPowerTextY",
@@ -3064,11 +3064,14 @@ local function InitHandlers()
       if prb.healthHeightSlider then prb.healthHeightSlider:SetValue(num(p.prbHealthHeight, 18)); prb.healthHeightSlider.valueText:SetText(math.floor(num(p.prbHealthHeight, 18))) end
       if prb.healthYOffsetSlider then prb.healthYOffsetSlider:SetValue(num(p.prbHealthYOffset, 0)); prb.healthYOffsetSlider.valueText:SetText(math.floor(num(p.prbHealthYOffset, 0))) end
       if prb.healthTextureDD then prb.healthTextureDD:SetValue(p.prbHealthTexture or "solid") end
-      if prb.absorbTextureDD then prb.absorbTextureDD:SetValue(p.prbAbsorbTexture or "normtex") end
-      if prb.healAbsorbDD then prb.healAbsorbDD:SetValue(p.prbHealAbsorb or "on") end
-      if prb.dmgAbsorbDD then prb.dmgAbsorbDD:SetValue(p.prbDmgAbsorb or "bar_glow") end
-      if prb.healPredDD then prb.healPredDD:SetValue(p.prbHealPred or "on") end
-      if prb.absorbStripesCB then prb.absorbStripesCB:SetChecked(p.prbAbsorbStripes ~= false) end
+      if prb.healAbsorbCB then prb.healAbsorbCB:SetChecked((p.prbHealAbsorb or "on") ~= "off") end
+      if prb.absorbModeDD then
+        local dmgMode = p.prbDmgAbsorb or "bar"
+        prb.absorbModeDD:SetValue((dmgMode == "bar" or dmgMode == "bar_glow") and "shield" or "off")
+      end
+      if prb.absorbStripesCB then prb.absorbStripesCB:SetChecked(p.prbAbsorbStripes == true) end
+      if prb.healPredCB then prb.healPredCB:SetChecked((p.prbHealPred or "on") ~= "off") end
+      if prb.overAbsorbBarCB then prb.overAbsorbBarCB:SetChecked(p.prbOverAbsorbBar ~= false) end
       if prb.healthTextDD then prb.healthTextDD:SetValue(p.prbHealthTextMode or "hidden") end
       if prb.healthTextScaleSlider then prb.healthTextScaleSlider:SetValue(num(p.prbHealthTextScale, 1)); prb.healthTextScaleSlider.valueText:SetText(string.format("%.1f", num(p.prbHealthTextScale, 1))) end
       if prb.healthTextYSlider then prb.healthTextYSlider:SetValue(num(p.prbHealthTextY, 0)); prb.healthTextYSlider.valueText:SetText(math.floor(num(p.prbHealthTextY, 0))) end
@@ -3140,11 +3143,16 @@ local function InitHandlers()
     if prb.healthHeightSlider then prb.healthHeightSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local r = math.floor(v); s._updating = true; s:SetValue(r); s._updating = false; s.valueText:SetText(r); local p = GetProfile(); if p then p.prbHealthHeight = r; UpdatePRBAndHighlight() end end) end
     if prb.healthYOffsetSlider then prb.healthYOffsetSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local r = math.floor(v); s._updating = true; s:SetValue(r); s._updating = false; s.valueText:SetText(r); local p = GetProfile(); if p then p.prbHealthYOffset = r; UpdatePRBAndHighlight() end end) end
     if prb.healthTextureDD then prb.healthTextureDD.onSelect = function(v) local p = GetProfile(); if p then p.prbHealthTexture = v; UpdatePRBAndHighlight() end end end
-    if prb.absorbTextureDD then prb.absorbTextureDD.onSelect = function(v) local p = GetProfile(); if p then p.prbAbsorbTexture = v; UpdatePRBAndHighlight() end end end
-    if prb.healAbsorbDD then prb.healAbsorbDD.onSelect = function(v) local p = GetProfile(); if p then p.prbHealAbsorb = v; UpdatePRBAndHighlight() end end end
-    if prb.dmgAbsorbDD then prb.dmgAbsorbDD.onSelect = function(v) local p = GetProfile(); if p then p.prbDmgAbsorb = v; UpdatePRBAndHighlight() end end end
-    if prb.healPredDD then prb.healPredDD.onSelect = function(v) local p = GetProfile(); if p then p.prbHealPred = v; UpdatePRBAndHighlight() end end end
-    if prb.absorbStripesCB then prb.absorbStripesCB.customOnClick = function(s) local p = GetProfile(); if p then p.prbAbsorbStripes = s:GetChecked(); UpdatePRBAndHighlight() end end end
+    if prb.healAbsorbCB then prb.healAbsorbCB.customOnClick = function(s) local p = GetProfile(); if p then p.prbHealAbsorb = s:GetChecked() and "on" or "off"; UpdatePRBAndHighlight() end end end
+    if prb.absorbModeDD then prb.absorbModeDD.onSelect = function(v)
+      local p = GetProfile(); if not p then return end
+      p.prbDmgAbsorb = (v == "shield") and "bar" or "off"
+      UpdatePRBAndHighlight()
+      if addonTable.UpdatePRBSectionVisibility then addonTable.UpdatePRBSectionVisibility() end
+    end end
+    if prb.absorbStripesCB then prb.absorbStripesCB.customOnClick = function(s) local p = GetProfile(); if p then p.prbAbsorbStripes = s:GetChecked() and true or false; UpdatePRBAndHighlight() end end end
+    if prb.healPredCB then prb.healPredCB.customOnClick = function(s) local p = GetProfile(); if p then p.prbHealPred = s:GetChecked() and "on" or "off"; UpdatePRBAndHighlight() end end end
+    if prb.overAbsorbBarCB then prb.overAbsorbBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.prbOverAbsorbBar = s:GetChecked(); UpdatePRBAndHighlight() end end end
     if prb.healthTextDD then prb.healthTextDD.onSelect = function(v) local p = GetProfile(); if p then p.prbHealthTextMode = v; UpdatePRBAndHighlight() end end end
     if prb.healthTextScaleSlider then prb.healthTextScaleSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local r = math.floor(v * 10 + 0.5) / 10; s._updating = true; s:SetValue(r); s._updating = false; s.valueText:SetText(string.format("%.1f", r)); local p = GetProfile(); if p then p.prbHealthTextScale = r; UpdatePRBAndHighlight() end end) end
     if prb.healthTextYSlider then prb.healthTextYSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local r = math.floor(v); s._updating = true; s:SetValue(r); s._updating = false; s.valueText:SetText(r); local p = GetProfile(); if p then p.prbHealthTextY = r; UpdatePRBAndHighlight() end end) end

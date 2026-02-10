@@ -1321,18 +1321,25 @@ local function GetABSkinBorderSize(profile)
   if mode == "middle" then return 2 end
   return 2
 end
+local cachedCursorPlacement = nil
+local cachedCursorFrame = 0
 local function IsActionPlacementCursorActive()
+  local frame = GetTime()
+  if cachedCursorFrame == frame then return cachedCursorPlacement end
+  cachedCursorFrame = frame
+  cachedCursorPlacement = false
   if GetCursorInfo then
     local cursorType = select(1, GetCursorInfo())
     if cursorType == "spell" or cursorType == "item" or cursorType == "macro"
       or cursorType == "mount" or cursorType == "companion" or cursorType == "flyout"
       or cursorType == "petaction" or cursorType == "equipmentset" or cursorType == "action" then
+      cachedCursorPlacement = true
       return true
     end
   end
-  if CursorHasSpell and CursorHasSpell() then return true end
-  if CursorHasItem and CursorHasItem() then return true end
-  if CursorHasMacro and CursorHasMacro() then return true end
+  if CursorHasSpell and CursorHasSpell() then cachedCursorPlacement = true; return true end
+  if CursorHasItem and CursorHasItem() then cachedCursorPlacement = true; return true end
+  if CursorHasMacro and CursorHasMacro() then cachedCursorPlacement = true; return true end
   return false
 end
 local function UpdateSkinnedButtonTexts(btn, hasAction, st)
@@ -1376,8 +1383,10 @@ local function ApplyButtonSkin(btn)
   if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
   if btn.SlotArt then btn.SlotArt:Hide() end
   if btn.SlotBackground then btn.SlotBackground:Hide() end
-  local regions = {btn:GetRegions()}
-  for _, region in ipairs(regions) do
+  if not btn._ccmRegions then
+    btn._ccmRegions = {btn:GetRegions()}
+  end
+  for _, region in ipairs(btn._ccmRegions) do
     if region:IsObjectType("Texture") and region ~= iconTex and not region._ccmIsBorder then
       if not region._ccmSkinSavedAlpha then
         region._ccmSkinSavedAlpha = region:GetAlpha()
@@ -1392,7 +1401,8 @@ local function ApplyButtonSkin(btn)
     iconTex:SetAllPoints(btn)
     iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     iconTex:SetAlpha(1)
-    if iconTex.GetMaskTexture then
+    if not btn._ccmMasksRemoved and iconTex.GetMaskTexture then
+      btn._ccmMasksRemoved = true
       local mask = iconTex:GetMaskTexture(1)
       while mask do
         iconTex:RemoveMaskTexture(mask)
@@ -1404,7 +1414,8 @@ local function ApplyButtonSkin(btn)
       cooldownFrame:SetAllPoints(btn)
     end
     if borderSize > 0 then
-      if not btn._ccmBorderTop then
+      local bordersExist = btn._ccmBorderTop ~= nil
+      if not bordersExist then
         btn._ccmBorderTop = btn:CreateTexture(nil, "OVERLAY")
         btn._ccmBorderTop:SetColorTexture(0, 0, 0, 1)
         btn._ccmBorderTop._ccmIsBorder = true
@@ -1418,26 +1429,29 @@ local function ApplyButtonSkin(btn)
         btn._ccmBorderRight:SetColorTexture(0, 0, 0, 1)
         btn._ccmBorderRight._ccmIsBorder = true
       end
-      btn._ccmBorderTop:ClearAllPoints()
-      btn._ccmBorderTop:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
-      btn._ccmBorderTop:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
-      btn._ccmBorderTop:SetHeight(borderSize)
-      btn._ccmBorderTop:Show()
-      btn._ccmBorderBottom:ClearAllPoints()
-      btn._ccmBorderBottom:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
-      btn._ccmBorderBottom:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
-      btn._ccmBorderBottom:SetHeight(borderSize)
-      btn._ccmBorderBottom:Show()
-      btn._ccmBorderLeft:ClearAllPoints()
-      btn._ccmBorderLeft:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
-      btn._ccmBorderLeft:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
-      btn._ccmBorderLeft:SetWidth(borderSize)
-      btn._ccmBorderLeft:Show()
-      btn._ccmBorderRight:ClearAllPoints()
-      btn._ccmBorderRight:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
-      btn._ccmBorderRight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
-      btn._ccmBorderRight:SetWidth(borderSize)
-      btn._ccmBorderRight:Show()
+      if not bordersExist or btn._ccmBorderSize ~= borderSize then
+        btn._ccmBorderSize = borderSize
+        btn._ccmBorderTop:ClearAllPoints()
+        btn._ccmBorderTop:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+        btn._ccmBorderTop:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
+        btn._ccmBorderTop:SetHeight(borderSize)
+        btn._ccmBorderTop:Show()
+        btn._ccmBorderBottom:ClearAllPoints()
+        btn._ccmBorderBottom:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+        btn._ccmBorderBottom:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+        btn._ccmBorderBottom:SetHeight(borderSize)
+        btn._ccmBorderBottom:Show()
+        btn._ccmBorderLeft:ClearAllPoints()
+        btn._ccmBorderLeft:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
+        btn._ccmBorderLeft:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
+        btn._ccmBorderLeft:SetWidth(borderSize)
+        btn._ccmBorderLeft:Show()
+        btn._ccmBorderRight:ClearAllPoints()
+        btn._ccmBorderRight:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
+        btn._ccmBorderRight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
+        btn._ccmBorderRight:SetWidth(borderSize)
+        btn._ccmBorderRight:Show()
+      end
       local hasCurrentOutline = ButtonHasVisibleOutline(btn, profile)
       if not hasCurrentOutline then
         btn._ccmBorderTop:Hide()
@@ -1572,12 +1586,14 @@ local function SkinActionButton(btn, hide)
         if not st or not st.skinned then return end
         local has = self.HasAction and self:HasAction() or (self.action and HasAction(self.action))
         UpdateSkinnedButtonTexts(self, has, st)
-        ApplyButtonSkin(self)
       end)
     end
   else
     local s = abSkinState[key]
     if s then s.skinned = false; s.emptyHidden = false end
+    btn._ccmMasksRemoved = nil
+    btn._ccmRegions = nil
+    btn._ccmBorderSize = nil
     if btn.HotKey then btn.HotKey:SetAlpha(1) end
     if btn.Name then btn.Name:SetAlpha(1) end
     if btn.NormalTexture then btn.NormalTexture:SetAlpha(1) end

@@ -3275,7 +3275,8 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
     end
     if icon.ccmCooldown then
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
-      icon.ccmCooldown:SetScale(cdTextScale * 0.8)
+      icon.ccmCooldown:SetScale((cdTextScale > 0 and cdTextScale or 1) * 0.8)
+      icon.ccmCooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       local globalFont, globalOutline = GetGlobalFont()
       local regionCount = addonTable.CollectRegions(icon.ccmCooldown, State.tmpRegions)
       for r = 1, regionCount do
@@ -3544,7 +3545,8 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
     end
     if icon.ccmCooldown and doSkinning then
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
-      icon.ccmCooldown:SetScale(cdTextScale * 0.8)
+      icon.ccmCooldown:SetScale((cdTextScale > 0 and cdTextScale or 1) * 0.8)
+      icon.ccmCooldown:SetHideCountdownNumbers(cdTextScale <= 0)
     end
     if icon.ccmCooldown then
       local globalFont, globalOutline = GetGlobalFont()
@@ -4313,7 +4315,8 @@ local function SkinStandaloneBarIcon(icon, profile)
       local child = State.tmpIconChildren[c]
       if child and child:GetObjectType() == "Cooldown" then
         icon.ccmStandaloneCooldown = child
-        child:SetScale(cdTextScale * 0.8)
+        child:SetScale((cdTextScale > 0 and cdTextScale or 1) * 0.8)
+        child:SetHideCountdownNumbers(cdTextScale <= 0)
         local regionCount = addonTable.CollectRegions(child, State.tmpChildRegions)
         for r = 1, regionCount do
           local region = State.tmpChildRegions[r]
@@ -5053,6 +5056,7 @@ local function UpdateCustomBar()
   local growth = profile.customBarGrowth or "DOWN"
   local anchor = profile.customBarAnchorPoint or "LEFT"
   local cdTextScale = type(profile.customBarCdTextScale) == "number" and profile.customBarCdTextScale or 1.0
+  local cdTextHidden = cdTextScale <= 0
   local stackTextScale = type(profile.customBarStackTextScale) == "number" and profile.customBarStackTextScale or 1.0
   local centered = profile.customBarCentered == true
   local cooldownMode = profile.customBarCooldownMode or "show"
@@ -5355,7 +5359,8 @@ local function UpdateCustomBar()
       end
     end
     if icon.cooldown._ccmLastScale ~= cdTextScale then
-      icon.cooldown:SetScale(cdTextScale)
+      icon.cooldown:SetScale(cdTextHidden and 1 or cdTextScale)
+      icon.cooldown:SetHideCountdownNumbers(cdTextHidden)
       icon.cooldown._ccmLastScale = cdTextScale
     end
     if not icon.cooldown._ccmFontApplied then
@@ -5596,6 +5601,7 @@ local function UpdateCustomBar2()
   local growth = profile.customBar2Growth or "DOWN"
   local anchor = profile.customBar2AnchorPoint or "LEFT"
   local cdTextScale = type(profile.customBar2CdTextScale) == "number" and profile.customBar2CdTextScale or 1.0
+  local cdTextHidden = cdTextScale <= 0
   local stackTextScale = type(profile.customBar2StackTextScale) == "number" and profile.customBar2StackTextScale or 1.0
   local centered = profile.customBar2Centered == true
   local cooldownMode = profile.customBar2CooldownMode or "show"
@@ -5898,7 +5904,8 @@ local function UpdateCustomBar2()
       end
     end
     if icon.cooldown._ccmLastScale ~= cdTextScale then
-      icon.cooldown:SetScale(cdTextScale)
+      icon.cooldown:SetScale(cdTextHidden and 1 or cdTextScale)
+      icon.cooldown:SetHideCountdownNumbers(cdTextHidden)
       icon.cooldown._ccmLastScale = cdTextScale
     end
     if not icon.cooldown._ccmFontApplied then
@@ -6139,6 +6146,7 @@ local function UpdateCustomBar3()
   local growth = profile.customBar3Growth or "DOWN"
   local anchor = profile.customBar3AnchorPoint or "LEFT"
   local cdTextScale = type(profile.customBar3CdTextScale) == "number" and profile.customBar3CdTextScale or 1.0
+  local cdTextHidden = cdTextScale <= 0
   local stackTextScale = type(profile.customBar3StackTextScale) == "number" and profile.customBar3StackTextScale or 1.0
   local centered = profile.customBar3Centered == true
   local cooldownMode = profile.customBar3CooldownMode or "show"
@@ -6441,7 +6449,8 @@ local function UpdateCustomBar3()
       end
     end
     if icon.cooldown._ccmLastScale ~= cdTextScale then
-      icon.cooldown:SetScale(cdTextScale)
+      icon.cooldown:SetScale(cdTextHidden and 1 or cdTextScale)
+      icon.cooldown:SetHideCountdownNumbers(cdTextHidden)
       icon.cooldown._ccmLastScale = cdTextScale
     end
     if not icon.cooldown._ccmFontApplied then
@@ -6709,7 +6718,7 @@ end
 local onUpdateElapsed = 0
 local cursorTrackElapsed = 0
 local ON_UPDATE_THROTTLE = 0.05
-local CURSOR_TRACK_THROTTLE = 0
+local CURSOR_TRACK_THROTTLE = 0.016
 local cachedProfile = nil
 local lastProfileCheck = 0
 local cachedUIScale = UIParent:GetEffectiveScale()
@@ -6794,7 +6803,9 @@ addonTable.MainOnUpdate = function(self, elapsed)
   local x, y = GetCursorPosition()
   local scale = cachedUIScale
   local cursorMoved = math.abs(x - State.lastCursorX) > State.cursorMoveThreshold or math.abs(y - State.lastCursorY) > State.cursorMoveThreshold
-  local doExpensiveUpdate = (now - State.lastBarUpdateTime) >= State.barUpdateInterval
+  local iconsDirty = State.iconsDirty
+  local timeSinceBarUpdate = now - State.lastBarUpdateTime
+  local doExpensiveUpdate = iconsDirty or timeSinceBarUpdate >= 1.0
   if not cursorMoved and not doExpensiveUpdate then
     UpdateRadialCircle()
     return
@@ -6831,6 +6842,7 @@ addonTable.MainOnUpdate = function(self, elapsed)
   end
   if doExpensiveUpdate then
     State.lastBarUpdateTime = now
+    State.iconsDirty = false
     if addonTable.UpdateAllIcons then
       addonTable.UpdateAllIcons()
     end
@@ -6915,11 +6927,12 @@ UpdateSpellIcon = function(icon)
       icon.icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
       if not itemIcon then C_Item.RequestLoadItemDataByID(spellID) end
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
-      icon.cooldown:SetScale(cdTextScale)
+      icon.cooldown:SetScale(cdTextScale > 0 and cdTextScale or 1)
+      icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       local cdStart, cdDuration = GetItemCooldown(spellID)
       if cdStart and cdDuration and cdDuration > 1.5 then
         icon.cooldown:SetCooldown(cdStart, cdDuration)
-        icon.cooldown:SetHideCountdownNumbers(false)
+        icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       else
         icon.cooldown:Clear()
       end
@@ -6940,7 +6953,8 @@ UpdateSpellIcon = function(icon)
       local info = C_Spell.GetSpellInfo(activeSpellID)
       icon.icon:SetTexture(info and info.iconID or "Interface\\Icons\\INV_Misc_QuestionMark")
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
-      icon.cooldown:SetScale(cdTextScale)
+      icon.cooldown:SetScale(cdTextScale > 0 and cdTextScale or 1)
+      icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       local charges = C_Spell.GetSpellCharges(activeSpellID)
       local safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, spellID)
       local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
@@ -6954,10 +6968,10 @@ UpdateSpellIcon = function(icon)
       local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
       if charges and charges.cooldownStartTime and charges.cooldownDuration then
         pcall(icon.cooldown.SetCooldown, icon.cooldown, charges.cooldownStartTime, charges.cooldownDuration)
-        icon.cooldown:SetHideCountdownNumbers(false)
+        icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       elseif cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 1.5 then
         pcall(icon.cooldown.SetCooldown, icon.cooldown, cdInfo.startTime, cdInfo.duration)
-        icon.cooldown:SetHideCountdownNumbers(false)
+        icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       else
         icon.cooldown:Clear()
       end
@@ -7004,7 +7018,8 @@ UpdateSpellIcon = function(icon)
     icon.icon:SetDesaturated(false)
     if icon.cdText then icon.cdText:Hide() end
     local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
-    icon.cooldown:SetScale(cdTextScale)
+    icon.cooldown:SetScale(cdTextScale > 0 and cdTextScale or 1)
+    icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
     if not icon.cooldown._ccmFontApplied then
       icon.cooldown._ccmFontApplied = true
       local gf, go = GetGlobalFont()
@@ -7026,7 +7041,7 @@ UpdateSpellIcon = function(icon)
     end
     if shouldShowSwipe and cdStart and cdDuration and cdDuration > 1.5 then
       icon.cooldown:SetCooldown(cdStart, cdDuration)
-      icon.cooldown:SetHideCountdownNumbers(false)
+      icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
     else
       icon.cooldown:Clear()
     end
@@ -7080,7 +7095,8 @@ UpdateSpellIcon = function(icon)
     icon.cdText:Hide()
   end
   local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
-  icon.cooldown:SetScale(cdTextScale)
+  icon.cooldown:SetScale(cdTextScale > 0 and cdTextScale or 1)
+  icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
   if not icon.cooldown._ccmFontApplied then
     icon.cooldown._ccmFontApplied = true
     local gf, go = GetGlobalFont()
@@ -7115,7 +7131,7 @@ UpdateSpellIcon = function(icon)
     end
     if shouldShowSwipe and cdStart and cdDuration then
       pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
-      icon.cooldown:SetHideCountdownNumbers(false)
+      icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       icon.cooldown:SetDrawEdge(false)
     else
       icon.cooldown:Clear()
@@ -7134,7 +7150,7 @@ UpdateSpellIcon = function(icon)
       else
         icon.cooldown:Clear()
       end
-      icon.cooldown:SetHideCountdownNumbers(false)
+      icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       icon.cooldown:SetDrawEdge(false)
     else
       icon.cooldown:Clear()
@@ -7647,10 +7663,9 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if arg1 == "player" and addonTable.UpdatePRB then
       addonTable.UpdatePRB()
     end
-  elseif event == "SPELL_UPDATE_COOLDOWN" or event == "SPELL_UPDATE_CHARGES" then
+  elseif event == "SPELL_UPDATE_COOLDOWN" or event == "SPELL_UPDATE_CHARGES" or event == "BAG_UPDATE_COOLDOWN" or event == "BAG_UPDATE" then
     UpdateGCD()
-    addonTable.RequestIconUpdate()
-    State.iconsDirty = false
+    State.iconsDirty = true
     State.customBarsDirty = true
     State.lastIconUpdate = GetTime()
     addonTable.RequestCustomBarUpdate()
@@ -7661,7 +7676,6 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if spellID and BuffDurationCache[spellID] then
       ActiveBuffStart[spellID] = GetTime()
     end
-    addonTable.RequestIconUpdate()
     addonTable.RequestCustomBarUpdate()
   elseif event == "UNIT_SPELLCAST_START" and arg1 == "player" then
     C_Timer.After(0.01, UpdateGCD)
@@ -7690,7 +7704,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       C_Timer.After(0.05, addonTable.StopFocusCastbarTicker)
     end
   elseif event == "PLAYER_REGEN_ENABLED" then
-    addonTable.RequestIconUpdate()
+    State.iconsDirty = true
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
     C_Timer.After(0.05, function()
@@ -7716,7 +7730,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       end
     end
   elseif event == "PLAYER_REGEN_DISABLED" then
-    addonTable.RequestIconUpdate()
+    State.iconsDirty = true
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
     C_Timer.After(0.05, function()
@@ -7787,7 +7801,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     end
     if State.collapsingStarStacks ~= newStacks then
       State.collapsingStarStacks = newStacks
-      addonTable.RequestIconUpdate()
+      State.iconsDirty = true
       addonTable.RequestCustomBarUpdate()
       if addonTable.RefreshCRTimerText then addonTable.RefreshCRTimerText() end
     end

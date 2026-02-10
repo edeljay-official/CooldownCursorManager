@@ -236,7 +236,7 @@ local function InitTabs()
   cur.spacingSlider = Slider(tab2, "Spacing", 280, -80, -3, 10, 2, 1)
   cur.offsetXSlider = Slider(tab2, "Cursor Offset X", 15, -135, -100, 100, 10, 1)
   cur.offsetYSlider = Slider(tab2, "Cursor Offset Y", 280, -135, -100, 100, 25, 1)
-  cur.cdTextSlider = Slider(tab2, "CD Text Scale", 15, -190, 0.5, 2.0, 1.0, 0.1)
+  cur.cdTextSlider = Slider(tab2, "CD Text Scale", 15, -190, 0, 2.0, 1.0, 0.1)
   cur.stackTextSlider = Slider(tab2, "Stack Text Scale", 280, -190, 0.5, 2.0, 1.0, 0.1)
   cur.stackXSlider = Slider(tab2, "Stack Offset X", 15, -245, -20, 20, 0, 1)
   cur.stackYSlider = Slider(tab2, "Stack Offset Y", 280, -245, -20, 20, 0, 1)
@@ -331,7 +331,7 @@ local function InitTabs()
     cb.spacingSlider = Slider(tabFrame, "Spacing", 280, -80, -3, 10, 2, 1)
     cb.xSlider = Slider(tabFrame, "Bar X Offset", 15, -135, -500, 500, 0, 1)
     cb.ySlider = Slider(tabFrame, "Bar Y Offset", 280, -135, -500, 500, yOffset, 1)
-    cb.cdTextSlider = Slider(tabFrame, "CD Text Scale", 15, -190, 0.5, 2.0, 1.0, 0.1)
+    cb.cdTextSlider = Slider(tabFrame, "CD Text Scale", 15, -190, 0, 2.0, 1.0, 0.1)
     cb.stackTextSlider = Slider(tabFrame, "Stack Text Scale", 280, -190, 0.5, 2.0, 1.0, 0.1)
     cb.stackXSlider = Slider(tabFrame, "Stack Offset X", 15, -245, -20, 20, 0, 1)
     cb.stackYSlider = Slider(tabFrame, "Stack Offset Y", 280, -245, -20, 20, 0, 1)
@@ -617,44 +617,37 @@ local function InitTabs()
     y = y - 50
     prb.healthTextureDD, prb.healthTextureLbl = StyledDropdown(pc, "Texture", COL1, y, 140)
     ApplyTextureOptionsToDropdown(prb.healthTextureDD)
-    prb.absorbTextureDD, prb.absorbTextureLbl = StyledDropdown(pc, "Absorb Texture", COL2 + 6, y, 140)
-    prb.absorbTextureDD:SetOptions({
-      {text = "normTex", value = "normtex"},
-      {text = "stripe_overlay", value = "stripe_overlay"},
-      {text = "stripe_overlay_prb", value = "stripe_overlay_prb"},
-    })
-    prb.absorbTextureDD:SetValue("normtex")
-    y = y - 50
-    prb.healAbsorbDD, prb.healAbsorbLbl = StyledDropdown(pc, "Heal Absorb", COL1, y, 140)
-    prb.healAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    prb.dmgAbsorbDD, prb.dmgAbsorbLbl = StyledDropdown(pc, "Dmg Absorb", COL2 + 6, y, 140)
-    prb.dmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
-    y = y - 50
-    prb.healPredDD, prb.healPredLbl = StyledDropdown(pc, "Heal Prediction", COL1, y, 140)
-    prb.healPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", COL2 + 6, y - 20)
-    y = y - 50
-    prb.healthTextDD, prb.healthTextLbl = StyledDropdown(pc, "Text", COL2 + 6, y - 4, 100)
+    prb.healthTextDD, prb.healthTextLbl = StyledDropdown(pc, "Text", 170, y, 105)
     prb.healthTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
+    prb.absorbModeDD, prb.absorbModeLbl = StyledDropdown(pc, "Absorb", 295, y, 130)
+    prb.absorbModeDD:SetOptions({
+      {text = "Off", value = "off"},
+      {text = "Shield", value = "shield"},
+    })
+    y = y - 50
+    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", COL1, y)
+    prb.healAbsorbCB = Checkbox(pc, "Heal Absorb", 170, y)
+    prb.overAbsorbBarCB = Checkbox(pc, "Overabsorb", 295, y)
+    prb.healPredCB = Checkbox(pc, "Heal Prediction", 420, y)
+    y = y - 25
     prb.healthColorBtn, prb.healthColorSwatch = ColorBtn("Bar Color", COL1, y - 22, 0, 0.8, 0)
     prb.healthTextColorBtn, prb.healthTextColorSwatch = ColorBtn("Text Color", COL1 + 110, y - 22, 1, 1, 1)
+    prb.useClassColorCB = Checkbox(pc, "Use Class Color", COL1 + 220, y - 22)
     y = y - 50
-    prb.useClassColorCB = Checkbox(pc, "Use Class Color", COL1, y)
-    y = y - 35
     prb.healthElements = {
       prb.healthHeader, prb.healthLine,
       prb.healthHeightSlider, prb.healthHeightSlider.label, prb.healthHeightSlider.valueText, prb.healthHeightSlider.valueTextBg, prb.healthHeightSlider.upBtn, prb.healthHeightSlider.downBtn,
       prb.healthYOffsetSlider, prb.healthYOffsetSlider.label, prb.healthYOffsetSlider.valueText, prb.healthYOffsetSlider.valueTextBg, prb.healthYOffsetSlider.upBtn, prb.healthYOffsetSlider.downBtn,
       prb.healthTextScaleSlider, prb.healthTextScaleSlider.label, prb.healthTextScaleSlider.valueText, prb.healthTextScaleSlider.valueTextBg, prb.healthTextScaleSlider.upBtn, prb.healthTextScaleSlider.downBtn,
       prb.healthTextureDD, prb.healthTextureLbl,
-      prb.absorbTextureDD, prb.absorbTextureLbl,
-      prb.healAbsorbDD, prb.healAbsorbLbl,
-      prb.dmgAbsorbDD, prb.dmgAbsorbLbl,
-      prb.healPredDD, prb.healPredLbl,
+      prb.healthTextDD, prb.healthTextLbl,
+      prb.healAbsorbCB, prb.healAbsorbCB.label,
+      prb.absorbModeDD, prb.absorbModeLbl,
       prb.absorbStripesCB, prb.absorbStripesCB.label,
+      prb.healPredCB, prb.healPredCB.label,
+      prb.overAbsorbBarCB, prb.overAbsorbBarCB.label,
       prb.healthTextYSlider, prb.healthTextYSlider.label, prb.healthTextYSlider.valueText, prb.healthTextYSlider.valueTextBg, prb.healthTextYSlider.upBtn, prb.healthTextYSlider.downBtn,
       prb.healthColorBtn, prb.healthColorSwatch, prb.healthTextColorBtn, prb.healthTextColorSwatch,
-      prb.healthTextDD, prb.healthTextLbl,
       prb.useClassColorCB, prb.useClassColorCB.label,
     }
     prb.powerHeader, prb.powerLine = PRBSection("Power Bar")
@@ -741,6 +734,8 @@ local function InitTabs()
       local showHealth = p and p.prbShowHealth
       local showPower = p and p.prbShowPower
       local showClassPower = p and p.prbShowClassPower
+      local dmgAbsorbMode = (p and p.prbDmgAbsorb) or "bar"
+      local showOverAbsorbOption = showHealth and dmgAbsorbMode ~= "off"
       local isRedundant = addonTable.IsClassPowerRedundant and addonTable.IsClassPowerRedundant()
       local _, playerClass = UnitClass("player")
       local hasManaPool = (playerClass ~= "WARRIOR" and playerClass ~= "ROGUE" and playerClass ~= "DEATHKNIGHT" and playerClass ~= "DEMONHUNTER")
@@ -769,6 +764,24 @@ local function InitTabs()
       SetSectionEnabled(prb.powerElements, showPower)
       SetSectionEnabled(prb.manaElements, hasMana)
       SetSectionEnabled(prb.classPowerElements, showClassPower and not isRedundant)
+      if prb.overAbsorbBarCB then
+        if showOverAbsorbOption then
+          if prb.overAbsorbBarCB.Show then prb.overAbsorbBarCB:Show() end
+          if prb.overAbsorbBarCB.label and prb.overAbsorbBarCB.label.Show then prb.overAbsorbBarCB.label:Show() end
+        else
+          if prb.overAbsorbBarCB.Hide then prb.overAbsorbBarCB:Hide() end
+          if prb.overAbsorbBarCB.label and prb.overAbsorbBarCB.label.Hide then prb.overAbsorbBarCB.label:Hide() end
+        end
+      end
+      if prb.absorbStripesCB then
+        if showOverAbsorbOption then
+          if prb.absorbStripesCB.Show then prb.absorbStripesCB:Show() end
+          if prb.absorbStripesCB.label and prb.absorbStripesCB.label.Show then prb.absorbStripesCB.label:Show() end
+        else
+          if prb.absorbStripesCB.Hide then prb.absorbStripesCB:Hide() end
+          if prb.absorbStripesCB.label and prb.absorbStripesCB.label.Hide then prb.absorbStripesCB.label:Hide() end
+        end
+      end
       if not hasMana then
         for _, elem in ipairs(prb.manaElements) do
           if elem and elem.Hide then elem:Hide() end
@@ -1093,7 +1106,7 @@ local function InitTabs()
     addonTable.ufBigHBPlayerLevelDD:SetOptions({{text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}})
     addonTable.ufBigHBPlayerHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", 15, -295, 140)
     addonTable.ufBigHBPlayerHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBPlayerDmgAbsorbDD = StyledDropdown(uc, "Dmg Absorb", 175, -295, 140)
+    addonTable.ufBigHBPlayerDmgAbsorbDD = StyledDropdown(uc, "Absorb Shield", 175, -295, 140)
     addonTable.ufBigHBPlayerDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
     addonTable.ufBigHBPlayerHealPredDD = StyledDropdown(uc, "Heal Prediction", 340, -295, 140)
     addonTable.ufBigHBPlayerHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
@@ -1111,7 +1124,7 @@ local function InitTabs()
     addonTable.ufBigHBTargetLevelDD:SetOptions({{text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}})
     addonTable.ufBigHBTargetHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", 15, -555, 140)
     addonTable.ufBigHBTargetHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBTargetDmgAbsorbDD = StyledDropdown(uc, "Dmg Absorb", 175, -555, 140)
+    addonTable.ufBigHBTargetDmgAbsorbDD = StyledDropdown(uc, "Absorb Shield", 175, -555, 140)
     addonTable.ufBigHBTargetDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
     addonTable.ufBigHBTargetHealPredDD = StyledDropdown(uc, "Heal Prediction", 340, -555, 140)
     addonTable.ufBigHBTargetHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
@@ -1129,7 +1142,7 @@ local function InitTabs()
     addonTable.ufBigHBFocusLevelDD:SetOptions({{text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}})
     addonTable.ufBigHBFocusHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", 15, -815, 140)
     addonTable.ufBigHBFocusHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBFocusDmgAbsorbDD = StyledDropdown(uc, "Dmg Absorb", 175, -815, 140)
+    addonTable.ufBigHBFocusDmgAbsorbDD = StyledDropdown(uc, "Absorb Shield", 175, -815, 140)
     addonTable.ufBigHBFocusDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
     addonTable.ufBigHBFocusHealPredDD = StyledDropdown(uc, "Heal Prediction", 340, -815, 140)
     addonTable.ufBigHBFocusHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})

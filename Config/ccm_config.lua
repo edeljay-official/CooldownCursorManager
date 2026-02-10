@@ -205,7 +205,7 @@ addonTable.exportBtn = expBtn
 addonTable.importBtn = impBtn
 addonTable.copyProfileBtn = copyProfileBtn
 local exportImportPopup = CreateFrame("Frame", "CCMExportImportDialog", UIParent, "BackdropTemplate")
-exportImportPopup:SetSize(500, 420)
+exportImportPopup:SetSize(500, 470)
 exportImportPopup:SetPoint("CENTER")
 exportImportPopup:SetFrameStrata("TOOLTIP")
 exportImportPopup:SetFrameLevel(2000)
@@ -280,8 +280,8 @@ deselectAllBtn:SetScript("OnClick", function()
   for _, cb in pairs(exportCategories) do cb:SetChecked(false) end
 end)
 local exportImportScrollFrame = CreateFrame("ScrollFrame", nil, exportImportPopup)
-exportImportScrollFrame:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 15, -205)
-exportImportScrollFrame:SetSize(420, 130)
+exportImportScrollFrame:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 15, -220)
+exportImportScrollFrame:SetSize(420, 235)
 local exportImportEditBox = CreateFrame("EditBox", nil, exportImportScrollFrame)
 exportImportEditBox:SetMultiLine(true)
 exportImportEditBox:SetAutoFocus(false)
@@ -408,12 +408,12 @@ importSharedLbl:SetPoint("LEFT", importSharedCB, "RIGHT", 6, 0)
 importSharedLbl:SetText("Shared Profile (available for all classes)")
 importSharedLbl:SetTextColor(0.9, 0.9, 0.9)
 addonTable.importSharedCB = importSharedCB
-local generateExportBtn = CreateStyledButton(exportImportPopup, "Generate", 100, 26)
-generateExportBtn:SetPoint("BOTTOM", exportImportPopup, "BOTTOM", -55, 15)
-local exportImportOkBtn = CreateStyledButton(exportImportPopup, "Import", 100, 26)
-exportImportOkBtn:SetPoint("BOTTOM", exportImportPopup, "BOTTOM", -55, 15)
-local exportImportCancelBtn = CreateStyledButton(exportImportPopup, "Close", 100, 26)
-exportImportCancelBtn:SetPoint("BOTTOM", exportImportPopup, "BOTTOM", 55, 15)
+local generateExportBtn = CreateStyledButton(exportCheckboxContainer, "Generate", 85, 20)
+generateExportBtn:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 290, -192)
+local exportImportOkBtn = CreateStyledButton(exportCheckboxContainer, "Import", 85, 20)
+exportImportOkBtn:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 290, -192)
+local exportImportCancelBtn = CreateStyledButton(exportCheckboxContainer, "Close", 85, 20)
+exportImportCancelBtn:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 380, -192)
 exportImportCancelBtn:SetScript("OnClick", function() exportImportPopup:Hide() end)
 addonTable.exportImportPopup = exportImportPopup
 addonTable.exportImportTitle = exportImportTitle
@@ -1226,6 +1226,7 @@ local function Checkbox(p, txt, x, y)
   end
   return cb, l
 end
+local _activeDropdownList = nil
 local function StyledDropdown(p, labelTxt, x, y, w)
   local lbl = nil
   local dd = CreateFrame("Frame", nil, p, "BackdropTemplate")
@@ -1253,8 +1254,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   arrow:SetPoint("RIGHT", dd, "RIGHT", -8, 0)
   arrow:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down")
   arrow:SetVertexColor(0.6, 0.6, 0.6)
-  local list = CreateFrame("Frame", nil, dd, "BackdropTemplate")
-  list:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
+  local list = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
   list:SetWidth(w)
   list:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
   list:SetBackdropColor(0.1, 0.1, 0.12, 0.98)
@@ -1262,6 +1262,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   list:SetFrameStrata("TOOLTIP")
   list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
   list:Hide()
+  list:SetScript("OnHide", function() if _activeDropdownList == list then _activeDropdownList = nil end end)
   dd.list = list
   dd.options = {}
   dd.value = nil
@@ -1269,6 +1270,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   dd._maxVisibleOptions = 12
   dd._buttons = {}
   dd._moreIndicator = nil
+  dd._effectiveWidth = w
   list:EnableMouseWheel(true)
   local RenderDropdownOptions
   local function ScrollDropdownBy(delta)
@@ -1305,7 +1307,9 @@ local function StyledDropdown(p, labelTxt, x, y, w)
     end
     local visibleCount = math.min(optionSlots, total - offset)
     if visibleCount < 0 then visibleCount = 0 end
-    local buttonWidth = w - 2
+    local listW = dd._effectiveWidth or w
+    local buttonWidth = listW - 2
+    list:SetWidth(listW)
     for i = 1, maxVisible do
       local btn = dd._buttons[i]
       if not btn then
@@ -1321,6 +1325,8 @@ local function StyledDropdown(p, labelTxt, x, y, w)
           ScrollDropdownBy(delta)
         end)
         dd._buttons[i] = btn
+      else
+        btn:SetWidth(buttonWidth)
       end
       local optIndex = offset + i
       local opt = (i <= visibleCount) and opts[optIndex] or nil
@@ -1387,6 +1393,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
       end)
       dd._moreIndicator = hint
     end
+    if dd._moreIndicator then dd._moreIndicator:SetWidth(buttonWidth) end
     local listRows = visibleCount
     if hasMoreBelow and dd._moreIndicator then
       dd._moreIndicator:ClearAllPoints()
@@ -1405,6 +1412,16 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   function dd:SetOptions(opts)
     dd.options = opts or {}
     dd._scrollOffset = 0
+    local maxTextW = 0
+    local oldText = txt:GetText()
+    for _, opt in ipairs(dd.options) do
+      txt:SetText(opt.text)
+      local tw = txt:GetStringWidth()
+      if tw > maxTextW then maxTextW = tw end
+    end
+    txt:SetText(oldText or "")
+    local neededW = math.max(w, maxTextW + 30)
+    dd._effectiveWidth = neededW
     RenderDropdownOptions()
     if dd.value ~= nil then
       dd:SetValue(dd.value)
@@ -1432,13 +1449,23 @@ local function StyledDropdown(p, labelTxt, x, y, w)
     if list:IsShown() then
       list:Hide()
     else
+      if _activeDropdownList and _activeDropdownList ~= list then
+        _activeDropdownList:Hide()
+      end
       if dd.refreshOptions then
         pcall(dd.refreshOptions, dd)
       end
       dd._scrollOffset = 0
       RenderDropdownOptions()
+      list:ClearAllPoints()
+      local scale = dd:GetEffectiveScale()
+      local uiScale = UIParent:GetEffectiveScale()
+      local ratio = scale / uiScale
+      list:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", dd:GetLeft() * ratio, dd:GetBottom() * ratio - 2)
+      list:SetFrameStrata("TOOLTIP")
       list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
       list:Show()
+      _activeDropdownList = list
     end
   end)
   dd:SetScript("OnEnter", function() dd:SetBackdropColor(0.18, 0.18, 0.22, 1) end)
