@@ -1052,7 +1052,6 @@ end
 local function SetupActionBarHiding()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
-  -- Migrate old grouped keys to per-bar
   if profile.hideActionBars2to8InCombat ~= nil or profile.hideActionBars2to8Mouseover ~= nil or profile.hideActionBars2to8Always ~= nil then
     for n = 2, 8 do
       if profile.hideActionBars2to8InCombat then profile["hideAB"..n.."InCombat"] = true end
@@ -1371,16 +1370,13 @@ end
 local function ApplyButtonSkin(btn)
   local iconTex = btn.icon or btn.Icon
   local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
-  -- Hide NormalTexture
   if btn.NormalTexture then btn.NormalTexture:SetAlpha(0) end
   local nt = btn:GetNormalTexture()
   if nt then nt:SetAlpha(0) end
-  -- Hide known decorative elements
   if btn.FloatingBG then btn.FloatingBG:Hide() end
   if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
   if btn.SlotArt then btn.SlotArt:Hide() end
   if btn.SlotBackground then btn.SlotBackground:Hide() end
-  -- Hide ALL non-icon textures (any draw layer)
   local regions = {btn:GetRegions()}
   for _, region in ipairs(regions) do
     if region:IsObjectType("Texture") and region ~= iconTex and not region._ccmIsBorder then
@@ -1390,7 +1386,6 @@ local function ApplyButtonSkin(btn)
       region:SetAlpha(0)
     end
   end
-  -- Ensure icon is visible and cropped, apply border
   if iconTex then
     local profile = addonTable.GetProfile and addonTable.GetProfile()
     local borderSize = GetABSkinBorderSize(profile)
@@ -1439,7 +1434,6 @@ local function ApplyButtonSkin(btn)
       btn._ccmBorderRight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
       btn._ccmBorderRight:SetWidth(borderSize)
       btn._ccmBorderRight:Show()
-      -- Optional: no outline for empty slots.
       local hasCurrentOutline = ButtonHasVisibleOutline(btn, profile)
       if not hasCurrentOutline then
         btn._ccmBorderTop:Hide()
@@ -1448,8 +1442,6 @@ local function ApplyButtonSkin(btn)
         btn._ccmBorderRight:Hide()
         return
       end
-      -- Keep shared-edge suppression stable even when Blizzard re-applies visuals (hover/update),
-      -- but only suppress inner edges when both neighboring buttons render an outline.
       local idx = tonumber(btn._ccmIndex) or 1
       local mode = btn._ccmSharedEdgeMode
       local prefix = btn._ccmPrefix
@@ -1505,12 +1497,9 @@ local function SkinActionButton(btn, hide)
         end
       end
     end
-    -- Apply the skin
     ApplyButtonSkin(btn)
-    -- For empty slots: hide text, but keep keybind visible while placing an action from cursor.
     local hasAction = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
     UpdateSkinnedButtonTexts(btn, hasAction, s)
-    -- Hook SetNormalTexture to keep it hidden (Blizzard re-applies on bar swap etc.)
     if not btn._ccmSkinHooked then
       btn._ccmSkinHooked = true
       hooksecurefunc(btn, "SetNormalTexture", function(self)
@@ -1523,7 +1512,6 @@ local function SkinActionButton(btn, hide)
         end
       end)
     end
-    -- Hook UpdateButtonArt to re-apply after Blizzard redraws
     if not btn._ccmUpdateArtHooked and btn.UpdateButtonArt then
       btn._ccmUpdateArtHooked = true
       hooksecurefunc(btn, "UpdateButtonArt", function(self)
@@ -1535,7 +1523,6 @@ local function SkinActionButton(btn, hide)
         end
       end)
     end
-    -- Hook Show on SlotBackground to prevent Blizzard re-showing it
     if btn.SlotBackground and not btn.SlotBackground._ccmShowHooked then
       btn.SlotBackground._ccmShowHooked = true
       hooksecurefunc(btn.SlotBackground, "Show", function(self)
@@ -1552,7 +1539,6 @@ local function SkinActionButton(btn, hide)
         if st and st.skinned then self:Hide() end
       end)
     end
-    -- Hook Show on NormalTexture to prevent Blizzard re-showing it
     local ntHook = btn:GetNormalTexture()
     if ntHook and not ntHook._ccmShowHooked then
       ntHook._ccmShowHooked = true
@@ -1563,7 +1549,6 @@ local function SkinActionButton(btn, hide)
         if st and st.skinned then self:Hide() end
       end)
     end
-    -- Hook action updates to show/hide empty slots dynamically
     if not btn._ccmActionUpdateHooked and btn.Update and type(btn.Update) == "function" then
       btn._ccmActionUpdateHooked = true
       hooksecurefunc(btn, "Update", function(self)
@@ -1577,7 +1562,6 @@ local function SkinActionButton(btn, hide)
       end)
     end
   else
-    -- Restore
     local s = abSkinState[key]
     if s then s.skinned = false; s.emptyHidden = false end
     if btn.HotKey then btn.HotKey:SetAlpha(1) end
@@ -1589,7 +1573,6 @@ local function SkinActionButton(btn, hide)
     if btn.IconBorder then btn.IconBorder:SetAlpha(1) end
     if btn.SlotArt then btn.SlotArt:Show() end
     if btn.SlotBackground then btn.SlotBackground:Show() end
-    -- Restore ALL texture regions
     local regions = {btn:GetRegions()}
     for _, region in ipairs(regions) do
       if region:IsObjectType("Texture") then
@@ -1604,7 +1587,6 @@ local function SkinActionButton(btn, hide)
     elseif iconTex then
       iconTex:SetTexCoord(0, 1, 0, 1)
     end
-    -- Restore icon anchors
     if iconTex and s and s.origIconPoints then
       iconTex:ClearAllPoints()
       for _, pt in ipairs(s.origIconPoints) do
@@ -1621,12 +1603,10 @@ local function SkinActionButton(btn, hide)
         cooldownFrame:SetAllPoints(btn)
       end
     end
-    -- Hide border textures
     if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
     if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
     if btn._ccmBorderLeft then btn._ccmBorderLeft:Hide() end
     if btn._ccmBorderRight then btn._ccmBorderRight:Hide() end
-    -- Force Blizzard to redraw the button art (instant restore without reload)
     if btn.UpdateButtonArt then
       pcall(btn.UpdateButtonArt, btn)
     end
@@ -1638,9 +1618,7 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
   if not bar then return end
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   numButtons = numButtons or 12
-  -- Hide bar border art and background
   if bar.BorderArt then bar.BorderArt:SetShown(not hide) end
-  -- Hide bar-level background regions
   if hide then
     local barRegions = {bar:GetRegions()}
     for _, region in ipairs(barRegions) do
@@ -1660,7 +1638,6 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
       end
     end
   end
-  -- Skin each button
   for i = 1, numButtons do
     local btn = _G[prefix .. i]
     if btn then
@@ -1670,7 +1647,6 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
     end
     SkinActionButton(btn, hide)
   end
-  -- Avoid doubled thickness on shared inner edges when buttons are flush.
   local function NormalizeSharedBorders(isVerticalLayout)
     local edgeMode = isVerticalLayout and "vertical" or "horizontal"
     for i = 1, numButtons do
@@ -1683,7 +1659,6 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
           local curHasOutline = ButtonHasVisibleOutline(btn, profile)
           local prevHasOutline = ButtonHasVisibleOutline(prevBtn, profile)
           if isVerticalLayout then
-            -- In vertical stacks, top of every button except the first overlaps with previous bottom.
             if i > 1 and curHasOutline and prevHasOutline then
               btn._ccmBorderTop:Hide()
             else
@@ -1699,7 +1674,6 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
               btn._ccmBorderRight:Hide()
             end
           else
-            -- In horizontal rows, left of every button except the first overlaps with previous right.
             if i > 1 and curHasOutline and prevHasOutline then
               btn._ccmBorderLeft:Hide()
             else
@@ -1724,7 +1698,6 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
       end
     end
   end
-  -- Compact spacing: reposition buttons with 0 gap
   if not InCombatLockdown() then
     local btn1 = _G[prefix .. "1"]
     local btn2 = _G[prefix .. "2"]
@@ -1774,7 +1747,6 @@ end
 local abSkinEverApplied = false
 
 local function RestoreAllActionBars()
-  -- Restore EndCaps on both MainMenuBar and MainActionBar
   local mainBar = MainMenuBar
   if mainBar and mainBar.EndCaps then
     if mainBar.EndCaps.LeftEndCap then mainBar.EndCaps.LeftEndCap:SetShown(true) end
@@ -1787,7 +1759,6 @@ local function RestoreAllActionBars()
   end
   local bar1Name = mainActionBar and "MainActionBar" or "MainMenuBar"
   SkinBarButtons(bar1Name, "ActionButton", false, 12)
-  -- Also restore MainMenuBar bar-level regions if different from bar1
   if mainBar and bar1Name ~= "MainMenuBar" then
     local barRegions = {mainBar:GetRegions()}
     for _, region in ipairs(barRegions) do
@@ -1813,7 +1784,6 @@ addonTable.SetupHideABBorders = function()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
   local hide = profile.hideActionBarBorders == true
-  -- When disabled: only restore if we ever applied skinning, then do nothing
   if not hide then
     if abSkinEverApplied then
       abSkinEverApplied = false
@@ -1822,7 +1792,6 @@ addonTable.SetupHideABBorders = function()
     return
   end
   abSkinEverApplied = true
-  -- Hide EndCaps
   local mainBar = MainMenuBar
   if mainBar and mainBar.EndCaps then
     if mainBar.EndCaps.LeftEndCap then mainBar.EndCaps.LeftEndCap:SetShown(false) end
@@ -1833,10 +1802,8 @@ addonTable.SetupHideABBorders = function()
     if mainActionBar.EndCaps.LeftEndCap then mainActionBar.EndCaps.LeftEndCap:SetShown(false) end
     if mainActionBar.EndCaps.RightEndCap then mainActionBar.EndCaps.RightEndCap:SetShown(false) end
   end
-  -- Skin all action bars
   local bar1Name = mainActionBar and "MainActionBar" or "MainMenuBar"
   SkinBarButtons(bar1Name, "ActionButton", true, 12)
-  -- Also skin MainMenuBar bar-level regions if different from bar1
   if mainBar and bar1Name ~= "MainMenuBar" then
     local barRegions = {mainBar:GetRegions()}
     for _, region in ipairs(barRegions) do
@@ -2133,19 +2100,18 @@ end
 
 -- Slots that are always enchantable regardless of item type
 local ALWAYS_ENCHANTABLE = {
-  [5] = true, [7] = true, [8] = true, [9] = true,   -- chest, legs, feet, wrist
-  [11] = true, [12] = true, [15] = true, [16] = true, -- rings, back, main hand
+  [5] = true, [7] = true, [8] = true, [9] = true,
+  [11] = true, [12] = true, [15] = true, [16] = true,
 }
 
 -- Helper: Check if equipped item in slot can actually be enchanted
 local function CanItemBeEnchanted(slotID)
   if ALWAYS_ENCHANTABLE[slotID] then return true end
-  -- Off-hand (slot 17): only weapons can be enchanted, not shields/offhand frills
   if slotID == 17 then
     local itemID = GetInventoryItemID("player", slotID)
     if itemID then
       local _, _, _, _, _, classID = C_Item.GetItemInfoInstant(itemID)
-      return classID == 2 -- LE_ITEM_CLASS_WEAPON
+      return classID == 2
     end
   end
   return false
@@ -2159,7 +2125,6 @@ local function GetSocketInfo(itemLink, slotID)
   for i = 3, 6 do
     if (tonumber(parts[i]) or 0) > 0 then filled = filled + 1 end
   end
-  -- Count empty sockets via tooltip scanning (GetItemStats removed in 12.0)
   local empty = 0
   if slotID then
     scanTip:ClearLines()
@@ -2196,18 +2161,15 @@ local function CreateSlotOverlay(slotFrame, side)
   overlay.side = side
   local justify = (side == "right") and "RIGHT" or "LEFT"
   local anchor = (side == "right") and "TOPRIGHT" or "TOPLEFT"
-  -- Item level text (centered inside the icon)
   overlay.ilvlText = slotFrame:CreateFontString(nil, "OVERLAY")
   overlay.ilvlText:SetFont(STANDARD_TEXT_FONT, 13, "OUTLINE")
   overlay.ilvlText:SetPoint("CENTER", slotFrame, "CENTER", 0, 0)
   overlay.ilvlText:SetJustifyH("CENTER")
-  -- Enchant text (beside the icon)
   overlay.enchantText = overlay:CreateFontString(nil, "OVERLAY")
   overlay.enchantText:SetFont(STANDARD_TEXT_FONT, 11, "OUTLINE")
   local enchantXOff = (side == "right") and -5 or 5
   overlay.enchantText:SetPoint(anchor, overlay, anchor, enchantXOff, 0)
   overlay.enchantText:SetJustifyH(justify)
-  -- Socket icons (below enchant text, same side as overlay)
   overlay.socketIcons = {}
   for i = 1, 3 do
     local btn = CreateFrame("Button", nil, overlay)
@@ -2251,7 +2213,6 @@ local function UpdateSlotOverlay(slotInfo)
     if ov.ilvlText then ov.ilvlText:Hide() end
     return
   end
-  -- Item level
   local ilvl
   if GetDetailedItemLevelInfo then
     ilvl = GetDetailedItemLevelInfo(itemLink)
@@ -2264,7 +2225,6 @@ local function UpdateSlotOverlay(slotInfo)
   else
     ov.ilvlText:SetText("")
   end
-  -- Enchant info
   if CanItemBeEnchanted(slotID) then
     if HasEnchant(itemLink) then
       local enchName = GetEnchantText(slotID) or "Enchanted"
@@ -2280,7 +2240,6 @@ local function UpdateSlotOverlay(slotInfo)
     ov.enchantText:SetText("")
     ov.enchantText:Hide()
   end
-  -- Socket icons (horizontal, below enchant text, anchored to overlay)
   local totalSockets, filledGems = GetSocketInfo(itemLink, slotID)
   if totalSockets > 0 then
     local parts = {strsplit(":", itemLink:match("item:([%-?%d:]+)") or "")}
@@ -2295,7 +2254,6 @@ local function UpdateSlotOverlay(slotInfo)
     local isRight = (ov.side == "right")
     local iconSize = 18
     local pad = 2
-    -- Calculate Y offset: below enchant text if visible, otherwise at top
     local socketY = 0
     if ov.enchantText:IsShown() and ov.enchantText:GetText() ~= "" then
       socketY = -(ov.enchantText:GetStringHeight() + 3)
@@ -2448,7 +2406,6 @@ addonTable.SetupBetterItemLevel = function()
       end
     end)
   end
-  -- Force update if character frame is open
   if CharacterFrame and CharacterFrame:IsShown() and PaperDollFrame_UpdateStats then
     pcall(PaperDollFrame_UpdateStats)
   end
@@ -2485,7 +2442,6 @@ end)
 
 C_Timer.After(2, function()
   if addonTable.SetupBetterItemLevel then addonTable.SetupBetterItemLevel() end
-  -- Hook character frame show/hide
   if CharacterFrame then
     CharacterFrame:HookScript("OnShow", function()
       local profile = addonTable.GetProfile and addonTable.GetProfile()

@@ -1,4 +1,4 @@
-## Interface: 120000
+## Interface: 120001, 120000
 ## Title: |cffffffffCooldown|r |cff00ff00Cursor|r |cffffffffManager|r
 ## Notes: Display spell and item cooldowns near your cursor with extensive customization
 ## Author: Edeljay

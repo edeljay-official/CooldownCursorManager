@@ -345,7 +345,6 @@ local function UpdatePRBHealthOverlays(width, height)
   if hb.otherHealPredFrame and hb.otherHealPredFrame.SetStatusBarTexture then hb.otherHealPredFrame:SetStatusBarTexture(overlayTexPath) end
   if hb.dmgAbsorbFrame and hb.dmgAbsorbFrame.SetStatusBarTexture then hb.dmgAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
   if hb.healAbsorbFrame and hb.healAbsorbFrame.SetStatusBarTexture then hb.healAbsorbFrame:SetStatusBarTexture(overlayTexPath) end
-  -- Over-absorb must never be striped: always keep the default smooth texture.
   if hb.fullDmgAbsorbFrame and hb.fullDmgAbsorbFrame.SetStatusBarTexture then hb.fullDmgAbsorbFrame:SetStatusBarTexture(PRB_OVERLAY_TEX_NORM) end
   if hb.dmgAbsorbGlow and hb.dmgAbsorbGlow.SetTexture then hb.dmgAbsorbGlow:SetTexture(PRB_OVERLAY_TEX_NORM) end
   if hb.dmgAbsorbStripe and hb.dmgAbsorbStripe.SetTexture then hb.dmgAbsorbStripe:SetTexture(stripeTexPath) end

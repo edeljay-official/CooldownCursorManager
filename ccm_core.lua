@@ -3690,6 +3690,20 @@ local function SetPointSnapped(frame, point, relativeTo, relativePoint, xOfs, yO
     frame:SetPoint(point, relativeTo, relativePoint, xOfs or 0, yOfs or 0)
   end
 end
+local function SetPointIfChanged(frame, point, relativeTo, relativePoint, xOfs, yOfs)
+  xOfs = xOfs or 0
+  yOfs = yOfs or 0
+  if frame.GetNumPoints and frame:GetNumPoints() == 1 and frame.GetPoint then
+    local p, rel, rp, ox, oy = frame:GetPoint(1)
+    if p == point and rel == relativeTo and rp == relativePoint then
+      local dx = math.abs((ox or 0) - xOfs)
+      local dy = math.abs((oy or 0) - yOfs)
+      if dx < 0.5 and dy < 0.5 then return end
+    end
+  end
+  frame:ClearAllPoints()
+  SetPointSnapped(frame, point, relativeTo, relativePoint, xOfs, yOfs)
+end
 SanitizeCooldownViewerChargeState = function(icon)
   if not icon then return end
   local function IsSecretValue(v)
@@ -4045,9 +4059,6 @@ PatchAllCooldownViewerChargeMethods = function()
   PatchFrameChildren(EssentialCooldownViewer, 0)
   PatchFrameChildren(UtilityCooldownViewer, 0)
 end
--- Runtime monkey-patching of Blizzard CooldownViewer methods is unstable with
--- secret values in combat and can break Blizzard's own refresh logic.
--- Keep these hooks disabled and only do visual skin/position work.
 SanitizeCooldownViewerChargeState = function() end
 PatchCooldownViewerIconChargeMethods = function() end
 PatchAllCooldownViewerChargeMethods = function() end
@@ -4116,7 +4127,8 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
         local vCol = growLeft and (iconsInRow - col) or (col - 1)
       local xPos = startX + (vCol * (size + spacing))
       icon:SetSize(size, size)
-      icon:ClearAllPoints()
+      local targetX = SnapHalf(xPos)
+      local targetY
       if growUp then
         local yPos
         if pinFirstRowY then
@@ -4124,10 +4136,11 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
         else
           yPos = totalHeight - yTop - size
         end
-        icon:SetPoint("TOPLEFT", frame, "TOPLEFT", SnapHalf(xPos), -SnapHalf(yPos))
+        targetY = -SnapHalf(yPos)
       else
-        icon:SetPoint("TOPLEFT", frame, "TOPLEFT", SnapHalf(xPos), -SnapHalf(yTop))
+        targetY = -SnapHalf(yTop)
       end
+      SetPointIfChanged(icon, "TOPLEFT", frame, "TOPLEFT", targetX, targetY)
       end
       iconIndex = iconIndex + 1
     end
@@ -4497,8 +4510,7 @@ local function UpdateStandaloneBlizzardBars()
         local buffPosX = buffCentered and 0 or (profile.blizzBarBuffX or 0)
         local buffPosY = profile.blizzBarBuffY or buffY
         if canReposition and (buffCentered or profile.blizzBarBuffX ~= nil or profile.blizzBarBuffY ~= nil or State.guiIsOpen) then
-          buffs:ClearAllPoints()
-          SetPointSnapped(buffs, "CENTER", UIParent, "CENTER", buffPosX, buffPosY)
+          SetPointIfChanged(buffs, "CENTER", UIParent, "CENTER", buffPosX, buffPosY)
         end
         local buffKeyParts = {
           #visibleIcons, numCols, iconSize, iconSpacing,
@@ -4509,7 +4521,7 @@ local function UpdateStandaloneBlizzardBars()
           buffKeyParts[#buffKeyParts + 1] = visibleIcons[i].layoutIndex or i
         end
         local buffLayoutKey = table.concat(buffKeyParts, "|")
-        if needsSkinning or State.standaloneBuffLayoutKey ~= buffLayoutKey then
+        if needsSkinning or buffCentered or State.standaloneBuffLayoutKey ~= buffLayoutKey then
           State.standaloneBuffLayoutKey = buffLayoutKey
           addonTable.LayoutStandaloneRows(
             buffs,
@@ -4610,8 +4622,7 @@ local function UpdateStandaloneBlizzardBars()
         local essentialPosX = essentialCentered and 0 or (profile.blizzBarEssentialX or 0)
         local essentialPosY = profile.blizzBarEssentialY or essentialY
         if canReposition and (essentialCentered or profile.blizzBarEssentialX ~= nil or profile.blizzBarEssentialY ~= nil or State.guiIsOpen) then
-          main:ClearAllPoints()
-          SetPointSnapped(main, "CENTER", UIParent, "CENTER", essentialPosX, essentialPosY)
+          SetPointIfChanged(main, "CENTER", UIParent, "CENTER", essentialPosX, essentialPosY)
         end
         local essentialKeyParts = {
           #visibleIcons, numCols, iconSize, essentialSecondRowSize, iconSpacing,
@@ -4622,7 +4633,7 @@ local function UpdateStandaloneBlizzardBars()
           essentialKeyParts[#essentialKeyParts + 1] = visibleIcons[i].layoutIndex or i
         end
         local essentialLayoutKey = table.concat(essentialKeyParts, "|")
-        if needsSkinning or State.standaloneEssentialLayoutKey ~= essentialLayoutKey then
+        if needsSkinning or essentialCentered or State.standaloneEssentialLayoutKey ~= essentialLayoutKey then
           State.standaloneEssentialLayoutKey = essentialLayoutKey
           local layoutWidth = addonTable.LayoutStandaloneRows(
             main,
@@ -4778,8 +4789,7 @@ local function UpdateStandaloneBlizzardBars()
         local utilityPosX = utilityCentered and 0 or (profile.blizzBarUtilityX or 0)
         local utilityPosY = profile.blizzBarUtilityY or utilityY
         if canReposition and (utilityCentered or profile.blizzBarUtilityX ~= nil or profile.blizzBarUtilityY ~= nil or State.guiIsOpen) then
-          utility:ClearAllPoints()
-          SetPointSnapped(utility, "CENTER", UIParent, "CENTER", utilityPosX, utilityPosY)
+          SetPointIfChanged(utility, "CENTER", UIParent, "CENTER", utilityPosX, utilityPosY)
         end
         local utilityKeyParts = {
           #visibleIcons, numCols, iconSize, utilitySecondRowSize, iconSpacing,
@@ -4790,7 +4800,7 @@ local function UpdateStandaloneBlizzardBars()
           utilityKeyParts[#utilityKeyParts + 1] = visibleIcons[i].layoutIndex or i
         end
         local utilityLayoutKey = table.concat(utilityKeyParts, "|")
-        if needsSkinning or State.standaloneUtilityLayoutKey ~= utilityLayoutKey then
+        if needsSkinning or utilityCentered or State.standaloneUtilityLayoutKey ~= utilityLayoutKey then
           State.standaloneUtilityLayoutKey = utilityLayoutKey
           addonTable.LayoutStandaloneRows(
             utility,
@@ -4826,10 +4836,38 @@ if CooldownViewerSettings and CooldownViewerSettings.RefreshLayout then
     if PatchAllCooldownViewerChargeMethods then
       PatchAllCooldownViewerChargeMethods()
     end
-    if InCombatLockdown() then return end
     State.standaloneNeedsSkinning = true
+    State.standaloneFastUntil = GetTime() + 0.6
+    State.lastStandaloneTick = 0
+    UpdateStandaloneBlizzardBars()
+    C_Timer.After(0, function()
+      State.standaloneNeedsSkinning = true
+      UpdateStandaloneBlizzardBars()
+    end)
+  end)
+end
+-- Per-bar RefreshLayout hooks: recenter immediately after Blizzard refreshes each bar
+for _, viewerName in ipairs({"EssentialCooldownViewer", "UtilityCooldownViewer", "BuffIconCooldownViewer"}) do
+  local viewer = _G[viewerName]
+  if viewer and viewer.RefreshLayout then
+    hooksecurefunc(viewer, "RefreshLayout", function()
+      State.standaloneNeedsSkinning = true
+      UpdateStandaloneBlizzardBars()
+    end)
+  end
+end
+-- OnUpdate centering: runs last before render, ensures our positions always win
+do
+  local centerFrame = CreateFrame("Frame")
+  centerFrame.elapsed = 0
+  centerFrame:Hide()
+  centerFrame:SetScript("OnUpdate", function(self, elapsed)
+    self.elapsed = self.elapsed + elapsed
+    if self.elapsed < 0.016 then return end
+    self.elapsed = 0
     UpdateStandaloneBlizzardBars()
   end)
+  State.standaloneCenterFrame = centerFrame
 end
 if EditModeManagerFrame then
   hooksecurefunc(EditModeManagerFrame, "ExitEditMode", function()
@@ -5032,6 +5070,7 @@ local function UpdateCustomBar()
     local isChargeSpell = false
     local cdStart, cdDuration = 0, 0
     local chargesData = nil
+    icon:Show()
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
@@ -5048,9 +5087,6 @@ local function UpdateCustomBar()
       if itemCount == 0 then
         itemCount = C_Item.GetItemCount(actualID, false, true)
       end
-      if not itemCount or itemCount <= 0 then
-        isOnCooldown = true
-      end
       cdStart, cdDuration = GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
@@ -5058,24 +5094,21 @@ local function UpdateCustomBar()
           shouldShowSwipe = false
         end
       end
-      if shouldShowSwipe and cdStart and cdDuration then
-        icon.cooldown:SetCooldown(cdStart, cdDuration)
+      if shouldShowSwipe and cdStart and cdDuration and cdDuration > 1.5 then
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
+        icon.cooldown:SetHideCountdownNumbers(false)
       else
-        icon.cooldown:SetCooldown(0, 0)
+        icon.cooldown:Clear()
       end
-      icon.cooldown:SetDrawEdge(false)
-      icon.cooldown:SetDrawBling(false)
-      local start, duration = icon.cooldown:GetCooldownTimes()
-      local startOk = start and IsRealNumber(start)
-      local durOk = duration and IsRealNumber(duration)
-      if startOk and durOk and start > 0 and duration > 1500 then
+      local itemNotInBags = not itemCount or itemCount <= 0
+      if itemNotInBags or (cdStart and cdDuration and cdStart > 0 and cdDuration > 1.5) then
         isOnCooldown = true
       end
     else
       activeSpellID = ResolveTrackedSpellID(actualID)
       if not IsTrackedEntryAvailable(false, actualID, activeSpellID) then
         iconTexture = nil
-        icon.cooldown:SetCooldown(0, 0)
+        icon.cooldown:Clear()
       else
         local spellInfo = C_Spell.GetSpellInfo(activeSpellID)
         iconTexture = spellInfo and spellInfo.iconID or nil
@@ -5083,44 +5116,34 @@ local function UpdateCustomBar()
         if chargesData then
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
-          icon.cooldown:SetCooldown(cdStart, cdDuration)
-          icon.cooldown:SetDrawEdge(false)
-          icon.cooldown:SetDrawBling(false)
+          local shouldShowSwipe = true
+          if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
+            shouldShowSwipe = false
+          end
+          if shouldShowSwipe and cdStart and cdDuration then
+            pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
+            icon.cooldown:SetHideCountdownNumbers(false)
+            icon.cooldown:SetDrawEdge(false)
+          else
+            icon.cooldown:Clear()
+          end
         else
           local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
+            local shouldShowSwipe = true
             if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
-              icon.cooldown:SetCooldown(0, 0)
+              shouldShowSwipe = false
+            end
+            if shouldShowSwipe then
+              pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
             else
-              icon.cooldown:SetCooldown(cdStart, cdDuration)
+              icon.cooldown:Clear()
             end
+            icon.cooldown:SetHideCountdownNumbers(false)
             icon.cooldown:SetDrawEdge(false)
-            icon.cooldown:SetDrawBling(false)
           else
-            icon.cooldown:SetCooldown(0, 0)
-          end
-        end
-        local start, duration = icon.cooldown:GetCooldownTimes()
-        local startOk = start and IsRealNumber(start)
-        local durOk = duration and IsRealNumber(duration)
-        if startOk and durOk then
-          if start > 0 and duration > 1500 then
-            isOnCooldown = true
-          elseif not isChargeSpell then
-            isOnCooldown = false
-          end
-        else
-          if not isChargeSpell then
-            if icon.cooldown:IsShown() then
-              local cdRegion = icon.cooldown:GetRegions()
-              if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-                local alpha = cdRegion:GetAlpha()
-                if alpha and alpha > 0.1 then
-                  isOnCooldown = true
-                end
-              end
-            end
+            icon.cooldown:Clear()
           end
         end
       end
@@ -5132,11 +5155,35 @@ local function UpdateCustomBar()
         buffStart, buffDuration = GetActiveBuffOverlay(actualID)
       end
       if buffStart and buffDuration then
-        icon.cooldown:SetCooldown(buffStart, buffDuration)
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, buffStart, buffDuration)
         buffOverlayActive = true
       end
     end
     pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
+    if not isItem then
+      local start, duration = icon.cooldown:GetCooldownTimes()
+      local startOk = start and IsRealNumber(start)
+      local durOk = duration and IsRealNumber(duration)
+      if startOk and durOk then
+        if start > 0 and duration > 1500 then
+          isOnCooldown = true
+        else
+          isOnCooldown = false
+        end
+      else
+        if not isChargeSpell then
+          if icon.cooldown:IsShown() then
+            local cdRegion = icon.cooldown:GetRegions()
+            if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
+              local alpha = cdRegion:GetAlpha()
+              if alpha and alpha > 0.1 then
+                isOnCooldown = true
+              end
+            end
+          end
+        end
+      end
+    end
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -5233,7 +5280,8 @@ local function UpdateCustomBar()
     local actualID = icon.actualID
     local activeSpellID = isItem and actualID or ResolveTrackedSpellID(actualID)
     icon.icon:SetTexture(iconTexture)
-    if layoutChanged then
+    local needsPosition = layoutChanged or (icon.GetNumPoints and icon:GetNumPoints() == 0)
+    if needsPosition then
       icon:SetSize(iconSize, iconSize)
       if icon.Icon then
         icon.Icon:SetAllPoints(icon)
@@ -5565,6 +5613,7 @@ local function UpdateCustomBar2()
     local isChargeSpell = false
     local cdStart, cdDuration = 0, 0
     local chargesData = nil
+    icon:Show()
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
@@ -5581,9 +5630,6 @@ local function UpdateCustomBar2()
       if itemCount == 0 then
         itemCount = C_Item.GetItemCount(actualID, false, true)
       end
-      if not itemCount or itemCount <= 0 then
-        isOnCooldown = true
-      end
       cdStart, cdDuration = GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
@@ -5591,24 +5637,21 @@ local function UpdateCustomBar2()
           shouldShowSwipe = false
         end
       end
-      if shouldShowSwipe and cdStart and cdDuration then
-        icon.cooldown:SetCooldown(cdStart, cdDuration)
+      if shouldShowSwipe and cdStart and cdDuration and cdDuration > 1.5 then
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
+        icon.cooldown:SetHideCountdownNumbers(false)
       else
-        icon.cooldown:SetCooldown(0, 0)
+        icon.cooldown:Clear()
       end
-      icon.cooldown:SetDrawEdge(false)
-      icon.cooldown:SetDrawBling(false)
-      local start, duration = icon.cooldown:GetCooldownTimes()
-      local startOk = start and IsRealNumber(start)
-      local durOk = duration and IsRealNumber(duration)
-      if startOk and durOk and start > 0 and duration > 1500 then
+      local itemNotInBags = not itemCount or itemCount <= 0
+      if itemNotInBags or (cdStart and cdDuration and cdStart > 0 and cdDuration > 1.5) then
         isOnCooldown = true
       end
     else
       activeSpellID = ResolveTrackedSpellID(actualID)
       if not IsTrackedEntryAvailable(false, actualID, activeSpellID) then
         iconTexture = nil
-        icon.cooldown:SetCooldown(0, 0)
+        icon.cooldown:Clear()
       else
         local spellInfo = C_Spell.GetSpellInfo(activeSpellID)
         iconTexture = spellInfo and spellInfo.iconID or nil
@@ -5616,44 +5659,34 @@ local function UpdateCustomBar2()
         if chargesData then
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
-          icon.cooldown:SetCooldown(cdStart, cdDuration)
-          icon.cooldown:SetDrawEdge(false)
-          icon.cooldown:SetDrawBling(false)
+          local shouldShowSwipe = true
+          if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
+            shouldShowSwipe = false
+          end
+          if shouldShowSwipe and cdStart and cdDuration then
+            pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
+            icon.cooldown:SetHideCountdownNumbers(false)
+            icon.cooldown:SetDrawEdge(false)
+          else
+            icon.cooldown:Clear()
+          end
         else
           local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
+            local shouldShowSwipe = true
             if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
-              icon.cooldown:SetCooldown(0, 0)
+              shouldShowSwipe = false
+            end
+            if shouldShowSwipe then
+              pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
             else
-              icon.cooldown:SetCooldown(cdStart, cdDuration)
+              icon.cooldown:Clear()
             end
+            icon.cooldown:SetHideCountdownNumbers(false)
             icon.cooldown:SetDrawEdge(false)
-            icon.cooldown:SetDrawBling(false)
           else
-            icon.cooldown:SetCooldown(0, 0)
-          end
-        end
-        local start, duration = icon.cooldown:GetCooldownTimes()
-        local startOk = start and IsRealNumber(start)
-        local durOk = duration and IsRealNumber(duration)
-        if startOk and durOk then
-          if start > 0 and duration > 1500 then
-            isOnCooldown = true
-          elseif not isChargeSpell then
-            isOnCooldown = false
-          end
-        else
-          if not isChargeSpell then
-            if icon.cooldown:IsShown() then
-              local cdRegion = icon.cooldown:GetRegions()
-              if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-                local alpha = cdRegion:GetAlpha()
-                if alpha and alpha > 0.1 then
-                  isOnCooldown = true
-                end
-              end
-            end
+            icon.cooldown:Clear()
           end
         end
       end
@@ -5665,11 +5698,35 @@ local function UpdateCustomBar2()
         buffStart, buffDuration = GetActiveBuffOverlay(actualID)
       end
       if buffStart and buffDuration then
-        icon.cooldown:SetCooldown(buffStart, buffDuration)
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, buffStart, buffDuration)
         buffOverlayActive = true
       end
     end
     pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
+    if not isItem then
+      local start, duration = icon.cooldown:GetCooldownTimes()
+      local startOk = start and IsRealNumber(start)
+      local durOk = duration and IsRealNumber(duration)
+      if startOk and durOk then
+        if start > 0 and duration > 1500 then
+          isOnCooldown = true
+        else
+          isOnCooldown = false
+        end
+      else
+        if not isChargeSpell then
+          if icon.cooldown:IsShown() then
+            local cdRegion = icon.cooldown:GetRegions()
+            if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
+              local alpha = cdRegion:GetAlpha()
+              if alpha and alpha > 0.1 then
+                isOnCooldown = true
+              end
+            end
+          end
+        end
+      end
+    end
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -5766,7 +5823,8 @@ local function UpdateCustomBar2()
     local actualID = icon.actualID
     local activeSpellID = isItem and actualID or ResolveTrackedSpellID(actualID)
     icon.icon:SetTexture(iconTexture)
-    if layoutChanged then
+    local needsPosition = layoutChanged or (icon.GetNumPoints and icon:GetNumPoints() == 0)
+    if needsPosition then
       icon:SetSize(iconSize, iconSize)
       if icon.Icon then
         icon.Icon:SetAllPoints(icon)
@@ -6098,6 +6156,7 @@ local function UpdateCustomBar3()
     local isChargeSpell = false
     local cdStart, cdDuration = 0, 0
     local chargesData = nil
+    icon:Show()
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
@@ -6114,9 +6173,6 @@ local function UpdateCustomBar3()
       if itemCount == 0 then
         itemCount = C_Item.GetItemCount(actualID, false, true)
       end
-      if not itemCount or itemCount <= 0 then
-        isOnCooldown = true
-      end
       cdStart, cdDuration = GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
@@ -6124,24 +6180,21 @@ local function UpdateCustomBar3()
           shouldShowSwipe = false
         end
       end
-      if shouldShowSwipe and cdStart and cdDuration then
-        icon.cooldown:SetCooldown(cdStart, cdDuration)
+      if shouldShowSwipe and cdStart and cdDuration and cdDuration > 1.5 then
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
+        icon.cooldown:SetHideCountdownNumbers(false)
       else
-        icon.cooldown:SetCooldown(0, 0)
+        icon.cooldown:Clear()
       end
-      icon.cooldown:SetDrawEdge(false)
-      icon.cooldown:SetDrawBling(false)
-      local start, duration = icon.cooldown:GetCooldownTimes()
-      local startOk = start and IsRealNumber(start)
-      local durOk = duration and IsRealNumber(duration)
-      if startOk and durOk and start > 0 and duration > 1500 then
+      local itemNotInBags = not itemCount or itemCount <= 0
+      if itemNotInBags or (cdStart and cdDuration and cdStart > 0 and cdDuration > 1.5) then
         isOnCooldown = true
       end
     else
       activeSpellID = ResolveTrackedSpellID(actualID)
       if not IsTrackedEntryAvailable(false, actualID, activeSpellID) then
         iconTexture = nil
-        icon.cooldown:SetCooldown(0, 0)
+        icon.cooldown:Clear()
       else
         local spellInfo = C_Spell.GetSpellInfo(activeSpellID)
         iconTexture = spellInfo and spellInfo.iconID or nil
@@ -6149,44 +6202,34 @@ local function UpdateCustomBar3()
         if chargesData then
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
-          icon.cooldown:SetCooldown(cdStart, cdDuration)
-          icon.cooldown:SetDrawEdge(false)
-          icon.cooldown:SetDrawBling(false)
+          local shouldShowSwipe = true
+          if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
+            shouldShowSwipe = false
+          end
+          if shouldShowSwipe and cdStart and cdDuration then
+            pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
+            icon.cooldown:SetHideCountdownNumbers(false)
+            icon.cooldown:SetDrawEdge(false)
+          else
+            icon.cooldown:Clear()
+          end
         else
           local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
+            local shouldShowSwipe = true
             if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
-              icon.cooldown:SetCooldown(0, 0)
+              shouldShowSwipe = false
+            end
+            if shouldShowSwipe then
+              pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
             else
-              icon.cooldown:SetCooldown(cdStart, cdDuration)
+              icon.cooldown:Clear()
             end
+            icon.cooldown:SetHideCountdownNumbers(false)
             icon.cooldown:SetDrawEdge(false)
-            icon.cooldown:SetDrawBling(false)
           else
-            icon.cooldown:SetCooldown(0, 0)
-          end
-        end
-        local start, duration = icon.cooldown:GetCooldownTimes()
-        local startOk = start and IsRealNumber(start)
-        local durOk = duration and IsRealNumber(duration)
-        if startOk and durOk then
-          if start > 0 and duration > 1500 then
-            isOnCooldown = true
-          elseif not isChargeSpell then
-            isOnCooldown = false
-          end
-        else
-          if not isChargeSpell then
-            if icon.cooldown:IsShown() then
-              local cdRegion = icon.cooldown:GetRegions()
-              if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-                local alpha = cdRegion:GetAlpha()
-                if alpha and alpha > 0.1 then
-                  isOnCooldown = true
-                end
-              end
-            end
+            icon.cooldown:Clear()
           end
         end
       end
@@ -6198,11 +6241,35 @@ local function UpdateCustomBar3()
         buffStart, buffDuration = GetActiveBuffOverlay(actualID)
       end
       if buffStart and buffDuration then
-        icon.cooldown:SetCooldown(buffStart, buffDuration)
+        pcall(icon.cooldown.SetCooldown, icon.cooldown, buffStart, buffDuration)
         buffOverlayActive = true
       end
     end
     pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
+    if not isItem then
+      local start, duration = icon.cooldown:GetCooldownTimes()
+      local startOk = start and IsRealNumber(start)
+      local durOk = duration and IsRealNumber(duration)
+      if startOk and durOk then
+        if start > 0 and duration > 1500 then
+          isOnCooldown = true
+        else
+          isOnCooldown = false
+        end
+      else
+        if not isChargeSpell then
+          if icon.cooldown:IsShown() then
+            local cdRegion = icon.cooldown:GetRegions()
+            if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
+              local alpha = cdRegion:GetAlpha()
+              if alpha and alpha > 0.1 then
+                isOnCooldown = true
+              end
+            end
+          end
+        end
+      end
+    end
     local notEnoughResources = false
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
@@ -6299,7 +6366,8 @@ local function UpdateCustomBar3()
     local actualID = icon.actualID
     local activeSpellID = isItem and actualID or ResolveTrackedSpellID(actualID)
     icon.icon:SetTexture(iconTexture)
-    if layoutChanged then
+    local needsPosition = layoutChanged or (icon.GetNumPoints and icon:GetNumPoints() == 0)
+    if needsPosition then
       icon:SetSize(iconSize, iconSize)
       if icon.Icon then
         icon.Icon:SetAllPoints(icon)
@@ -6846,7 +6914,6 @@ UpdateSpellIcon = function(icon)
       end
       icon.icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
       if not itemIcon then C_Item.RequestLoadItemDataByID(spellID) end
-      -- Apply text scales and show text during preview
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
       icon.cooldown:SetScale(cdTextScale)
       local cdStart, cdDuration = GetItemCooldown(spellID)
@@ -6872,7 +6939,6 @@ UpdateSpellIcon = function(icon)
       local activeSpellID = ResolveTrackedSpellID(spellID)
       local info = C_Spell.GetSpellInfo(activeSpellID)
       icon.icon:SetTexture(info and info.iconID or "Interface\\Icons\\INV_Misc_QuestionMark")
-      -- Apply text scales and show text during preview
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
       icon.cooldown:SetScale(cdTextScale)
       local charges = C_Spell.GetSpellCharges(activeSpellID)
@@ -7247,11 +7313,7 @@ addonTable.RequestStandaloneBuffRelayout = function()
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
   end)
-  C_Timer.After(0.06, function()
-    State.standaloneNeedsSkinning = true
-    UpdateStandaloneBlizzardBars()
-  end)
-  C_Timer.After(0.12, function()
+  C_Timer.After(0.10, function()
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
     State.standaloneAuraRelayoutPending = false
@@ -7308,6 +7370,14 @@ addonTable.EvaluateMainTicker = function()
     addonTable.StartMainTicker()
   else
     addonTable.StopMainTicker()
+  end
+  if State.standaloneCenterFrame then
+    local needsCenter = profile and (profile.standaloneBuffCentered or profile.standaloneEssentialCentered or profile.standaloneUtilityCentered)
+    if needsCenter then
+      State.standaloneCenterFrame:Show()
+    else
+      State.standaloneCenterFrame:Hide()
+    end
   end
   if addonTable.EvaluateOnUpdateHandlers then
     addonTable.EvaluateOnUpdateHandlers(profile)

@@ -1791,11 +1791,9 @@ addonTable.ApplyUnitFrameCustomization = function()
       local ok, hAbs = pcall(o.dmgAbsorbCalc.GetHealAbsorbs, o.dmgAbsorbCalc)
       if ok then healAbsorbsRaw = hAbs end
     end
-    -- Some API/providers can expose heal absorbs as negative numbers; normalize to positive magnitude.
     if type(healAbsorbsRaw) == "number" and (not IsSecret(healAbsorbsRaw)) and healAbsorbsRaw < 0 then
       healAbsorbsRaw = -healAbsorbsRaw
     end
-    -- Fallback: read directly from the original Blizzard heal-absorb statusbar value.
     if (not HasPositiveValue(healAbsorbsRaw)) and o.origHP and o.origHP.HealAbsorbBar and o.origHP.HealAbsorbBar.GetValue then
       local okBarVal, barVal = pcall(o.origHP.HealAbsorbBar.GetValue, o.origHP.HealAbsorbBar)
       if okBarVal and type(barVal) == "number" and (not IsSecret(barVal)) then
@@ -2806,7 +2804,6 @@ addonTable.ApplyUnitFrameCustomization = function()
     if o.healthTex and o.healthTex.SetDrawLayer then
       o.healthTex:SetDrawLayer("ARTWORK", 2)
     end
-    -- Apply per-bar masks so absorb bars can keep their own leading edge shape.
     local function ApplyStatusBarMask(bar, maskPath)
       if not bar or not bar.GetStatusBarTexture then return end
       local barTex = bar:GetStatusBarTexture()
@@ -3003,7 +3000,6 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     local function ApplyUFBigHBScaledFont(fontString, baseFont, baseSize, baseFlags, scale)
       if not fontString or not fontString.SetFont then return end
-      -- Use global font to match HP/power bar text styling
       local gf, go = GetGlobalFont()
       local fontPath = gf or baseFont
       local fontSize = baseSize

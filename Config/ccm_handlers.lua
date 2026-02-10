@@ -1353,7 +1353,6 @@ local function InitHandlers()
       end
     end
   end
-  -- Legacy checkbox handlers kept for backwards compatibility.
   if addonTable.hideAB1CB then addonTable.hideAB1CB.customOnClick = function(s) local p = GetProfile(); if p then p.hideActionBar1InCombat = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.hideAB1MouseoverCB then addonTable.hideAB1MouseoverCB.customOnClick = function(s) local p = GetProfile(); if p then p.hideActionBar1Mouseover = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.hideAB1AlwaysCB then addonTable.hideAB1AlwaysCB.customOnClick = function(s) local p = GetProfile(); if p then p.hideActionBar1Always = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
@@ -2569,6 +2568,10 @@ local function InitHandlers()
                "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
                "ufBigHBNameMaxChars",
                "ufBigHBHideRealm",
+               "ufBigHBPlayerMaskFixWidth", "ufBigHBPlayerMaskFixHeight", "ufBigHBPlayerMaskFixXOffset", "ufBigHBPlayerMaskFixYOffset", "ufBigHBPlayerMaskFixScale",
+               "ufBigHBPlayerMaskFixColorR", "ufBigHBPlayerMaskFixColorG", "ufBigHBPlayerMaskFixColorB", "ufBigHBPlayerMaskFixColorA",
+               "ufBigHBOtherMaskFixWidth", "ufBigHBOtherMaskFixHeight", "ufBigHBOtherMaskFixXOffset", "ufBigHBOtherMaskFixYOffset", "ufBigHBOtherMaskFixScale",
+               "ufBigHBOtherMaskFixColorR", "ufBigHBOtherMaskFixColorG", "ufBigHBOtherMaskFixColorB", "ufBigHBOtherMaskFixColorA",
                },
   }
   local keyToCategory = {}
