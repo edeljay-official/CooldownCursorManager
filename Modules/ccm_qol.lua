@@ -1390,14 +1390,19 @@ local function ApplyButtonSkin(btn)
     local profile = addonTable.GetProfile and addonTable.GetProfile()
     local borderSize = GetABSkinBorderSize(profile)
     iconTex:ClearAllPoints()
-    iconTex:SetPoint("TOPLEFT", btn, "TOPLEFT", borderSize, -borderSize)
-    iconTex:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", -borderSize, borderSize)
+    iconTex:SetAllPoints(btn)
     iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
     iconTex:SetAlpha(1)
+    if iconTex.GetMaskTexture then
+      local mask = iconTex:GetMaskTexture(1)
+      while mask do
+        iconTex:RemoveMaskTexture(mask)
+        mask = iconTex:GetMaskTexture(1)
+      end
+    end
     if cooldownFrame then
       cooldownFrame:ClearAllPoints()
-      cooldownFrame:SetPoint("TOPLEFT", iconTex, "TOPLEFT", 0, 0)
-      cooldownFrame:SetPoint("BOTTOMRIGHT", iconTex, "BOTTOMRIGHT", 0, 0)
+      cooldownFrame:SetAllPoints(btn)
     end
     if borderSize > 0 then
       if not btn._ccmBorderTop then
@@ -1496,6 +1501,16 @@ local function SkinActionButton(btn, hide)
           s.origCooldownPoints[i] = {cooldownFrame:GetPoint(i)}
         end
       end
+      if iconTex and iconTex.GetMaskTexture then
+        s.origMasks = {}
+        local idx = 1
+        local mask = iconTex:GetMaskTexture(idx)
+        while mask do
+          s.origMasks[idx] = mask
+          idx = idx + 1
+          mask = iconTex:GetMaskTexture(idx)
+        end
+      end
     end
     ApplyButtonSkin(btn)
     local hasAction = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
@@ -1591,6 +1606,11 @@ local function SkinActionButton(btn, hide)
       iconTex:ClearAllPoints()
       for _, pt in ipairs(s.origIconPoints) do
         iconTex:SetPoint(pt[1], pt[2], pt[3], pt[4], pt[5])
+      end
+    end
+    if iconTex and s and s.origMasks and iconTex.AddMaskTexture then
+      for _, mask in ipairs(s.origMasks) do
+        iconTex:AddMaskTexture(mask)
       end
     end
     if cooldownFrame then
@@ -2462,3 +2482,292 @@ C_Timer.After(2, function()
     end)
   end
 end)
+
+-- ============================================================
+-- Auto Quest Accept / Turn-in
+-- ============================================================
+
+local autoQuestFrame
+local questFreqCache = {}
+
+local FREQ_DAILY = Enum and Enum.QuestFrequency and Enum.QuestFrequency.Daily or 1
+local FREQ_WEEKLY = Enum and Enum.QuestFrequency and Enum.QuestFrequency.Weekly or 2
+
+local function CacheGossipFrequencies()
+  if C_GossipInfo then
+    if C_GossipInfo.GetAvailableQuests then
+      for _, q in ipairs(C_GossipInfo.GetAvailableQuests()) do
+        if q.questID and q.frequency then questFreqCache[q.questID] = q.frequency end
+      end
+    end
+    if C_GossipInfo.GetActiveQuests then
+      for _, q in ipairs(C_GossipInfo.GetActiveQuests()) do
+        if q.questID and q.frequency then questFreqCache[q.questID] = q.frequency end
+      end
+    end
+  end
+end
+
+local function CacheGreetingFrequencies()
+  local numAvail = GetNumAvailableQuests and GetNumAvailableQuests() or 0
+  for i = 1, numAvail do
+    local title, _, _, frequency = GetAvailableQuestInfo(i)
+    if title and frequency then questFreqCache["t:" .. title] = frequency end
+  end
+  local numActive = GetNumActiveQuests and GetNumActiveQuests() or 0
+  for i = 1, numActive do
+    local title, _, _, _, _, frequency = GetActiveQuestInfo and GetActiveQuestInfo(i)
+    if title and frequency then questFreqCache["t:" .. title] = frequency end
+  end
+end
+
+local function DetectQuestFrequency(questID)
+  if questFreqCache[questID] and questFreqCache[questID] > 0 then return questFreqCache[questID] end
+  local title = GetTitleText and GetTitleText()
+  if title and questFreqCache["t:" .. title] and questFreqCache["t:" .. title] > 0 then return questFreqCache["t:" .. title] end
+  if QuestIsDaily and QuestIsDaily() then return FREQ_DAILY end
+  if QuestIsWeekly and QuestIsWeekly() then return FREQ_WEEKLY end
+  if GetQuestFrequency then
+    local f = GetQuestFrequency()
+    if f and type(f) == "number" and f > 0 then return f end
+  end
+  if questID and questID > 0 and C_QuestLog and C_QuestLog.GetQuestTagInfo then
+    local tagInfo = C_QuestLog.GetQuestTagInfo(questID)
+    if tagInfo and tagInfo.frequency and tagInfo.frequency > 0 then return tagInfo.frequency end
+  end
+  return 0
+end
+
+local function ShouldSkipQuest(profile, questID)
+  if not questID or questID == 0 then return false end
+
+  if profile.autoQuestExcludeDaily or profile.autoQuestExcludeWeekly then
+    local freq = DetectQuestFrequency(questID)
+    if profile.autoQuestExcludeDaily and (freq == FREQ_DAILY or freq == 1) then return true end
+    if profile.autoQuestExcludeWeekly and freq >= 2 then return true end
+  end
+
+  if profile.autoQuestExcludeTrivial then
+    local questLevel = GetQuestLevel and GetQuestLevel() or 0
+    if questLevel <= 0 and C_QuestLog and C_QuestLog.GetQuestDifficultyLevel then
+      questLevel = C_QuestLog.GetQuestDifficultyLevel(questID) or 0
+    end
+    if questLevel > 0 then
+      local playerLevel = UnitLevel("player") or 1
+      local greenRange = GetQuestGreenRange and GetQuestGreenRange() or 0
+      if questLevel < (playerLevel - greenRange) then return true end
+    end
+  end
+
+  if profile.autoQuestExcludeCompleted then
+    if C_QuestLog and C_QuestLog.IsQuestFlaggedCompleted and C_QuestLog.IsQuestFlaggedCompleted(questID) then return true end
+  end
+
+  return false
+end
+
+local function GetBestGoldRewardIndex()
+  local numChoices = GetNumQuestChoices and GetNumQuestChoices() or 0
+  if numChoices <= 1 then return numChoices end
+  local bestIndex, bestPrice = 1, 0
+  for i = 1, numChoices do
+    local link = GetQuestItemLink and GetQuestItemLink("choice", i)
+    if link then
+      local _, _, _, _, _, _, _, _, _, _, sellPrice = C_Item.GetItemInfo(link)
+      if sellPrice and sellPrice > bestPrice then
+        bestPrice = sellPrice
+        bestIndex = i
+      end
+    end
+  end
+  return bestIndex
+end
+
+addonTable.SetupAutoQuest = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local enabled = profile and profile.autoQuest
+
+  if not autoQuestFrame then
+    autoQuestFrame = CreateFrame("Frame")
+    autoQuestFrame:SetScript("OnEvent", function(_, event)
+      if event == "GOSSIP_SHOW" then CacheGossipFrequencies(); return end
+      if event == "QUEST_GREETING" then CacheGreetingFrequencies(); return end
+
+      local p = addonTable.GetProfile and addonTable.GetProfile()
+      if not p or not p.autoQuest then return end
+      local questID = GetQuestID and GetQuestID() or 0
+
+      if event == "QUEST_DETAIL" then
+        if QuestGetAutoAccept and QuestGetAutoAccept() then return end
+        if ShouldSkipQuest(p, questID) then return end
+        if AcceptQuest then AcceptQuest() end
+
+      elseif event == "QUEST_PROGRESS" then
+        if not IsQuestCompletable or not IsQuestCompletable() then return end
+        if ShouldSkipQuest(p, questID) then return end
+        if CompleteQuest then CompleteQuest() end
+
+      elseif event == "QUEST_COMPLETE" then
+        if ShouldSkipQuest(p, questID) then return end
+        local numChoices = GetNumQuestChoices and GetNumQuestChoices() or 0
+        if numChoices <= 1 then
+          if GetQuestReward then GetQuestReward(1) end
+        else
+          local mode = p.autoQuestRewardMode or "skip"
+          if mode == "gold" then
+            local idx = GetBestGoldRewardIndex()
+            if idx > 0 and GetQuestReward then GetQuestReward(idx) end
+          end
+        end
+
+      elseif event == "QUEST_ACCEPT_CONFIRM" then
+        if ShouldSkipQuest(p, questID) then return end
+        if ConfirmAcceptQuest then ConfirmAcceptQuest() end
+      end
+    end)
+  end
+
+  autoQuestFrame:RegisterEvent("GOSSIP_SHOW")
+  autoQuestFrame:RegisterEvent("QUEST_GREETING")
+
+  if enabled then
+    autoQuestFrame:RegisterEvent("QUEST_DETAIL")
+    autoQuestFrame:RegisterEvent("QUEST_PROGRESS")
+    autoQuestFrame:RegisterEvent("QUEST_COMPLETE")
+    autoQuestFrame:RegisterEvent("QUEST_ACCEPT_CONFIRM")
+  else
+    autoQuestFrame:UnregisterEvent("QUEST_DETAIL")
+    autoQuestFrame:UnregisterEvent("QUEST_PROGRESS")
+    autoQuestFrame:UnregisterEvent("QUEST_COMPLETE")
+    autoQuestFrame:UnregisterEvent("QUEST_ACCEPT_CONFIRM")
+  end
+end
+
+-- ============================================================
+-- Auto Sell Junk
+-- ============================================================
+
+addonTable.TryAutoSellJunk = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.autoSellJunk then return end
+  if not C_Container or not C_Container.GetContainerNumSlots or not C_Container.GetContainerItemInfo then return end
+  local totalPrice = 0
+  local count = 0
+  for bag = 0, (NUM_BAG_SLOTS or 4) do
+    local slots = C_Container.GetContainerNumSlots(bag)
+    for slot = 1, slots do
+      local info = C_Container.GetContainerItemInfo(bag, slot)
+      if info and info.quality == Enum.ItemQuality.Poor then
+        local _, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(info.itemID)
+        if sellPrice then
+          totalPrice = totalPrice + sellPrice * (info.stackCount or 1)
+        end
+        C_Container.UseContainerItem(bag, slot)
+        count = count + 1
+      end
+    end
+  end
+  if count > 0 then
+    local coinStr = GetCoinTextureString and GetCoinTextureString(totalPrice) or (totalPrice .. "c")
+    print("|cFF00CCFFCooldownCursorManager:|r Sold " .. count .. " junk item" .. (count > 1 and "s" or "") .. " for " .. coinStr)
+  end
+end
+
+-- ============================================================
+-- Auto-fill DELETE Confirmation
+-- ============================================================
+
+local deleteHookInstalled = false
+
+addonTable.SetupAutoFillDelete = function()
+  if deleteHookInstalled then return end
+  deleteHookInstalled = true
+
+  hooksecurefunc("StaticPopup_Show", function(which)
+    local profile = addonTable.GetProfile and addonTable.GetProfile()
+    if not profile or not profile.autoFillDelete then return end
+    if not which or not which:find("DELETE") then return end
+    C_Timer.After(0, function()
+      for i = 1, STATICPOPUP_NUMDIALOGS or 4 do
+        local dialog = _G["StaticPopup" .. i]
+        if dialog and dialog:IsShown() and dialog.which == which then
+          local eb = dialog.editBox or _G["StaticPopup" .. i .. "EditBox"]
+          if eb and eb:IsShown() then
+            eb:SetText(DELETE_ITEM_CONFIRM_STRING or "DELETE")
+          end
+          break
+        end
+      end
+    end)
+  end)
+end
+
+-- ============================================================
+-- Quick Role Signup
+-- ============================================================
+
+local quickRoleFrame
+local appDialogHooked = false
+
+local function GetSpecRole()
+  local specIndex = GetSpecialization and GetSpecialization()
+  if not specIndex then return nil end
+  return GetSpecializationRole and GetSpecializationRole(specIndex)
+end
+
+local function HookApplicationDialog()
+  if appDialogHooked then return end
+  local dialog = LFGListApplicationDialog
+  if not dialog or not dialog.SignUpButton then return end
+  appDialogHooked = true
+
+  dialog.SignUpButton:HookScript("OnShow", function(self)
+    local p = addonTable.GetProfile and addonTable.GetProfile()
+    if not p or not p.quickRoleSignup then return end
+    if IsShiftKeyDown() then return end
+    self:Click()
+  end)
+end
+
+addonTable.SetupQuickRoleSignup = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local enabled = profile and profile.quickRoleSignup
+
+  if not quickRoleFrame then
+    quickRoleFrame = CreateFrame("Frame")
+    quickRoleFrame:SetScript("OnEvent", function(_, event)
+      local p = addonTable.GetProfile and addonTable.GetProfile()
+      if not p or not p.quickRoleSignup then return end
+
+      if event == "LFG_ROLE_CHECK_SHOW" then
+        local role = GetSpecRole()
+        if role and SetLFGRoles then
+          SetLFGRoles(false, role == "TANK", role == "HEALER", role == "DAMAGER")
+        end
+        if CompleteLFGRoleCheck then CompleteLFGRoleCheck(true) end
+      elseif event == "ROLE_POLL_BEGIN" then
+        local role = GetSpecRole()
+        if role and UnitSetRole then
+          UnitSetRole("player", role)
+        end
+      elseif event == "ADDON_LOADED" then
+        HookApplicationDialog()
+        if appDialogHooked then
+          quickRoleFrame:UnregisterEvent("ADDON_LOADED")
+        end
+      end
+    end)
+  end
+
+  HookApplicationDialog()
+
+  if enabled then
+    quickRoleFrame:RegisterEvent("LFG_ROLE_CHECK_SHOW")
+    quickRoleFrame:RegisterEvent("ROLE_POLL_BEGIN")
+    if not appDialogHooked then
+      quickRoleFrame:RegisterEvent("ADDON_LOADED")
+    end
+  else
+    quickRoleFrame:UnregisterAllEvents()
+  end
+end

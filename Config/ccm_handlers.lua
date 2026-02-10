@@ -277,6 +277,9 @@ local function ResetAllPreviewHighlights()
   if addonTable.combatStatusPreviewOnBtn then
     SetButtonHighlighted(addonTable.combatStatusPreviewOnBtn, false)
   end
+  if addonTable.skyridingPreviewOnBtn then
+    SetButtonHighlighted(addonTable.skyridingPreviewOnBtn, false)
+  end
 end
 addonTable.ResetAllPreviewHighlights = ResetAllPreviewHighlights
 local function CreateArrowButton(parent, direction, w, h)
@@ -609,6 +612,48 @@ local function UpdateAllControls()
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB:SetChecked(profile.fadeBagBar == true) end
   if addonTable.betterItemLevelCB then addonTable.betterItemLevelCB:SetChecked(profile.betterItemLevel == true) end
   if addonTable.showEquipDetailsCB then addonTable.showEquipDetailsCB:SetChecked(profile.showEquipmentDetails == true) end
+  if addonTable.chatClassColorCB then addonTable.chatClassColorCB:SetChecked(profile.chatClassColorNames == true) end
+  if addonTable.chatTimestampsCB then addonTable.chatTimestampsCB:SetChecked(profile.chatTimestamps == true) end
+  if addonTable.chatTimestampFormatDD then addonTable.chatTimestampFormatDD:SetValue(profile.chatTimestampFormat or "HH:MM") end
+  local chatTsEnabled = profile.chatTimestamps == true
+  if addonTable.chatTimestampFormatDD then addonTable.chatTimestampFormatDD:SetEnabled(chatTsEnabled) end
+  if addonTable.chatTimestampFormatLbl then addonTable.chatTimestampFormatLbl:SetTextColor(chatTsEnabled and 0.9 or 0.4, chatTsEnabled and 0.9 or 0.4, chatTsEnabled and 0.9 or 0.4) end
+  if addonTable.chatCopyButtonCB then addonTable.chatCopyButtonCB:SetChecked(profile.chatCopyButton == true) end
+  local chatCopyEnabled = profile.chatCopyButton == true
+  if addonTable.chatCopyButtonCornerDD then addonTable.chatCopyButtonCornerDD:SetValue(profile.chatCopyButtonCorner or "TOPRIGHT"); addonTable.chatCopyButtonCornerDD:SetEnabled(chatCopyEnabled) end
+  if addonTable.chatCopyButtonCornerLbl then addonTable.chatCopyButtonCornerLbl:SetTextColor(chatCopyEnabled and 0.9 or 0.4, chatCopyEnabled and 0.9 or 0.4, chatCopyEnabled and 0.9 or 0.4) end
+  if addonTable.chatUrlDetectionCB then addonTable.chatUrlDetectionCB:SetChecked(profile.chatUrlDetection == true) end
+  if addonTable.chatBackgroundCB then addonTable.chatBackgroundCB:SetChecked(profile.chatBackground == true) end
+  local chatBgEnabled = profile.chatBackground == true
+  if addonTable.chatBgAlphaSlider then addonTable.chatBgAlphaSlider:SetValue(num(profile.chatBackgroundAlpha, 40)); addonTable.chatBgAlphaSlider.valueText:SetText(math.floor(num(profile.chatBackgroundAlpha, 40))); addonTable.chatBgAlphaSlider:SetEnabled(chatBgEnabled) end
+  if addonTable.chatBgColorBtn then addonTable.chatBgColorBtn:SetEnabled(chatBgEnabled) end
+  if addonTable.chatBgColorSwatch then addonTable.chatBgColorSwatch:SetBackdropColor(num(profile.chatBackgroundColorR, 0), num(profile.chatBackgroundColorG, 0), num(profile.chatBackgroundColorB, 0), 1) end
+  if addonTable.chatHideButtonsCB then addonTable.chatHideButtonsCB:SetChecked(profile.chatHideButtons == true) end
+  if addonTable.chatFadeToggleCB then addonTable.chatFadeToggleCB:SetChecked(profile.chatFadeToggle == true) end
+  local chatFadeOn = profile.chatFadeToggle == true
+  if addonTable.chatFadeDelaySlider then addonTable.chatFadeDelaySlider:SetValue(num(profile.chatFadeDelay, 20)); addonTable.chatFadeDelaySlider.valueText:SetText(math.floor(num(profile.chatFadeDelay, 20))); addonTable.chatFadeDelaySlider:SetEnabled(chatFadeOn) end
+  if addonTable.chatEditBoxDD then addonTable.chatEditBoxDD:SetValue(profile.chatEditBoxPosition or "bottom") end
+  if addonTable.chatEditBoxStyledCB then addonTable.chatEditBoxStyledCB:SetChecked(profile.chatEditBoxStyled == true) end
+  if addonTable.chatTabFlashCB then addonTable.chatTabFlashCB:SetChecked(profile.chatTabFlash == true) end
+  if addonTable.chatHideTabsDD then addonTable.chatHideTabsDD:SetValue(profile.chatHideTabs or "off") end
+  if addonTable.skyridingEnabledCB then addonTable.skyridingEnabledCB:SetChecked(profile.skyridingEnabled == true) end
+  if addonTable.skyridingHideBlizzardCB then addonTable.skyridingHideBlizzardCB:SetChecked(profile.skyridingHideBlizzard ~= false) end
+  if addonTable.skyridingHideCDMCB then addonTable.skyridingHideCDMCB:SetChecked(profile.skyridingHideCDM == true) end
+  if addonTable.skyridingVigorBarCB then addonTable.skyridingVigorBarCB:SetChecked(profile.skyridingVigorBar ~= false) end
+  if addonTable.skyridingSpeedDisplayCB then addonTable.skyridingSpeedDisplayCB:SetChecked(profile.skyridingSpeedDisplay ~= false) end
+  if addonTable.skyridingSpeedBarCB then addonTable.skyridingSpeedBarCB:SetChecked(profile.skyridingSpeedBar == true) end
+  if addonTable.skyridingCooldownsCB then addonTable.skyridingCooldownsCB:SetChecked(profile.skyridingCooldowns ~= false) end
+  if addonTable.skyridingCooldownPosDD then addonTable.skyridingCooldownPosDD:SetValue(profile.skyridingCooldownPosition or "below") end
+  if addonTable.skyridingCooldownSizeSlider then addonTable.skyridingCooldownSizeSlider:SetValue(num(profile.skyridingCooldownSize, 28)); addonTable.skyridingCooldownSizeSlider.valueText:SetText(math.floor(num(profile.skyridingCooldownSize, 28))) end
+  if addonTable.skyridingSpeedUnitDD then addonTable.skyridingSpeedUnitDD:SetValue(profile.skyridingSpeedUnit or "percent") end
+  if addonTable.skyridingScaleSlider then addonTable.skyridingScaleSlider:SetValue(num(profile.skyridingScale, 100)); addonTable.skyridingScaleSlider.valueText:SetText(math.floor(num(profile.skyridingScale, 100))) end
+  if addonTable.skyridingCenteredCB then addonTable.skyridingCenteredCB:SetChecked(profile.skyridingCentered == true) end
+  if addonTable.skyridingXSlider then addonTable.skyridingXSlider:SetValue(num(profile.skyridingX, 0)); addonTable.skyridingXSlider.valueText:SetText(math.floor(num(profile.skyridingX, 0))) end
+  if addonTable.skyridingYSlider then addonTable.skyridingYSlider:SetValue(num(profile.skyridingY, -200)); addonTable.skyridingYSlider.valueText:SetText(math.floor(num(profile.skyridingY, -200))) end
+  if addonTable.skyridingVigorColorSwatch then addonTable.skyridingVigorColorSwatch:SetBackdropColor(num(profile.skyridingVigorColorR, 0.2), num(profile.skyridingVigorColorG, 0.8), num(profile.skyridingVigorColorB, 0.2), 1) end
+  if addonTable.skyridingEmptyColorSwatch then addonTable.skyridingEmptyColorSwatch:SetBackdropColor(num(profile.skyridingVigorEmptyColorR, 0.15), num(profile.skyridingVigorEmptyColorG, 0.15), num(profile.skyridingVigorEmptyColorB, 0.15), 1) end
+  if addonTable.skyridingRechargeColorSwatch then addonTable.skyridingRechargeColorSwatch:SetBackdropColor(num(profile.skyridingVigorRechargeColorR, 0.85), num(profile.skyridingVigorRechargeColorG, 0.65), num(profile.skyridingVigorRechargeColorB, 0.1), 1) end
+  if addonTable.skyridingSpeedColorSwatch then addonTable.skyridingSpeedColorSwatch:SetBackdropColor(num(profile.skyridingSpeedColorR, 0.3), num(profile.skyridingSpeedColorG, 0.6), num(profile.skyridingSpeedColorB, 1.0), 1) end
   if addonTable.prbCB then addonTable.prbCB:SetChecked(profile.usePersonalResourceBar == true) end
   if addonTable.castbarCB then addonTable.castbarCB:SetChecked(profile.useCastbar == true) end
   if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(profile.useFocusCastbar == true) end
@@ -777,6 +822,22 @@ local function UpdateAllControls()
   if addonTable.showTooltipIDsCB then addonTable.showTooltipIDsCB:SetChecked(profile.showTooltipIDs == true) end
   if addonTable.compactMinimapIconsCB then addonTable.compactMinimapIconsCB:SetChecked(profile.compactMinimapIcons == true) end
   if addonTable.enhancedTooltipCB then addonTable.enhancedTooltipCB:SetChecked(profile.enhancedTooltip == true) end
+  if addonTable.autoQuestCB then addonTable.autoQuestCB:SetChecked(profile.autoQuest == true) end
+  if addonTable.autoQuestExcludeDailyCB then addonTable.autoQuestExcludeDailyCB:SetChecked(profile.autoQuestExcludeDaily == true) end
+  if addonTable.autoQuestExcludeWeeklyCB then addonTable.autoQuestExcludeWeeklyCB:SetChecked(profile.autoQuestExcludeWeekly == true) end
+  if addonTable.autoQuestExcludeTrivialCB then addonTable.autoQuestExcludeTrivialCB:SetChecked(profile.autoQuestExcludeTrivial == true) end
+  if addonTable.autoQuestExcludeCompletedCB then addonTable.autoQuestExcludeCompletedCB:SetChecked(profile.autoQuestExcludeCompleted == true) end
+  if addonTable.autoQuestRewardDD then addonTable.autoQuestRewardDD:SetValue(profile.autoQuestRewardMode or "skip") end
+  local aqEnabled = profile.autoQuest == true
+  local aqAlpha = aqEnabled and 1 or 0.4
+  if addonTable.autoQuestExcludeDailyCB then addonTable.autoQuestExcludeDailyCB:SetAlpha(aqAlpha); addonTable.autoQuestExcludeDailyCB:SetEnabled(aqEnabled) end
+  if addonTable.autoQuestExcludeWeeklyCB then addonTable.autoQuestExcludeWeeklyCB:SetAlpha(aqAlpha); addonTable.autoQuestExcludeWeeklyCB:SetEnabled(aqEnabled) end
+  if addonTable.autoQuestExcludeTrivialCB then addonTable.autoQuestExcludeTrivialCB:SetAlpha(aqAlpha); addonTable.autoQuestExcludeTrivialCB:SetEnabled(aqEnabled) end
+  if addonTable.autoQuestExcludeCompletedCB then addonTable.autoQuestExcludeCompletedCB:SetAlpha(aqAlpha); addonTable.autoQuestExcludeCompletedCB:SetEnabled(aqEnabled) end
+  if addonTable.autoQuestRewardDD then addonTable.autoQuestRewardDD:SetAlpha(aqAlpha) end
+  if addonTable.autoSellJunkCB then addonTable.autoSellJunkCB:SetChecked(profile.autoSellJunk == true) end
+  if addonTable.autoFillDeleteCB then addonTable.autoFillDeleteCB:SetChecked(profile.autoFillDelete == true) end
+  if addonTable.quickRoleSignupCB then addonTable.quickRoleSignupCB:SetChecked(profile.quickRoleSignup == true) end
   if addonTable.combatTimerCB then addonTable.combatTimerCB:SetChecked(profile.combatTimerEnabled == true) end
   if addonTable.combatTimerModeDD then addonTable.combatTimerModeDD:SetValue(profile.combatTimerMode or "combat") end
   if addonTable.combatTimerStyleDD then addonTable.combatTimerStyleDD:SetValue(profile.combatTimerStyle or "boxed") end
@@ -1265,6 +1326,7 @@ local function InitHandlers()
         if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
         if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
         if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        if addonTable.ApplySkyridingFonts then addonTable.ApplySkyridingFonts() end
       end
     end
   end
@@ -1281,6 +1343,7 @@ local function InitHandlers()
         if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
         if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
         if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        if addonTable.ApplySkyridingFonts then addonTable.ApplySkyridingFonts() end
       end
     end
   end
@@ -1375,6 +1438,134 @@ local function InitHandlers()
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeBagBar = s:GetChecked(); if addonTable.SetupFadeBagBar then addonTable.SetupFadeBagBar() end end end end
   if addonTable.betterItemLevelCB then addonTable.betterItemLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.betterItemLevel = s:GetChecked(); if addonTable.SetupBetterItemLevel then addonTable.SetupBetterItemLevel() end end end end
   if addonTable.showEquipDetailsCB then addonTable.showEquipDetailsCB.customOnClick = function(s) local p = GetProfile(); if p then p.showEquipmentDetails = s:GetChecked(); if addonTable.SetupEquipmentDetails then addonTable.SetupEquipmentDetails() end end end end
+  if addonTable.chatClassColorCB then addonTable.chatClassColorCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatClassColorNames = s:GetChecked() end; if addonTable.SetupChatClassColorNames then addonTable.SetupChatClassColorNames() end end end
+  if addonTable.chatTimestampsCB then addonTable.chatTimestampsCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatTimestamps = s:GetChecked() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end; if addonTable.SetupChatTimestamps then addonTable.SetupChatTimestamps() end end end
+  if addonTable.chatTimestampFormatDD then addonTable.chatTimestampFormatDD.onSelect = function(v) local p = GetProfile(); if p then p.chatTimestampFormat = v end; if addonTable.SetupChatTimestamps then addonTable.SetupChatTimestamps() end end end
+  if addonTable.chatCopyButtonCB then addonTable.chatCopyButtonCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatCopyButton = s:GetChecked() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end; if addonTable.SetupChatCopyButton then addonTable.SetupChatCopyButton() end end end
+  if addonTable.chatCopyButtonCornerDD then addonTable.chatCopyButtonCornerDD.onSelect = function(v) local p = GetProfile(); if p then p.chatCopyButtonCorner = v end; if addonTable.SetupChatCopyButton then addonTable.SetupChatCopyButton() end end end
+  if addonTable.chatUrlDetectionCB then addonTable.chatUrlDetectionCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatUrlDetection = s:GetChecked() end; if addonTable.SetupChatUrlDetection then addonTable.SetupChatUrlDetection() end end end
+  if addonTable.chatBackgroundCB then addonTable.chatBackgroundCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatBackground = s:GetChecked() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end; if addonTable.SetupChatBackground then addonTable.SetupChatBackground() end; if addonTable.SetupChatEditBoxStyle then addonTable.SetupChatEditBoxStyle() end end end
+  if addonTable.chatBgAlphaSlider then addonTable.chatBgAlphaSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.chatBackgroundAlpha = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.SetupChatBackground then addonTable.SetupChatBackground() end; if addonTable.SetupChatEditBoxStyle then addonTable.SetupChatEditBoxStyle() end end end) end
+  if addonTable.chatBgColorBtn then
+    addonTable.chatBgColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r = p.chatBackgroundColorR or 0
+      local g = p.chatBackgroundColorG or 0
+      local b = p.chatBackgroundColorB or 0
+      local function OnColorChanged()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.chatBackgroundColorR = nr
+        p.chatBackgroundColorG = ng
+        p.chatBackgroundColorB = nb
+        if addonTable.chatBgColorSwatch then addonTable.chatBgColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.SetupChatBackground then addonTable.SetupChatBackground() end
+        if addonTable.SetupChatEditBoxStyle then addonTable.SetupChatEditBoxStyle() end
+      end
+      local function OnCancel(prev)
+        p.chatBackgroundColorR = prev.r
+        p.chatBackgroundColorG = prev.g
+        p.chatBackgroundColorB = prev.b
+        if addonTable.chatBgColorSwatch then addonTable.chatBgColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.SetupChatBackground then addonTable.SetupChatBackground() end
+        if addonTable.SetupChatEditBoxStyle then addonTable.SetupChatEditBoxStyle() end
+      end
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
+    end)
+  end
+  if addonTable.chatHideButtonsCB then addonTable.chatHideButtonsCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatHideButtons = s:GetChecked() end; if addonTable.SetupChatHideButtons then addonTable.SetupChatHideButtons() end end end
+  if addonTable.chatFadeToggleCB then addonTable.chatFadeToggleCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatFadeToggle = s:GetChecked() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end; if addonTable.SetupChatFade then addonTable.SetupChatFade() end end end
+  if addonTable.chatFadeDelaySlider then addonTable.chatFadeDelaySlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.chatFadeDelay = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.SetupChatFade then addonTable.SetupChatFade() end end end) end
+  if addonTable.chatEditBoxDD then addonTable.chatEditBoxDD.onSelect = function(v) local p = GetProfile(); if p then p.chatEditBoxPosition = v end; if addonTable.SetupChatEditBoxPosition then addonTable.SetupChatEditBoxPosition() end end end
+  if addonTable.chatEditBoxStyledCB then addonTable.chatEditBoxStyledCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatEditBoxStyled = s:GetChecked() end; if addonTable.SetupChatEditBoxStyle then addonTable.SetupChatEditBoxStyle() end end end
+  if addonTable.chatTabFlashCB then addonTable.chatTabFlashCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatTabFlash = s:GetChecked() end end end
+  if addonTable.chatHideTabsDD then addonTable.chatHideTabsDD.onSelect = function(v) local p = GetProfile(); if p then p.chatHideTabs = v end; if addonTable.SetupChatHideTabs then addonTable.SetupChatHideTabs() end end end
+  if addonTable.skyridingEnabledCB then addonTable.skyridingEnabledCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingEnabled = s:GetChecked() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingHideBlizzardCB then addonTable.skyridingHideBlizzardCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingHideBlizzard = s:GetChecked() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingHideCDMCB then addonTable.skyridingHideCDMCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingHideCDM = s:GetChecked() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingVigorBarCB then addonTable.skyridingVigorBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingVigorBar = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingSpeedDisplayCB then addonTable.skyridingSpeedDisplayCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingSpeedDisplay = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingSpeedBarCB then addonTable.skyridingSpeedBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingSpeedBar = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingCooldownsCB then addonTable.skyridingCooldownsCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingCooldowns = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingSpeedUnitDD then addonTable.skyridingSpeedUnitDD.onSelect = function(v) local p = GetProfile(); if p then p.skyridingSpeedUnit = v end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end end end
+  if addonTable.skyridingCooldownPosDD then addonTable.skyridingCooldownPosDD.onSelect = function(v) local p = GetProfile(); if p then p.skyridingCooldownPosition = v end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end end end
+  if addonTable.skyridingCooldownSizeSlider then addonTable.skyridingCooldownSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingCooldownSize = math.floor(v); s.valueText:SetText(math.floor(v)) end end) end
+  if addonTable.skyridingPreviewOnBtn then
+    addonTable.skyridingPreviewOnBtn:SetScript("OnClick", function()
+      if addonTable.ShowSkyridingPreview then addonTable.ShowSkyridingPreview() end
+      SetButtonHighlighted(addonTable.skyridingPreviewOnBtn, true)
+    end)
+  end
+  if addonTable.skyridingPreviewOffBtn then
+    addonTable.skyridingPreviewOffBtn:SetScript("OnClick", function()
+      if addonTable.StopSkyridingPreview then addonTable.StopSkyridingPreview() end
+      SetButtonHighlighted(addonTable.skyridingPreviewOnBtn, false)
+    end)
+  end
+  if addonTable.skyridingScaleSlider then addonTable.skyridingScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingScale = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end) end
+  if addonTable.skyridingCenteredCB then addonTable.skyridingCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingCentered = s:GetChecked(); if s:GetChecked() then p.skyridingX = 0 end end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingXSlider then addonTable.skyridingXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end) end
+  if addonTable.skyridingYSlider then addonTable.skyridingYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end) end
+  if addonTable.skyridingVigorColorBtn then
+    addonTable.skyridingVigorColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r, g, b = p.skyridingVigorColorR or 0.2, p.skyridingVigorColorG or 0.8, p.skyridingVigorColorB or 0.2
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = function()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.skyridingVigorColorR = nr; p.skyridingVigorColorG = ng; p.skyridingVigorColorB = nb
+        if addonTable.skyridingVigorColorSwatch then addonTable.skyridingVigorColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+      end, cancelFunc = function(prev)
+        p.skyridingVigorColorR = prev.r; p.skyridingVigorColorG = prev.g; p.skyridingVigorColorB = prev.b
+        if addonTable.skyridingVigorColorSwatch then addonTable.skyridingVigorColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+      end})
+    end)
+  end
+  if addonTable.skyridingEmptyColorBtn then
+    addonTable.skyridingEmptyColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r, g, b = p.skyridingVigorEmptyColorR or 0.15, p.skyridingVigorEmptyColorG or 0.15, p.skyridingVigorEmptyColorB or 0.15
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = function()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.skyridingVigorEmptyColorR = nr; p.skyridingVigorEmptyColorG = ng; p.skyridingVigorEmptyColorB = nb
+        if addonTable.skyridingEmptyColorSwatch then addonTable.skyridingEmptyColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+      end, cancelFunc = function(prev)
+        p.skyridingVigorEmptyColorR = prev.r; p.skyridingVigorEmptyColorG = prev.g; p.skyridingVigorEmptyColorB = prev.b
+        if addonTable.skyridingEmptyColorSwatch then addonTable.skyridingEmptyColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+      end})
+    end)
+  end
+  if addonTable.skyridingRechargeColorBtn then
+    addonTable.skyridingRechargeColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r, g, b = p.skyridingVigorRechargeColorR or 0.85, p.skyridingVigorRechargeColorG or 0.65, p.skyridingVigorRechargeColorB or 0.1
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = function()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.skyridingVigorRechargeColorR = nr; p.skyridingVigorRechargeColorG = ng; p.skyridingVigorRechargeColorB = nb
+        if addonTable.skyridingRechargeColorSwatch then addonTable.skyridingRechargeColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+      end, cancelFunc = function(prev)
+        p.skyridingVigorRechargeColorR = prev.r; p.skyridingVigorRechargeColorG = prev.g; p.skyridingVigorRechargeColorB = prev.b
+        if addonTable.skyridingRechargeColorSwatch then addonTable.skyridingRechargeColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+      end})
+    end)
+  end
+  if addonTable.skyridingSpeedColorBtn then
+    addonTable.skyridingSpeedColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r, g, b = p.skyridingSpeedColorR or 0.3, p.skyridingSpeedColorG or 0.6, p.skyridingSpeedColorB or 1.0
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = function()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.skyridingSpeedColorR = nr; p.skyridingSpeedColorG = ng; p.skyridingSpeedColorB = nb
+        if addonTable.skyridingSpeedColorSwatch then addonTable.skyridingSpeedColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+      end, cancelFunc = function(prev)
+        p.skyridingSpeedColorR = prev.r; p.skyridingSpeedColorG = prev.g; p.skyridingSpeedColorB = prev.b
+        if addonTable.skyridingSpeedColorSwatch then addonTable.skyridingSpeedColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+      end})
+    end)
+  end
   if addonTable.radialCB then addonTable.radialCB.customOnClick = function(s) local p = GetProfile(); if p then p.showRadialCircle = s:GetChecked(); if addonTable.UpdateRadialCircle then addonTable.UpdateRadialCircle() end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
   if addonTable.radialCombatCB then addonTable.radialCombatCB.customOnClick = function(s) local p = GetProfile(); if p then p.cursorCombatOnly = s:GetChecked(); if addonTable.UpdateRadialCircle then addonTable.UpdateRadialCircle() end end end end
   if addonTable.radialGcdCB then addonTable.radialGcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.showGCD = s:GetChecked(); if addonTable.UpdateRadialCircle then addonTable.UpdateRadialCircle() end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
@@ -1530,6 +1721,15 @@ local function InitHandlers()
   if addonTable.showTooltipIDsCB then addonTable.showTooltipIDsCB.customOnClick = function(s) local p = GetProfile(); if p then p.showTooltipIDs = s:GetChecked() end; if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end end end
   if addonTable.compactMinimapIconsCB then addonTable.compactMinimapIconsCB.customOnClick = function(s) local p = GetProfile(); if p then p.compactMinimapIcons = s:GetChecked(); if p.compactMinimapIcons then p.showMinimapButton = true; if addonTable.minimapCB then addonTable.minimapCB:SetChecked(true) end; if addonTable.ShowMinimapButton then addonTable.ShowMinimapButton() end end; if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end end end end
   if addonTable.enhancedTooltipCB then addonTable.enhancedTooltipCB.customOnClick = function(s) local p = GetProfile(); if p then p.enhancedTooltip = s:GetChecked() end; if addonTable.SetupEnhancedTooltipHook then addonTable.SetupEnhancedTooltipHook() end end end
+  if addonTable.autoQuestCB then addonTable.autoQuestCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoQuest = s:GetChecked() end; if addonTable.SetupAutoQuest then addonTable.SetupAutoQuest() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end end end
+  if addonTable.autoQuestExcludeDailyCB then addonTable.autoQuestExcludeDailyCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoQuestExcludeDaily = s:GetChecked() end end end
+  if addonTable.autoQuestExcludeWeeklyCB then addonTable.autoQuestExcludeWeeklyCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoQuestExcludeWeekly = s:GetChecked() end end end
+  if addonTable.autoQuestExcludeTrivialCB then addonTable.autoQuestExcludeTrivialCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoQuestExcludeTrivial = s:GetChecked() end end end
+  if addonTable.autoQuestExcludeCompletedCB then addonTable.autoQuestExcludeCompletedCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoQuestExcludeCompleted = s:GetChecked() end end end
+  if addonTable.autoQuestRewardDD then addonTable.autoQuestRewardDD.onSelect = function(v) local p = GetProfile(); if p then p.autoQuestRewardMode = v end end end
+  if addonTable.autoSellJunkCB then addonTable.autoSellJunkCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoSellJunk = s:GetChecked() end end end
+  if addonTable.autoFillDeleteCB then addonTable.autoFillDeleteCB.customOnClick = function(s) local p = GetProfile(); if p then p.autoFillDelete = s:GetChecked() end end end
+  if addonTable.quickRoleSignupCB then addonTable.quickRoleSignupCB.customOnClick = function(s) local p = GetProfile(); if p then p.quickRoleSignup = s:GetChecked() end; if addonTable.SetupQuickRoleSignup then addonTable.SetupQuickRoleSignup() end end end
   if addonTable.combatTimerCB then
     addonTable.combatTimerCB.customOnClick = function(s)
       local p = GetProfile()
@@ -2486,8 +2686,20 @@ local function InitHandlers()
                 "hidePetBarInCombat", "hidePetBarMouseover", "hidePetBarAlways",
                 "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "actionBarSkinOutlineMode", "hideEmptyActionBarOutline", "fadeObjectiveTracker", "fadeBagBar",
                "betterItemLevel", "showEquipmentDetails",
+               "chatClassColorNames", "chatTimestamps", "chatTimestampFormat", "chatCopyButton", "chatCopyButtonCorner",
+               "chatUrlDetection", "chatBackground", "chatBackgroundAlpha", "chatBackgroundColorR", "chatBackgroundColorG", "chatBackgroundColorB",
+               "chatHideButtons", "chatFadeToggle", "chatFadeDelay", "chatEditBoxPosition", "chatEditBoxStyled", "chatTabFlash", "chatHideTabs",
+               "skyridingEnabled", "skyridingHideBlizzard", "skyridingScale", "skyridingCentered", "skyridingX", "skyridingY",
+               "skyridingVigorBar", "skyridingVigorColorR", "skyridingVigorColorG", "skyridingVigorColorB",
+               "skyridingVigorEmptyColorR", "skyridingVigorEmptyColorG", "skyridingVigorEmptyColorB",
+               "skyridingVigorRechargeColorR", "skyridingVigorRechargeColorG", "skyridingVigorRechargeColorB",
+               "skyridingSpeedDisplay", "skyridingSpeedBar", "skyridingSpeedUnit", "skyridingSpeedColorR", "skyridingSpeedColorG", "skyridingSpeedColorB",
+               "skyridingCooldowns", "skyridingCooldownPosition", "skyridingCooldownSize", "skyridingHideCDM",
                 "showRadialCircle", "radialRadius", "radialColorR", "radialColorG", "radialColorB",
-             "autoRepair", "showTooltipIDs", "compactMinimapIcons", "enhancedTooltip", "combatTimerEnabled", "combatTimerMode", "combatTimerStyle", "combatTimerCentered",
+             "autoRepair", "showTooltipIDs", "compactMinimapIcons", "enhancedTooltip",
+             "autoQuest", "autoQuestExcludeDaily", "autoQuestExcludeWeekly", "autoQuestExcludeTrivial", "autoQuestExcludeCompleted", "autoQuestRewardMode",
+             "autoSellJunk", "autoFillDelete", "quickRoleSignup",
+             "combatTimerEnabled", "combatTimerMode", "combatTimerStyle", "combatTimerCentered",
              "combatTimerX", "combatTimerY", "combatTimerScale",
               "combatTimerTextColorR", "combatTimerTextColorG", "combatTimerTextColorB",
               "combatTimerBgColorR", "combatTimerBgColorG", "combatTimerBgColorB", "combatTimerBgAlpha",
@@ -2502,11 +2714,11 @@ local function InitHandlers()
               "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "useBuffOverlay", "cooldownIconMode", "showMode",
               "showBeforeCdEnds", "glowWhenReady", "showInCombatOnly"},
     blizzcdm = {"disableBlizzCDM", "useBuffBar", "useEssentialBar",
-                "essentialBarSpacing", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
+                "essentialBarSpacing", "standaloneIconBorderSize", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
                 "standaloneCentered", "standaloneBuffCentered", "standaloneEssentialCentered", "standaloneUtilityCentered",
                 "standaloneSpacing", "standaloneBuffSize", "standaloneBuffIconsPerRow", "standaloneBuffMaxRows", "standaloneBuffGrowDirection", "standaloneBuffRowGrowDirection", "standaloneBuffY", "standaloneBuffX",
                 "standaloneEssentialSize", "standaloneEssentialSecondRowSize", "standaloneEssentialIconsPerRow", "standaloneEssentialMaxRows", "standaloneEssentialGrowDirection", "standaloneEssentialRowGrowDirection", "standaloneEssentialY", "standaloneEssentialX",
-                "standaloneUtilitySize", "standaloneUtilityIconsPerRow", "standaloneUtilityMaxRows", "standaloneUtilityGrowDirection", "standaloneUtilityRowGrowDirection", "standaloneUtilityY", "standaloneUtilityX", "standaloneUtilityAutoWidth",
+                "standaloneUtilitySize", "standaloneUtilitySecondRowSize", "standaloneUtilityIconsPerRow", "standaloneUtilityMaxRows", "standaloneUtilityGrowDirection", "standaloneUtilityRowGrowDirection", "standaloneUtilityY", "standaloneUtilityX", "standaloneUtilityAutoWidth",
                 "blizzBarBuffX", "blizzBarBuffY", "blizzBarEssentialX", "blizzBarEssentialY",
                 "blizzBarUtilityX", "blizzBarUtilityY"},
     prb = {"usePersonalResourceBar", "prbWidth", "prbX", "prbY", "prbCentered", "prbShowMode", "prbAutoWidthSource",
@@ -2681,7 +2893,12 @@ local function InitHandlers()
                         hideStanceBarInCombat = true, hideStanceBarMouseover = true, hideStanceBarAlways = true,
                         hidePetBarInCombat = true, hidePetBarMouseover = true, hidePetBarAlways = true,
                         fadeMicroMenu = true, hideActionBarBorders = true, fadeObjectiveTracker = true, fadeBagBar = true, betterItemLevel = true, showEquipmentDetails = true,
-                        autoRepair = true, showTooltipIDs = true, compactMinimapIcons = true, enhancedTooltip = true, combatTimerEnabled = true, combatTimerCentered = true, crTimerEnabled = true, crTimerMode = "combat",
+                        chatClassColorNames = true, chatTimestamps = true, chatCopyButton = true, chatUrlDetection = true, chatBackground = true, chatHideButtons = true, chatFadeToggle = true, chatEditBoxStyled = true, chatTabFlash = true,
+                        skyridingEnabled = true, skyridingHideBlizzard = true, skyridingHideCDM = true, skyridingVigorBar = true, skyridingSpeedDisplay = true, skyridingSpeedBar = true, skyridingCooldowns = true, skyridingCentered = true,
+                        autoRepair = true, showTooltipIDs = true, compactMinimapIcons = true, enhancedTooltip = true,
+                        autoQuest = true, autoQuestExcludeDaily = true, autoQuestExcludeWeekly = true, autoQuestExcludeTrivial = true, autoQuestExcludeCompleted = true,
+                        autoSellJunk = true, autoFillDelete = true, quickRoleSignup = true,
+                        combatTimerEnabled = true, combatTimerCentered = true, crTimerEnabled = true, crTimerMode = "combat",
                         crTimerCentered = true, combatStatusEnabled = true, combatStatusCentered = true,
                         useCastbar = true, useFocusCastbar = true,
                         castbarCentered = true, castbarUseClassColor = true,

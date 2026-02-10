@@ -65,6 +65,9 @@ cfg:SetScript("OnHide", function()
   if addonTable.StopCombatStatusPreview then
     addonTable.StopCombatStatusPreview()
   end
+  if addonTable.StopSkyridingPreview then
+    addonTable.StopSkyridingPreview()
+  end
   if addonTable.ResetAllPreviewHighlights then
     addonTable.ResetAllPreviewHighlights()
   end
@@ -202,7 +205,7 @@ addonTable.exportBtn = expBtn
 addonTable.importBtn = impBtn
 addonTable.copyProfileBtn = copyProfileBtn
 local exportImportPopup = CreateFrame("Frame", "CCMExportImportDialog", UIParent, "BackdropTemplate")
-exportImportPopup:SetSize(500, 360)
+exportImportPopup:SetSize(500, 420)
 exportImportPopup:SetPoint("CENTER")
 exportImportPopup:SetFrameStrata("TOOLTIP")
 exportImportPopup:SetFrameLevel(2000)
@@ -859,6 +862,9 @@ local function CreateTab(idx, txt, w)
       end
       if activeTab == TAB_QOL and addonTable.StopCombatStatusPreview then
         addonTable.StopCombatStatusPreview()
+      end
+      if activeTab == TAB_QOL and addonTable.StopSkyridingPreview then
+        addonTable.StopSkyridingPreview()
       end
       if addonTable.ResetAllPreviewHighlights then
         addonTable.ResetAllPreviewHighlights()

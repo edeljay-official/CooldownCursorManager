@@ -5,4 +5,6 @@
 	<Script file="ccm_prb.lua"/>
 	<Script file="ccm_qol.lua"/>
 	<Script file="ccm_debuffs.lua"/>
+	<Script file="ccm_chat.lua"/>
+	<Script file="ccm_skyriding.lua"/>
 </Ui>

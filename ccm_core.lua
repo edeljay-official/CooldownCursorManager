@@ -7604,6 +7604,11 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
     if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
     if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+    if addonTable.SetupChatEnhancements then addonTable.SetupChatEnhancements() end
+    if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end
+    if addonTable.SetupAutoQuest then addonTable.SetupAutoQuest() end
+    if addonTable.SetupAutoFillDelete then addonTable.SetupAutoFillDelete() end
+    if addonTable.SetupQuickRoleSignup then addonTable.SetupQuickRoleSignup() end
   elseif event == "PLAYER_ENTERING_WORLD" then
     ScanSpellBookCharges()
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
@@ -7612,6 +7617,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
   elseif event == "MERCHANT_SHOW" then
     if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
+    if addonTable.TryAutoSellJunk then addonTable.TryAutoSellJunk() end
   elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     if C_Timer and C_Timer.After and State.ufBigHBOverlays and addonTable.UpdateUFBigHBHealPrediction then
