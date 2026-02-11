@@ -783,6 +783,7 @@ local function UpdateAllControls()
   if addonTable.ufBigHBPlayerLevelDD then addonTable.ufBigHBPlayerLevelDD:SetValue(profile.ufBigHBPlayerLevelMode or "always"); addonTable.ufBigHBPlayerLevelDD:SetEnabled(playerGroupEnabled) end
   local playerNameEnabled = playerGroupEnabled and (profile.ufBigHBHidePlayerName ~= true)
   local playerLevelEnabled = playerGroupEnabled and ((profile.ufBigHBPlayerLevelMode or "always") ~= "hide")
+  if addonTable.ufBigHBPlayerNameAnchorDD then addonTable.ufBigHBPlayerNameAnchorDD:SetValue(profile.ufBigHBPlayerNameAnchor or "center"); addonTable.ufBigHBPlayerNameAnchorDD:SetEnabled(playerNameEnabled) end
   ApplyUFBigSlider(addonTable.ufBigHBPlayerNameXSlider, num(profile.ufBigHBPlayerNameX, 0), playerNameEnabled)
   ApplyUFBigSlider(addonTable.ufBigHBPlayerNameYSlider, num(profile.ufBigHBPlayerNameY, 0), playerNameEnabled)
   ApplyUFBigSlider(addonTable.ufBigHBPlayerLevelXSlider, num(profile.ufBigHBPlayerLevelX, 0), playerLevelEnabled)
@@ -797,6 +798,7 @@ local function UpdateAllControls()
   if addonTable.ufBigHBTargetLevelDD then addonTable.ufBigHBTargetLevelDD:SetValue(profile.ufBigHBTargetLevelMode or "always"); addonTable.ufBigHBTargetLevelDD:SetEnabled(targetGroupEnabled) end
   local targetNameEnabled = targetGroupEnabled and (profile.ufBigHBHideTargetName ~= true)
   local targetLevelEnabled = targetGroupEnabled and ((profile.ufBigHBTargetLevelMode or "always") ~= "hide")
+  if addonTable.ufBigHBTargetNameAnchorDD then addonTable.ufBigHBTargetNameAnchorDD:SetValue(profile.ufBigHBTargetNameAnchor or "center"); addonTable.ufBigHBTargetNameAnchorDD:SetEnabled(targetNameEnabled) end
   ApplyUFBigSlider(addonTable.ufBigHBTargetNameXSlider, num(profile.ufBigHBTargetNameX, 0), targetNameEnabled)
   ApplyUFBigSlider(addonTable.ufBigHBTargetNameYSlider, num(profile.ufBigHBTargetNameY, 0), targetNameEnabled)
   ApplyUFBigSlider(addonTable.ufBigHBTargetLevelXSlider, num(profile.ufBigHBTargetLevelX, 0), targetLevelEnabled)
@@ -811,6 +813,7 @@ local function UpdateAllControls()
   if addonTable.ufBigHBFocusLevelDD then addonTable.ufBigHBFocusLevelDD:SetValue(profile.ufBigHBFocusLevelMode or "always"); addonTable.ufBigHBFocusLevelDD:SetEnabled(focusGroupEnabled) end
   local focusNameEnabled = focusGroupEnabled and (profile.ufBigHBHideFocusName ~= true)
   local focusLevelEnabled = focusGroupEnabled and ((profile.ufBigHBFocusLevelMode or "always") ~= "hide")
+  if addonTable.ufBigHBFocusNameAnchorDD then addonTable.ufBigHBFocusNameAnchorDD:SetValue(profile.ufBigHBFocusNameAnchor or "center"); addonTable.ufBigHBFocusNameAnchorDD:SetEnabled(focusNameEnabled) end
   ApplyUFBigSlider(addonTable.ufBigHBFocusNameXSlider, num(profile.ufBigHBFocusNameX, 0), focusNameEnabled)
   ApplyUFBigSlider(addonTable.ufBigHBFocusNameYSlider, num(profile.ufBigHBFocusNameY, 0), focusNameEnabled)
   ApplyUFBigSlider(addonTable.ufBigHBFocusLevelXSlider, num(profile.ufBigHBFocusLevelX, 0), focusLevelEnabled)
@@ -1718,7 +1721,7 @@ local function InitHandlers()
       ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
     end)
   end
-  local function ApplyUFBigHealthbarChanges()
+  local function ApplyUFBigHealthbarChanges(forceTargetImmediate)
     local p = GetProfile()
     if p and (p.ufBigHBPlayerEnabled == true or p.ufBigHBTargetEnabled == true or p.ufBigHBFocusEnabled == true) then
       p.useCustomBorderColor = true
@@ -1730,6 +1733,42 @@ local function InitHandlers()
     end
     if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    if forceTargetImmediate and addonTable.ApplyUnitFrameCustomization and C_Timer and C_Timer.After then
+      C_Timer.After(0.03, function()
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      end)
+      C_Timer.After(0.09, function()
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      end)
+      C_Timer.After(0.18, function()
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      end)
+    end
+  end
+  local function GetUFBigHBAnchorCompensation(unitToken, anchorMode)
+    local mode = type(anchorMode) == "string" and string.lower(anchorMode) or "center"
+    if unitToken == "target" then
+      if mode == "left" then return 4 end
+      if mode == "right" then return 86 end
+      return 45
+    end
+    if unitToken == "focus" then
+      if mode == "left" then return 4 end
+      if mode == "right" then return 86 end
+      return 45
+    end
+    if unitToken == "player" then
+      if mode == "left" then return -78 end
+      if mode == "right" then return 8 end
+      return -34
+    end
+    return 0
+  end
+  local function RebaseUFBigHBNameX(oldX, oldAnchor, newAnchor, unitToken)
+    local x = tonumber(oldX) or 0
+    local oldComp = GetUFBigHBAnchorCompensation(unitToken, oldAnchor)
+    local newComp = GetUFBigHBAnchorCompensation(unitToken, newAnchor)
+    return math.floor((x + oldComp - newComp) + 0.5)
   end
   if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
   if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
@@ -1738,10 +1777,13 @@ local function InitHandlers()
 
   if addonTable.ufBigHBNameMaxCharsSlider then addonTable.ufBigHBNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
   if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHidePlayerName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBPlayerNameAnchorDD then addonTable.ufBigHBPlayerNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then local oldAnchor = p.ufBigHBPlayerNameAnchor or "center"; local newAnchor = v or "center"; p.ufBigHBPlayerNameX = RebaseUFBigHBNameX(p.ufBigHBPlayerNameX, oldAnchor, newAnchor, "player"); p.ufBigHBPlayerNameAnchor = newAnchor; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBPlayerLevelDD then addonTable.ufBigHBPlayerLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelMode = v; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBHideTargetNameCB then addonTable.ufBigHBHideTargetNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideTargetName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBTargetNameAnchorDD then addonTable.ufBigHBTargetNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then local oldAnchor = p.ufBigHBTargetNameAnchor or "center"; local newAnchor = v or "center"; p.ufBigHBTargetNameX = RebaseUFBigHBNameX(p.ufBigHBTargetNameX, oldAnchor, newAnchor, "target"); p.ufBigHBTargetNameAnchor = newAnchor; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBTargetLevelDD then addonTable.ufBigHBTargetLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBTargetLevelMode = v; ApplyUFBigHealthbarChanges() end end end
-  if addonTable.ufBigHBHideFocusNameCB then addonTable.ufBigHBHideFocusNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideFocusName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBHideFocusNameCB then addonTable.ufBigHBHideFocusNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideFocusName = s:GetChecked(); ApplyUFBigHealthbarChanges(true) end end end
+  if addonTable.ufBigHBFocusNameAnchorDD then addonTable.ufBigHBFocusNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then local oldAnchor = p.ufBigHBFocusNameAnchor or "center"; local newAnchor = v or "center"; p.ufBigHBFocusNameX = RebaseUFBigHBNameX(p.ufBigHBFocusNameX, oldAnchor, newAnchor, "focus"); p.ufBigHBFocusNameAnchor = newAnchor; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBFocusLevelDD then addonTable.ufBigHBFocusLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBFocusLevelMode = v; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerNameXSlider then addonTable.ufBigHBPlayerNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
   if addonTable.ufBigHBPlayerNameYSlider then addonTable.ufBigHBPlayerNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
@@ -2873,13 +2915,13 @@ local function InitHandlers()
                "ufBigHBPlayerHealAbsorb", "ufBigHBPlayerDmgAbsorb", "ufBigHBPlayerHealPred", "ufBigHBPlayerAbsorbStripes",
                "ufBigHBTargetHealAbsorb", "ufBigHBTargetDmgAbsorb", "ufBigHBTargetHealPred", "ufBigHBTargetAbsorbStripes",
                "ufBigHBFocusHealAbsorb", "ufBigHBFocusDmgAbsorb", "ufBigHBFocusHealPred", "ufBigHBFocusAbsorbStripes",
-               "ufBigHBHidePlayerName", "ufBigHBPlayerLevelMode",
+               "ufBigHBHidePlayerName", "ufBigHBPlayerNameAnchor", "ufBigHBPlayerLevelMode",
                "ufBigHBPlayerNameX", "ufBigHBPlayerNameY", "ufBigHBPlayerLevelX", "ufBigHBPlayerLevelY",
                "ufBigHBPlayerNameTextScale", "ufBigHBPlayerLevelTextScale",
-               "ufBigHBHideTargetName", "ufBigHBTargetLevelMode",
+               "ufBigHBHideTargetName", "ufBigHBTargetNameAnchor", "ufBigHBTargetLevelMode",
                "ufBigHBTargetNameX", "ufBigHBTargetNameY", "ufBigHBTargetLevelX", "ufBigHBTargetLevelY",
                "ufBigHBTargetNameTextScale", "ufBigHBTargetLevelTextScale",
-               "ufBigHBHideFocusName", "ufBigHBFocusLevelMode",
+               "ufBigHBHideFocusName", "ufBigHBFocusNameAnchor", "ufBigHBFocusLevelMode",
                "ufBigHBFocusNameX", "ufBigHBFocusNameY", "ufBigHBFocusLevelX", "ufBigHBFocusLevelY",
                "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
                "ufBigHBNameMaxChars",

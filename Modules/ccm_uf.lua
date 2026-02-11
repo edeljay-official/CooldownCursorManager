@@ -2270,6 +2270,18 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor and existing.nameOrigColorR then
             nameEl:SetTextColor(existing.nameOrigColorR, existing.nameOrigColorG, existing.nameOrigColorB)
           end
+          if nameEl.SetJustifyH and existing.nameOrigJustifyH then
+            nameEl:SetJustifyH(existing.nameOrigJustifyH)
+          end
+          if nameEl.SetWidth and existing.nameOrigWidth ~= nil then
+            nameEl:SetWidth(existing.nameOrigWidth)
+          end
+          if nameEl.SetWordWrap and existing.nameOrigWordWrap ~= nil then
+            nameEl:SetWordWrap(existing.nameOrigWordWrap)
+          end
+          if nameEl.SetNonSpaceWrap and existing.nameOrigNonSpaceWrap ~= nil then
+            nameEl:SetNonSpaceWrap(existing.nameOrigNonSpaceWrap)
+          end
           if existing.namePoint and nameEl.ClearAllPoints and nameEl.SetPoint then
             nameEl:ClearAllPoints()
             nameEl:SetPoint(existing.namePoint, existing.nameRelTo, existing.nameRelPt, existing.nameOrigX or 0, existing.nameOrigY or 0)
@@ -3044,6 +3056,74 @@ addonTable.ApplyUnitFrameCustomization = function()
       pcall(fontString.SetFont, fontString, fontPath, fontSize * textScale, fontFlags or "")
       ApplyConsistentFontShadow(fontString, fontFlags)
     end
+    local function GetUFBigHBNameAnchorMode(prof, unitToken)
+      if unitToken ~= "target" and unitToken ~= "focus" and unitToken ~= "player" then return "center" end
+      if type(prof) ~= "table" then return "center" end
+      local key
+      if unitToken == "target" then
+        key = "ufBigHBTargetNameAnchor"
+      elseif unitToken == "focus" then
+        key = "ufBigHBFocusNameAnchor"
+      elseif unitToken == "player" then
+        key = "ufBigHBPlayerNameAnchor"
+      end
+      local v = key and prof[key] or nil
+      v = type(v) == "string" and string.lower(v) or "center"
+      if v ~= "left" and v ~= "right" then
+        v = "center"
+      end
+      return v
+    end
+    local function NormalizeUFBigHBNameXOffset(unitToken, anchorMode, xOff)
+      local x = tonumber(xOff) or 0
+      if unitToken == "target" then
+        if anchorMode == "left" then
+          return x + 4
+        elseif anchorMode == "right" then
+          return x + 86
+        else
+          return x + 45
+        end
+      end
+      if unitToken == "focus" then
+        if anchorMode == "left" then
+          return x + 4
+        elseif anchorMode == "right" then
+          return x + 86
+        else
+          return x + 45
+        end
+      end
+      if unitToken == "player" then
+        if anchorMode == "left" then
+          return x - 78
+        elseif anchorMode == "right" then
+          return x + 8
+        else
+          return x - 34
+        end
+      end
+      if anchorMode == "left" then
+        return x - 3
+      elseif anchorMode == "right" then
+        return x + 3
+      end
+      return x
+    end
+
+    local function AnchorUFBigHBNameToHealth(nameEl, healthFrame, anchorMode, xOff, yOff)
+      if not (nameEl and healthFrame and nameEl.SetPoint and nameEl.SetJustifyH) then return end
+      if anchorMode == "left" then
+        nameEl:SetPoint("LEFT", healthFrame, "LEFT", 1 + (xOff or 0), yOff or 0)
+        nameEl:SetJustifyH("LEFT")
+      elseif anchorMode == "right" then
+        nameEl:SetPoint("RIGHT", healthFrame, "RIGHT", -1 + (xOff or 0), yOff or 0)
+        nameEl:SetJustifyH("RIGHT")
+      else
+        nameEl:SetPoint("CENTER", healthFrame, "CENTER", xOff or 0, yOff or 0)
+        nameEl:SetJustifyH("CENTER")
+      end
+    end
     if key == "target" and bigHBRoot then
       local nameEl = bigHBRoot.Name
       if nameEl then
@@ -3103,7 +3183,8 @@ addonTable.ApplyUnitFrameCustomization = function()
             end)
           end)
         end
-        local nx = (profile.ufBigHBTargetNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.nameX
+        local nameAnchorMode = GetUFBigHBNameAnchorMode(profile, "target")
+        local nx = NormalizeUFBigHBNameXOffset("target", nameAnchorMode, profile.ufBigHBTargetNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.nameX
         local ny = (profile.ufBigHBTargetNameY or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.nameY
         if nameEl.ClearAllPoints and nameEl.SetPoint then
           nameEl:ClearAllPoints()
@@ -3116,8 +3197,7 @@ addonTable.ApplyUnitFrameCustomization = function()
             end
             if nameEl.SetWordWrap then nameEl:SetWordWrap(false) end
             if nameEl.SetNonSpaceWrap then nameEl:SetNonSpaceWrap(false) end
-            nameEl:SetPoint("CENTER", o.healthFrame, "CENTER", nx, ny)
-            if nameEl.SetJustifyH then nameEl:SetJustifyH("CENTER") end
+            AnchorUFBigHBNameToHealth(nameEl, o.healthFrame, nameAnchorMode, nx, ny)
           elseif o.targetNamePoint then
             if nameEl.SetWidth and o.targetNameOrigWidth ~= nil then
               nameEl:SetWidth(o.targetNameOrigWidth)
@@ -3240,7 +3320,8 @@ addonTable.ApplyUnitFrameCustomization = function()
             end)
           end)
         end
-        local nx = (profile.ufBigHBFocusNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.focus.nameX
+        local nameAnchorMode = GetUFBigHBNameAnchorMode(profile, "focus")
+        local nx = NormalizeUFBigHBNameXOffset("focus", nameAnchorMode, profile.ufBigHBFocusNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.nameX
         local ny = (profile.ufBigHBFocusNameY or 0) + addonTable.UF_BIG_HB_TEXT_BASE.focus.nameY
         if nameEl.ClearAllPoints and nameEl.SetPoint then
           nameEl:ClearAllPoints()
@@ -3253,8 +3334,7 @@ addonTable.ApplyUnitFrameCustomization = function()
             end
             if nameEl.SetWordWrap then nameEl:SetWordWrap(false) end
             if nameEl.SetNonSpaceWrap then nameEl:SetNonSpaceWrap(false) end
-            nameEl:SetPoint("CENTER", o.healthFrame, "CENTER", nx, ny)
-            if nameEl.SetJustifyH then nameEl:SetJustifyH("CENTER") end
+            AnchorUFBigHBNameToHealth(nameEl, o.healthFrame, nameAnchorMode, nx, ny)
           elseif o.namePoint then
             if nameEl.SetWidth and o.nameOrigWidth ~= nil then
               nameEl:SetWidth(o.nameOrigWidth)
@@ -3328,6 +3408,18 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.GetTextColor then
             o.nameOrigColorR, o.nameOrigColorG, o.nameOrigColorB = nameEl:GetTextColor()
           end
+          if nameEl.GetWidth then
+            o.nameOrigWidth = nameEl:GetWidth()
+          end
+          if nameEl.GetWordWrap then
+            o.nameOrigWordWrap = nameEl:GetWordWrap()
+          end
+          if nameEl.GetNonSpaceWrap then
+            o.nameOrigNonSpaceWrap = nameEl:GetNonSpaceWrap()
+          end
+          if nameEl.GetJustifyH then
+            o.nameOrigJustifyH = nameEl:GetJustifyH()
+          end
           if nameEl.GetPoint then
             o.namePoint, o.nameRelTo, o.nameRelPt, o.nameOrigX, o.nameOrigY = nameEl:GetPoint(1)
           end
@@ -3348,11 +3440,34 @@ addonTable.ApplyUnitFrameCustomization = function()
           if playerName and nameEl.SetText then nameEl:SetText(playerName) end
           ApplyUFBigHBScaledFont(nameEl, o.nameOrigFont, o.nameOrigFontSize, o.nameOrigFontFlags, profile.ufBigHBPlayerNameTextScale or profile.ufBigHBPlayerTextScale)
         end
-        local nx = (profile.ufBigHBPlayerNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.player.nameX
+        local nameAnchorMode = GetUFBigHBNameAnchorMode(profile, "player")
+        local nx = NormalizeUFBigHBNameXOffset("player", nameAnchorMode, profile.ufBigHBPlayerNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.player.nameX
         local ny = (profile.ufBigHBPlayerNameY or 0) + addonTable.UF_BIG_HB_TEXT_BASE.player.nameY
-        if nameEl.ClearAllPoints and nameEl.SetPoint and o.namePoint then
+        if nameEl.ClearAllPoints and nameEl.SetPoint then
           nameEl:ClearAllPoints()
-          nameEl:SetPoint(o.namePoint, o.nameRelTo, o.nameRelPt, (o.nameOrigX or 0) + nx, (o.nameOrigY or 0) + ny)
+          if o.healthFrame then
+            if nameEl.SetWidth and o.healthFrame.GetWidth then
+              local w = o.healthFrame:GetWidth()
+              if type(w) == "number" and w > 0 then
+                nameEl:SetWidth(math.max(1, w - 2))
+              end
+            end
+            if nameEl.SetWordWrap then nameEl:SetWordWrap(false) end
+            if nameEl.SetNonSpaceWrap then nameEl:SetNonSpaceWrap(false) end
+            AnchorUFBigHBNameToHealth(nameEl, o.healthFrame, nameAnchorMode, nx, ny)
+          elseif o.namePoint then
+            if nameEl.SetWidth and o.nameOrigWidth ~= nil then
+              nameEl:SetWidth(o.nameOrigWidth)
+            end
+            if nameEl.SetWordWrap and o.nameOrigWordWrap ~= nil then
+              nameEl:SetWordWrap(o.nameOrigWordWrap)
+            end
+            if nameEl.SetNonSpaceWrap and o.nameOrigNonSpaceWrap ~= nil then
+              nameEl:SetNonSpaceWrap(o.nameOrigNonSpaceWrap)
+            end
+            nameEl:SetPoint(o.namePoint, o.nameRelTo, o.nameRelPt, (o.nameOrigX or 0) + nx, (o.nameOrigY or 0) + ny)
+            if nameEl.SetJustifyH and o.nameOrigJustifyH then nameEl:SetJustifyH(o.nameOrigJustifyH) end
+          end
         end
       end
       local levelEl = _G["PlayerLevelText"]
