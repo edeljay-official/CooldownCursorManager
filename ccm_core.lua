@@ -5205,6 +5205,10 @@ local function UpdateCustomBar()
       end
     else
       activeSpellID = ResolveTrackedSpellID(actualID)
+      if icon._lastActiveSpellID and icon._lastActiveSpellID ~= activeSpellID then
+        icon._cdExpectedEnd = 0
+      end
+      icon._lastActiveSpellID = activeSpellID
       if not IsTrackedEntryAvailable(false, actualID, activeSpellID) then
         iconTexture = nil
         icon.cooldown:Clear()
@@ -5764,6 +5768,10 @@ local function UpdateCustomBar2()
       end
     else
       activeSpellID = ResolveTrackedSpellID(actualID)
+      if icon._lastActiveSpellID and icon._lastActiveSpellID ~= activeSpellID then
+        icon._cdExpectedEnd = 0
+      end
+      icon._lastActiveSpellID = activeSpellID
       if not IsTrackedEntryAvailable(false, actualID, activeSpellID) then
         iconTexture = nil
         icon.cooldown:Clear()
@@ -6323,6 +6331,10 @@ local function UpdateCustomBar3()
       end
     else
       activeSpellID = ResolveTrackedSpellID(actualID)
+      if icon._lastActiveSpellID and icon._lastActiveSpellID ~= activeSpellID then
+        icon._cdExpectedEnd = 0
+      end
+      icon._lastActiveSpellID = activeSpellID
       if not IsTrackedEntryAvailable(false, actualID, activeSpellID) then
         iconTexture = nil
         icon.cooldown:Clear()
@@ -7217,6 +7229,10 @@ UpdateSpellIcon = function(icon)
     return
   end
   local activeSpellID = ResolveTrackedSpellID(spellID)
+  if icon._lastActiveSpellID and icon._lastActiveSpellID ~= activeSpellID then
+    icon._cdExpectedEnd = 0
+  end
+  icon._lastActiveSpellID = activeSpellID
   if not IsTrackedEntryAvailable(false, spellID, activeSpellID) then
     HideIconByScale(icon)
     return
