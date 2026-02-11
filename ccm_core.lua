@@ -7885,6 +7885,13 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
             end
           end
         end
+        if not baseDur then
+          local okBase, baseCd = pcall(GetSpellBaseCooldown, spellID)
+          if okBase and baseCd and type(baseCd) == "number" and baseCd > 1500 then
+            baseDur = baseCd / 1000
+            State.spellBaseCdDurations[spellID] = baseDur
+          end
+        end
         if baseDur and baseDur > 1.5 then
           local haste = GetHaste and GetHaste() or 0
           local dur = baseDur / (1 + haste / 100)
