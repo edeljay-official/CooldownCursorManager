@@ -26,6 +26,9 @@ local State = {
   customBar3VisibleIcons = {},
   gcdStartTime = 0,
   gcdDuration = 0,
+  spellCdDurations = {},
+  spellBaseCdDurations = {},
+  spellCastTimes = {},
   prbDragging = false,
   prbTicker = nil,
   actionBar1Hidden = false,
@@ -2376,6 +2379,60 @@ end
 addonTable.HighlightCustomBar = HighlightCustomBar
 addonTable.GetDefaults = function() return defaults end
 addonTable.GetIcons = function() return State.cursorIcons end
+local function HideIconByScale(icon)
+  icon._ccmHiddenByScale = true
+  icon:SetScale(0.0001)
+  icon:SetAlpha(0)
+  icon:Show()
+end
+local function EnsureIconRestored(icon)
+  if icon._ccmHiddenByScale then icon._ccmHiddenByScale = false end
+  icon:Show()
+  icon:SetScale(1)
+  icon:SetAlpha(1)
+end
+local function Clamp01(v)
+  if type(v) ~= "number" then return 0 end
+  if v < 0 then return 0 end
+  if v > 1 then return 1 end
+  return v
+end
+local PreShowCurve = {
+  0.0000, 0.0000, 0.0000, 0.0000,
+  0.0010, 0.0040, 0.0100, 0.0200,
+  0.0350, 0.0550, 0.0800, 0.1100,
+  0.1450, 0.1850, 0.2300, 0.2800,
+  0.3350, 0.3950, 0.4600, 0.5300,
+  0.6050, 0.6850, 0.7700, 0.8600,
+  0.9400, 0.9800, 1.0000, 1.0000,
+  1.0000, 1.0000, 1.0000, 1.0000,
+}
+local function EvaluatePreShowCurve(progress)
+  local p = Clamp01(progress)
+  local maxIndex = #PreShowCurve - 1
+  if maxIndex <= 0 then return p end
+  local f = p * maxIndex
+  local i = math.floor(f)
+  if i < 0 then i = 0 end
+  if i >= maxIndex then return PreShowCurve[maxIndex + 1] or 1 end
+  local a = PreShowCurve[i + 1] or p
+  local b = PreShowCurve[i + 2] or a
+  local t = f - i
+  return a + (b - a) * t
+end
+local function SetIconScaledVisible(icon, scale, alpha)
+  local s = scale
+  local a = alpha
+  if type(s) ~= "number" then s = 1 end
+  if type(a) ~= "number" then a = 1 end
+  if s < 0.0001 then s = 0.0001 end
+  if a < 0 then a = 0 end
+  if a > 1 then a = 1 end
+  if icon._ccmHiddenByScale then icon._ccmHiddenByScale = false end
+  icon:Show()
+  icon:SetScale(s)
+  icon:SetAlpha(a)
+end
 addonTable.ShowCursorIconPreview = function()
   State.cursorIconPreviewActive = true
   for _, icon in ipairs(State.cursorIcons) do
@@ -2832,6 +2889,76 @@ local function ResolveTrackedSpellID(spellID)
     return replacementID
   end
   return spellID
+end
+local function ScanTooltipForCooldown(spellID)
+  if UnitAffectingCombat("player") then return nil end
+  if not State._cdScanTip then
+    State._cdScanTip = CreateFrame("GameTooltip", "CCMCDScanTip", nil, "GameTooltipTemplate")
+    State._cdScanTip:SetOwner(WorldFrame, "ANCHOR_NONE")
+  end
+  State._cdScanTip:ClearLines()
+  local ok = pcall(State._cdScanTip.SetSpellByID, State._cdScanTip, spellID)
+  if not ok then return nil end
+  for i = 1, State._cdScanTip:NumLines() do
+    for _, side in ipairs({"Left", "Right"}) do
+      local fontStr = _G["CCMCDScanTipText" .. side .. i]
+      if fontStr then
+        local ok2, t = pcall(fontStr.GetText, fontStr)
+        if ok2 and t and type(t) == "string" then
+          if t:match("[Cc]ooldown") or t:match("Abklingzeit") or t:match("[Rr]echarge") or t:match("Aufladung") then
+            local m = t:match("(%d+%.?%d*) [Mm]in")
+            if m then return tonumber(m) * 60 end
+            local s = t:match("(%d+%.?%d*)")
+            if s then
+              local dur = tonumber(s)
+              if dur and dur > 1.5 then return dur end
+            end
+          end
+        end
+      end
+    end
+  end
+  return nil
+end
+local function PreCacheSpellDurations()
+  local allSpellIDs = {}
+  for _, icon in ipairs(State.cursorIcons) do
+    if not icon.isItem and icon.spellID then
+      allSpellIDs[icon.spellID] = true
+      local resolved = ResolveTrackedSpellID(icon.spellID)
+      if resolved and resolved ~= icon.spellID then
+        allSpellIDs[resolved] = true
+      end
+    end
+  end
+  for _, icons in ipairs({State.customBar1Icons, State.customBar2Icons, State.customBar3Icons}) do
+    for _, icon in ipairs(icons) do
+      if not icon.isItem then
+        local sid = icon.actualID or icon.spellID
+        if sid then
+          allSpellIDs[sid] = true
+          local resolved = ResolveTrackedSpellID(sid)
+          if resolved and resolved ~= sid then
+            allSpellIDs[resolved] = true
+          end
+        end
+      end
+    end
+  end
+  local cacheHaste = GetHaste and GetHaste() or 0
+  for spellID in pairs(allSpellIDs) do
+    if not State.spellBaseCdDurations[spellID] then
+      local tooltipDur = ScanTooltipForCooldown(spellID)
+      if tooltipDur then
+        State.spellBaseCdDurations[spellID] = tooltipDur * (1 + cacheHaste / 100)
+      else
+        local okBase, baseCd = pcall(GetSpellBaseCooldown, spellID)
+        if okBase and baseCd and type(baseCd) == "number" and baseCd > 1500 then
+          State.spellBaseCdDurations[spellID] = baseCd / 1000
+        end
+      end
+    end
+  end
 end
 local ringFrame = CreateFrame("Frame", "CCMRadialCircle", UIParent)
 ringFrame:SetSize(120, 120)
@@ -4904,18 +5031,6 @@ if C_Timer and C_Timer.NewTicker and not State.cooldownViewerChargePatchTicker t
     end
   end)
 end
-local function HideIconByScale(icon)
-  icon._ccmHiddenByScale = true
-  icon:SetScale(0.0001)
-  icon:SetAlpha(0)
-  icon:Show()
-end
-local function EnsureIconRestored(icon)
-  if icon._ccmHiddenByScale then icon._ccmHiddenByScale = false end
-  icon:Show()
-  icon:SetScale(1)
-  icon:SetAlpha(1)
-end
 local function ClearCustomBarIcons()
   if Masque and MasqueGroups.CustomBar then
     for _, icon in ipairs(State.customBar1Icons) do
@@ -5174,24 +5289,41 @@ local function UpdateCustomBar()
       end
     end
     pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
-    if not isItem then
-      local start, duration = icon.cooldown:GetCooldownTimes()
-      local startOk = start and IsRealNumber(start)
-      local durOk = duration and IsRealNumber(duration)
-      if startOk and durOk then
-        if start > 0 and duration > 1500 then
-          isOnCooldown = true
+    if not isItem and not isChargeSpell then
+      if cdStart and cdDuration then
+        local okZero, isZero = pcall(function() return cdStart == 0 end)
+        if okZero and isZero then
+          icon._cdExpectedEnd = 0
         else
-          isOnCooldown = false
-        end
-      else
-        if not isChargeSpell then
-          if icon.cooldown:IsShown() then
-            local cdRegion = icon.cooldown:GetRegions()
-            if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-              isOnCooldown = true
+          if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
+            local gcdInfo = C_Spell.GetSpellCooldown(61304)
+            if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
+              local okGcd, isGcdMatch = pcall(function()
+                return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+              end)
+              if okGcd and isGcdMatch then
+                icon._cdExpectedEnd = 0
+              end
             end
           end
+          local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+          if okCD and isCD then
+            isOnCooldown = true
+            local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+            if ok2 and endTime then
+              icon._cdExpectedEnd = endTime
+              State.spellCdDurations[activeSpellID] = cdDuration
+              if actualID ~= activeSpellID then
+                State.spellCdDurations[actualID] = cdDuration
+              end
+            end
+          end
+        end
+      end
+      if not isOnCooldown then
+        local now = GetTime()
+        if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and now < icon._cdExpectedEnd then
+          isOnCooldown = true
         end
       end
     end
@@ -5716,24 +5848,41 @@ local function UpdateCustomBar2()
       end
     end
     pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
-    if not isItem then
-      local start, duration = icon.cooldown:GetCooldownTimes()
-      local startOk = start and IsRealNumber(start)
-      local durOk = duration and IsRealNumber(duration)
-      if startOk and durOk then
-        if start > 0 and duration > 1500 then
-          isOnCooldown = true
+    if not isItem and not isChargeSpell then
+      if cdStart and cdDuration then
+        local okZero, isZero = pcall(function() return cdStart == 0 end)
+        if okZero and isZero then
+          icon._cdExpectedEnd = 0
         else
-          isOnCooldown = false
-        end
-      else
-        if not isChargeSpell then
-          if icon.cooldown:IsShown() then
-            local cdRegion = icon.cooldown:GetRegions()
-            if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-              isOnCooldown = true
+          if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
+            local gcdInfo = C_Spell.GetSpellCooldown(61304)
+            if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
+              local okGcd, isGcdMatch = pcall(function()
+                return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+              end)
+              if okGcd and isGcdMatch then
+                icon._cdExpectedEnd = 0
+              end
             end
           end
+          local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+          if okCD and isCD then
+            isOnCooldown = true
+            local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+            if ok2 and endTime then
+              icon._cdExpectedEnd = endTime
+              State.spellCdDurations[activeSpellID] = cdDuration
+              if actualID ~= activeSpellID then
+                State.spellCdDurations[actualID] = cdDuration
+              end
+            end
+          end
+        end
+      end
+      if not isOnCooldown then
+        local now = GetTime()
+        if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and now < icon._cdExpectedEnd then
+          isOnCooldown = true
         end
       end
     end
@@ -6258,24 +6407,41 @@ local function UpdateCustomBar3()
       end
     end
     pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
-    if not isItem then
-      local start, duration = icon.cooldown:GetCooldownTimes()
-      local startOk = start and IsRealNumber(start)
-      local durOk = duration and IsRealNumber(duration)
-      if startOk and durOk then
-        if start > 0 and duration > 1500 then
-          isOnCooldown = true
+    if not isItem and not isChargeSpell then
+      if cdStart and cdDuration then
+        local okZero, isZero = pcall(function() return cdStart == 0 end)
+        if okZero and isZero then
+          icon._cdExpectedEnd = 0
         else
-          isOnCooldown = false
-        end
-      else
-        if not isChargeSpell then
-          if icon.cooldown:IsShown() then
-            local cdRegion = icon.cooldown:GetRegions()
-            if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-              isOnCooldown = true
+          if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
+            local gcdInfo = C_Spell.GetSpellCooldown(61304)
+            if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
+              local okGcd, isGcdMatch = pcall(function()
+                return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+              end)
+              if okGcd and isGcdMatch then
+                icon._cdExpectedEnd = 0
+              end
             end
           end
+          local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+          if okCD and isCD then
+            isOnCooldown = true
+            local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+            if ok2 and endTime then
+              icon._cdExpectedEnd = endTime
+              State.spellCdDurations[activeSpellID] = cdDuration
+              if actualID ~= activeSpellID then
+                State.spellCdDurations[actualID] = cdDuration
+              end
+            end
+          end
+        end
+      end
+      if not isOnCooldown then
+        local now = GetTime()
+        if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and now < icon._cdExpectedEnd then
+          isOnCooldown = true
         end
       end
     end
@@ -6703,6 +6869,7 @@ local function CreateIcons()
 end
 addonTable.CreateIcons = function()
   CreateIcons()
+  PreCacheSpellDurations()
   if State.cursorIconPreviewActive then
     for _, icon in ipairs(State.cursorIcons) do
       icon._ccmPreviewSaved = true
@@ -7171,22 +7338,42 @@ UpdateSpellIcon = function(icon)
   pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive)
   local isOnCooldown = false
   local isChargeSpell = IsRealChargeSpell(charges, spellID)
-  local start, duration = icon.cooldown:GetCooldownTimes()
-  local startOk = start and IsRealNumber(start)
-  local durOk = duration and IsRealNumber(duration)
-  if startOk and durOk then
-    if start > 0 and duration > 1500 then
-      isOnCooldown = true
-    else
-      isOnCooldown = false
-    end
-  else
-    if not isChargeSpell then
-      if icon.cooldown:IsShown() then
-        local cdRegion = icon.cooldown:GetRegions()
-        if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-          isOnCooldown = true
+  if not isChargeSpell then
+    local cdRaw = C_Spell.GetSpellCooldown(activeSpellID)
+    if cdRaw and cdRaw.startTime and cdRaw.duration then
+      local okZero, isZero = pcall(function() return cdRaw.startTime == 0 end)
+      if okZero and isZero then
+        icon._cdExpectedEnd = 0
+      else
+        if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
+          local gcdInfo = C_Spell.GetSpellCooldown(61304)
+          if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
+            local okGcd, isGcdMatch = pcall(function()
+              return cdRaw.startTime == gcdInfo.startTime and cdRaw.duration == gcdInfo.duration
+            end)
+            if okGcd and isGcdMatch then
+              icon._cdExpectedEnd = 0
+            end
+          end
         end
+        local okCD, isCD = pcall(function() return cdRaw.startTime > 0 and cdRaw.duration > 1.5 end)
+        if okCD and isCD then
+          isOnCooldown = true
+          local ok2, endTime = pcall(function() return cdRaw.startTime + cdRaw.duration end)
+          if ok2 and endTime then
+            icon._cdExpectedEnd = endTime
+            State.spellCdDurations[activeSpellID] = cdRaw.duration
+            if spellID ~= activeSpellID then
+              State.spellCdDurations[spellID] = cdRaw.duration
+            end
+          end
+        end
+      end
+    end
+    if not isOnCooldown then
+      local now = GetTime()
+      if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and now < icon._cdExpectedEnd then
+        isOnCooldown = true
       end
     end
   end
@@ -7227,10 +7414,18 @@ UpdateSpellIcon = function(icon)
       icon.icon:SetDesaturated(false)
     elseif cooldownMode == "hide" then
       if isOnCooldown then
+        local remaining = (icon._cdExpectedEnd or 0) - GetTime()
+        local preShowWindow = tonumber(profile.showBeforeCdEnds) or 0
+        if preShowWindow > 0 and remaining > 0 and remaining <= preShowWindow then
+          local curveVal = EvaluatePreShowCurve(1 - (remaining / preShowWindow))
+          SetIconScaledVisible(icon, curveVal, curveVal)
+          icon.icon:SetDesaturated(false)
+          return
+        end
         HideIconByScale(icon)
         return
       end
-      if notEnoughResources and not isOnCooldown then
+      if notEnoughResources then
         HideIconByScale(icon)
         return
       end
@@ -7576,8 +7771,9 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     UpdateCustomBar2()
     UpdateCustomBar3()
     UpdateStandaloneBlizzardBars()
-    C_Timer.After(1, function() ScanSpellBookCharges() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
-    C_Timer.After(3, function() ScanSpellBookCharges() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
+    PreCacheSpellDurations()
+    C_Timer.After(1, function() ScanSpellBookCharges() PreCacheSpellDurations() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
+    C_Timer.After(3, function() ScanSpellBookCharges() PreCacheSpellDurations() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
     if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
     if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
     if profile and profile.usePersonalResourceBar then
@@ -7671,8 +7867,88 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     C_Timer.After(0.01, UpdateGCD)
     State.iconsDirty = true
     State.customBarsDirty = true
-    if spellID and BuffDurationCache[spellID] then
-      ActiveBuffStart[spellID] = GetTime()
+    if spellID then
+      local now = GetTime()
+      State.spellCastTimes[spellID] = now
+      if BuffDurationCache[spellID] then
+        ActiveBuffStart[spellID] = now
+      end
+      local isCharge = ChargeSpellCache[spellID]
+      if not isCharge then
+        local resolved = ResolveTrackedSpellID(spellID)
+        if resolved then isCharge = ChargeSpellCache[resolved] end
+      end
+      if not isCharge then
+        local ch = C_Spell.GetSpellCharges(spellID)
+        if ch and ch.maxCharges then
+          local okMc, isMc = pcall(function() return ch.maxCharges > 1 end)
+          if okMc and isMc then isCharge = true end
+        end
+      end
+      local endTime
+      if not isCharge then
+        local baseDur = State.spellBaseCdDurations[spellID]
+        if not baseDur then
+          local resolved = ResolveTrackedSpellID(spellID)
+          if resolved and resolved ~= spellID then
+            baseDur = State.spellBaseCdDurations[resolved]
+          end
+        end
+        if not baseDur then
+          local cdRaw = C_Spell.GetSpellCooldown(spellID)
+          if cdRaw and cdRaw.duration then
+            local okBig, isBig = pcall(function() return cdRaw.duration > 1.5 end)
+            if okBig and isBig then
+              local okVal, val = pcall(function() return cdRaw.duration * (1 + (GetHaste() or 0) / 100) end)
+              if okVal and type(val) == "number" then
+                baseDur = val
+                State.spellBaseCdDurations[spellID] = baseDur
+              end
+            end
+          end
+        end
+        if baseDur and baseDur > 1.5 then
+          local haste = GetHaste and GetHaste() or 0
+          local dur = baseDur / (1 + haste / 100)
+          if dur > 1.5 then
+            endTime = now + dur
+          end
+        end
+      end
+      if endTime then
+        for _, icon in ipairs(State.cursorIcons) do
+          if not icon.isItem then
+            local sid = icon.spellID
+            if sid == spellID or ResolveTrackedSpellID(sid) == spellID then
+              icon._cdExpectedEnd = endTime
+            end
+          end
+        end
+        for _, icon in ipairs(State.customBar1Icons) do
+          if not icon.isItem then
+            local aid = icon.actualID
+            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+              icon._cdExpectedEnd = endTime
+            end
+          end
+        end
+        for _, icon in ipairs(State.customBar2Icons) do
+          if not icon.isItem then
+            local aid = icon.actualID
+            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+              icon._cdExpectedEnd = endTime
+            end
+          end
+        end
+        for _, icon in ipairs(State.customBar3Icons) do
+          if not icon.isItem then
+            local aid = icon.actualID
+            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+              icon._cdExpectedEnd = endTime
+            end
+          end
+        end
+      end
     end
     addonTable.RequestCustomBarUpdate()
   elseif event == "UNIT_SPELLCAST_START" and arg1 == "player" then
@@ -7728,6 +8004,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       end
     end
   elseif event == "PLAYER_REGEN_DISABLED" then
+    PreCacheSpellDurations()
     State.iconsDirty = true
     State.standaloneNeedsSkinning = true
     UpdateStandaloneBlizzardBars()
@@ -7747,6 +8024,8 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       if addonTable.SetGUIOpen then addonTable.SetGUIOpen(false) end
     end
   elseif event == "PLAYER_SPECIALIZATION_CHANGED" and arg1 == "player" then
+    wipe(State.spellCdDurations)
+    wipe(State.spellBaseCdDurations)
     ScanSpellBookCharges()
     ResolveBuffDurations()
     ApplyCharacterProfile()
@@ -7769,7 +8048,10 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
   elseif event == "TRAIT_CONFIG_UPDATED" then
+    wipe(State.spellCdDurations)
+    wipe(State.spellBaseCdDurations)
     ResolveBuffDurations()
+    PreCacheSpellDurations()
   elseif event == "UNIT_DISPLAYPOWER" and arg1 == "player" then
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
   elseif event == "UNIT_AURA" and arg1 == "player" then
