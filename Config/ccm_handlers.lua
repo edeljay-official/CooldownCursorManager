@@ -606,8 +606,6 @@ local function UpdateAllControls()
   if addonTable.hidePetBarAlwaysCB then addonTable.hidePetBarAlwaysCB:SetChecked(profile.hidePetBarAlways == true) end
   if addonTable.fadeMicroMenuCB then addonTable.fadeMicroMenuCB:SetChecked(profile.fadeMicroMenu == true) end
   if addonTable.hideABBordersCB then addonTable.hideABBordersCB:SetChecked(profile.hideActionBarBorders == true) end
-  if addonTable.abSkinOutlineDD then addonTable.abSkinOutlineDD:SetValue(profile.actionBarSkinOutlineMode or "medium"); addonTable.abSkinOutlineDD:SetEnabled(profile.hideActionBarBorders == true) end
-  if addonTable.hideEmptyABOutlineCB then addonTable.hideEmptyABOutlineCB:SetChecked(profile.hideEmptyActionBarOutline == true); addonTable.hideEmptyABOutlineCB:SetEnabled(profile.hideActionBarBorders == true) end
   if addonTable.fadeObjectiveTrackerCB then addonTable.fadeObjectiveTrackerCB:SetChecked(profile.fadeObjectiveTracker == true) end
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB:SetChecked(profile.fadeBagBar == true) end
   if addonTable.betterItemLevelCB then addonTable.betterItemLevelCB:SetChecked(profile.betterItemLevel == true) end
@@ -1431,9 +1429,7 @@ local function InitHandlers()
   if addonTable.hidePetBarMouseoverCB then addonTable.hidePetBarMouseoverCB.customOnClick = function(s) local p = GetProfile(); if p then p.hidePetBarMouseover = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.hidePetBarAlwaysCB then addonTable.hidePetBarAlwaysCB.customOnClick = function(s) local p = GetProfile(); if p then p.hidePetBarAlways = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.fadeMicroMenuCB then addonTable.fadeMicroMenuCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeMicroMenu = s:GetChecked(); if addonTable.SetupFadeMicroMenu then addonTable.SetupFadeMicroMenu() end end end end
-  if addonTable.hideABBordersCB then addonTable.hideABBordersCB.customOnClick = function(s) local p = GetProfile(); if p then local was = p.hideActionBarBorders; p.hideActionBarBorders = s:GetChecked(); if addonTable.abSkinOutlineDD then addonTable.abSkinOutlineDD:SetEnabled(p.hideActionBarBorders == true) end; if addonTable.hideEmptyABOutlineCB then addonTable.hideEmptyABOutlineCB:SetEnabled(p.hideActionBarBorders == true) end; if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end; if was and not s:GetChecked() then ShowReloadPrompt("Disabling Action Bar Skinning requires a UI reload for best results. Reload now?", "Reload", "Later") end end end end
-  if addonTable.abSkinOutlineDD then addonTable.abSkinOutlineDD.onSelect = function(v) local p = GetProfile(); if p then p.actionBarSkinOutlineMode = v; if p.hideActionBarBorders and addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end end end end
-  if addonTable.hideEmptyABOutlineCB then addonTable.hideEmptyABOutlineCB.customOnClick = function(s) local p = GetProfile(); if p then p.hideEmptyActionBarOutline = s:GetChecked(); if p.hideActionBarBorders and addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end end end end
+  if addonTable.hideABBordersCB then addonTable.hideABBordersCB.customOnClick = function(s) local p = GetProfile(); if p then local was = p.hideActionBarBorders; p.hideActionBarBorders = s:GetChecked(); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end; if was and not s:GetChecked() then ShowReloadPrompt("Disabling Action Bar Skinning requires a UI reload for best results. Reload now?", "Reload", "Later") end end end end
   if addonTable.fadeObjectiveTrackerCB then addonTable.fadeObjectiveTrackerCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeObjectiveTracker = s:GetChecked(); if addonTable.SetupFadeObjectiveTracker then addonTable.SetupFadeObjectiveTracker() end end end end
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeBagBar = s:GetChecked(); if addonTable.SetupFadeBagBar then addonTable.SetupFadeBagBar() end end end end
   if addonTable.betterItemLevelCB then addonTable.betterItemLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.betterItemLevel = s:GetChecked(); if addonTable.SetupBetterItemLevel then addonTable.SetupBetterItemLevel() end end end end
@@ -2684,7 +2680,7 @@ local function InitHandlers()
                "hideAB8InCombat", "hideAB8Mouseover", "hideAB8Always",
                 "hideStanceBarInCombat", "hideStanceBarMouseover", "hideStanceBarAlways",
                 "hidePetBarInCombat", "hidePetBarMouseover", "hidePetBarAlways",
-                "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "actionBarSkinOutlineMode", "hideEmptyActionBarOutline", "fadeObjectiveTracker", "fadeBagBar",
+                "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "fadeObjectiveTracker", "fadeBagBar",
                "betterItemLevel", "showEquipmentDetails",
                "chatClassColorNames", "chatTimestamps", "chatTimestampFormat", "chatCopyButton", "chatCopyButtonCorner",
                "chatUrlDetection", "chatBackground", "chatBackgroundAlpha", "chatBackgroundColorR", "chatBackgroundColorG", "chatBackgroundColorB",

@@ -665,7 +665,6 @@ local defaults = {
       hidePetBarInCombat = false,
       hidePetBarMouseover = false,
       actionBarGlobalMode = "custom",
-      hideEmptyActionBarOutline = false,
       autoRepair = false,
       showTooltipIDs = false,
       compactMinimapIcons = false,
@@ -2665,7 +2664,6 @@ local function GetProfile()
   if profile.combatStatusLeaveColorR == nil then profile.combatStatusLeaveColorR = defaults.profiles.Default.combatStatusLeaveColorR end
   if profile.combatStatusLeaveColorG == nil then profile.combatStatusLeaveColorG = defaults.profiles.Default.combatStatusLeaveColorG end
   if profile.combatStatusLeaveColorB == nil then profile.combatStatusLeaveColorB = defaults.profiles.Default.combatStatusLeaveColorB end
-  if type(profile.actionBarSkinOutlineMode) ~= "string" then profile.actionBarSkinOutlineMode = "medium" end
   return profile
 end
 addonTable.GetProfile = GetProfile

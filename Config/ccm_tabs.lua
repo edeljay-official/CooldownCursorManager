@@ -1277,14 +1277,6 @@ local function InitTabs()
     CreateABModeRow("petBar", "Pet Bar", abRowY)
     addonTable.fadeMicroMenuCB = Checkbox(qc, "Fade Micro Menu", 15, -774)
     addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", AB_DD_X, -774)
-    addonTable.abSkinOutlineDD = StyledDropdown(qc, nil, 445, -774, 100)
-    addonTable.abSkinOutlineDD:SetOptions({
-      {text = "Thin", value = "thin"},
-      {text = "Medium", value = "medium"},
-      {text = "Thick", value = "thick"},
-    })
-    addonTable.abSkinOutlineDD:SetValue("medium")
-    addonTable.hideEmptyABOutlineCB = Checkbox(qc, "Hide Empty Slot Outline", AB_DD_X, -799)
     addonTable.fadeObjectiveTrackerCB = Checkbox(qc, "Fade Objective Tracker", 15, -799)
     addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", AB_DD_X, -824)
     local abNote = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")

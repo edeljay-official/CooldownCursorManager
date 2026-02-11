@@ -1314,13 +1314,6 @@ C_Timer.After(2, function() if addonTable.SetupFadeMicroMenu then addonTable.Set
 -- Hide Action Bar Borders / Skin Action Bars
 -- ============================================================
 local abSkinState = {}
-local function GetABSkinBorderSize(profile)
-  local mode = profile and profile.actionBarSkinOutlineMode or "medium"
-  if mode == "thin" then return 1 end
-  if mode == "thick" then return 3 end
-  if mode == "middle" then return 2 end
-  return 2
-end
 local cachedCursorPlacement = nil
 local cachedCursorFrame = 0
 local function IsActionPlacementCursorActive()
@@ -1360,43 +1353,17 @@ local function UpdateSkinnedButtonTexts(btn, hasAction, st)
   end
 end
 
-local function ButtonHasAction(btn)
-  if not btn then return false end
-  return (btn.HasAction and btn:HasAction()) or (btn.action and HasAction(btn.action)) or false
-end
-
-local function ButtonHasVisibleOutline(btn, profile)
-  if not btn then return false end
-  if profile and profile.hideEmptyActionBarOutline and not ButtonHasAction(btn) then
-    return false
-  end
-  return true
-end
-
 local function ApplyButtonSkin(btn)
   local iconTex = btn.icon or btn.Icon
   local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
-  if btn.NormalTexture then btn.NormalTexture:SetAlpha(0) end
+  if btn.NormalTexture then btn.NormalTexture:SetTexture(); btn.NormalTexture:Hide(); btn.NormalTexture:SetAlpha(0) end
   local nt = btn:GetNormalTexture()
-  if nt then nt:SetAlpha(0) end
+  if nt then nt:SetTexture(); nt:Hide(); nt:SetAlpha(0) end
   if btn.FloatingBG then btn.FloatingBG:Hide() end
   if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
   if btn.SlotArt then btn.SlotArt:Hide() end
   if btn.SlotBackground then btn.SlotBackground:Hide() end
-  if not btn._ccmRegions then
-    btn._ccmRegions = {btn:GetRegions()}
-  end
-  for _, region in ipairs(btn._ccmRegions) do
-    if region:IsObjectType("Texture") and region ~= iconTex and not region._ccmIsBorder then
-      if not region._ccmSkinSavedAlpha then
-        region._ccmSkinSavedAlpha = region:GetAlpha()
-      end
-      region:SetAlpha(0)
-    end
-  end
   if iconTex then
-    local profile = addonTable.GetProfile and addonTable.GetProfile()
-    local borderSize = GetABSkinBorderSize(profile)
     iconTex:ClearAllPoints()
     iconTex:SetAllPoints(btn)
     iconTex:SetTexCoord(0.07, 0.93, 0.07, 0.93)
@@ -1412,77 +1379,6 @@ local function ApplyButtonSkin(btn)
     if cooldownFrame then
       cooldownFrame:ClearAllPoints()
       cooldownFrame:SetAllPoints(btn)
-    end
-    if borderSize > 0 then
-      local bordersExist = btn._ccmBorderTop ~= nil
-      if not bordersExist then
-        btn._ccmBorderTop = btn:CreateTexture(nil, "OVERLAY")
-        btn._ccmBorderTop:SetColorTexture(0, 0, 0, 1)
-        btn._ccmBorderTop._ccmIsBorder = true
-        btn._ccmBorderBottom = btn:CreateTexture(nil, "OVERLAY")
-        btn._ccmBorderBottom:SetColorTexture(0, 0, 0, 1)
-        btn._ccmBorderBottom._ccmIsBorder = true
-        btn._ccmBorderLeft = btn:CreateTexture(nil, "OVERLAY")
-        btn._ccmBorderLeft:SetColorTexture(0, 0, 0, 1)
-        btn._ccmBorderLeft._ccmIsBorder = true
-        btn._ccmBorderRight = btn:CreateTexture(nil, "OVERLAY")
-        btn._ccmBorderRight:SetColorTexture(0, 0, 0, 1)
-        btn._ccmBorderRight._ccmIsBorder = true
-      end
-      if not bordersExist or btn._ccmBorderSize ~= borderSize then
-        btn._ccmBorderSize = borderSize
-        btn._ccmBorderTop:ClearAllPoints()
-        btn._ccmBorderTop:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
-        btn._ccmBorderTop:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
-        btn._ccmBorderTop:SetHeight(borderSize)
-        btn._ccmBorderTop:Show()
-        btn._ccmBorderBottom:ClearAllPoints()
-        btn._ccmBorderBottom:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
-        btn._ccmBorderBottom:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
-        btn._ccmBorderBottom:SetHeight(borderSize)
-        btn._ccmBorderBottom:Show()
-        btn._ccmBorderLeft:ClearAllPoints()
-        btn._ccmBorderLeft:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
-        btn._ccmBorderLeft:SetPoint("BOTTOMLEFT", btn, "BOTTOMLEFT", 0, 0)
-        btn._ccmBorderLeft:SetWidth(borderSize)
-        btn._ccmBorderLeft:Show()
-        btn._ccmBorderRight:ClearAllPoints()
-        btn._ccmBorderRight:SetPoint("TOPRIGHT", btn, "TOPRIGHT", 0, 0)
-        btn._ccmBorderRight:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
-        btn._ccmBorderRight:SetWidth(borderSize)
-        btn._ccmBorderRight:Show()
-      end
-      local hasCurrentOutline = ButtonHasVisibleOutline(btn, profile)
-      if not hasCurrentOutline then
-        btn._ccmBorderTop:Hide()
-        btn._ccmBorderBottom:Hide()
-        btn._ccmBorderLeft:Hide()
-        btn._ccmBorderRight:Hide()
-        return
-      end
-      local idx = tonumber(btn._ccmIndex) or 1
-      local mode = btn._ccmSharedEdgeMode
-      local prefix = btn._ccmPrefix
-      local prevBtn = (idx > 1 and prefix) and _G[prefix .. (idx - 1)] or nil
-      local prevHasOutline = ButtonHasVisibleOutline(prevBtn, profile)
-      if mode == "vertical" then
-        if idx > 1 and prevHasOutline then
-          btn._ccmBorderTop:Hide()
-        else
-          btn._ccmBorderTop:Show()
-        end
-      elseif mode == "horizontal" then
-        if idx > 1 and prevHasOutline then
-          btn._ccmBorderLeft:Hide()
-        else
-          btn._ccmBorderLeft:Show()
-        end
-      end
-    else
-      if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
-      if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
-      if btn._ccmBorderLeft then btn._ccmBorderLeft:Hide() end
-      if btn._ccmBorderRight then btn._ccmBorderRight:Hide() end
     end
   end
 end
@@ -1528,72 +1424,12 @@ local function SkinActionButton(btn, hide)
     ApplyButtonSkin(btn)
     local hasAction = btn.HasAction and btn:HasAction() or (btn.action and HasAction(btn.action))
     UpdateSkinnedButtonTexts(btn, hasAction, s)
-    if not btn._ccmSkinHooked then
-      btn._ccmSkinHooked = true
-      hooksecurefunc(btn, "SetNormalTexture", function(self)
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.hideActionBarBorders then return end
-        local st = abSkinState[self:GetName() or tostring(self)]
-        if st and st.skinned then
-          local tex = self:GetNormalTexture()
-          if tex then tex:SetAlpha(0) end
-        end
-      end)
-    end
-    if not btn._ccmUpdateArtHooked and btn.UpdateButtonArt then
-      btn._ccmUpdateArtHooked = true
-      hooksecurefunc(btn, "UpdateButtonArt", function(self)
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.hideActionBarBorders then return end
-        local st = abSkinState[self:GetName() or tostring(self)]
-        if st and st.skinned then
-          ApplyButtonSkin(self)
-        end
-      end)
-    end
-    if btn.SlotBackground and not btn.SlotBackground._ccmShowHooked then
-      btn.SlotBackground._ccmShowHooked = true
-      hooksecurefunc(btn.SlotBackground, "Show", function(self)
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.hideActionBarBorders then return end
-        local st = abSkinState[key]
-        if st and st.skinned then self:Hide() end
-      end)
-      hooksecurefunc(btn.SlotBackground, "SetShown", function(self, shown)
-        if not shown then return end
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.hideActionBarBorders then return end
-        local st = abSkinState[key]
-        if st and st.skinned then self:Hide() end
-      end)
-    end
-    local ntHook = btn:GetNormalTexture()
-    if ntHook and not ntHook._ccmShowHooked then
-      ntHook._ccmShowHooked = true
-      hooksecurefunc(ntHook, "Show", function(self)
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.hideActionBarBorders then return end
-        local st = abSkinState[key]
-        if st and st.skinned then self:Hide() end
-      end)
-    end
-    if not btn._ccmActionUpdateHooked and btn.Update and type(btn.Update) == "function" then
-      btn._ccmActionUpdateHooked = true
-      hooksecurefunc(btn, "Update", function(self)
-        local p = addonTable.GetProfile and addonTable.GetProfile()
-        if not p or not p.hideActionBarBorders then return end
-        local st = abSkinState[self:GetName() or tostring(self)]
-        if not st or not st.skinned then return end
-        local has = self.HasAction and self:HasAction() or (self.action and HasAction(self.action))
-        UpdateSkinnedButtonTexts(self, has, st)
-      end)
-    end
+    btn._ccmSkinned = true
   else
     local s = abSkinState[key]
     if s then s.skinned = false; s.emptyHidden = false end
+    btn._ccmSkinned = nil
     btn._ccmMasksRemoved = nil
-    btn._ccmRegions = nil
-    btn._ccmBorderSize = nil
     if btn.HotKey then btn.HotKey:SetAlpha(1) end
     if btn.Name then btn.Name:SetAlpha(1) end
     if btn.NormalTexture then btn.NormalTexture:SetAlpha(1) end
@@ -1603,15 +1439,6 @@ local function SkinActionButton(btn, hide)
     if btn.IconBorder then btn.IconBorder:SetAlpha(1) end
     if btn.SlotArt then btn.SlotArt:Show() end
     if btn.SlotBackground then btn.SlotBackground:Show() end
-    local regions = {btn:GetRegions()}
-    for _, region in ipairs(regions) do
-      if region:IsObjectType("Texture") then
-        if region._ccmSkinSavedAlpha then
-          region:SetAlpha(region._ccmSkinSavedAlpha)
-          region._ccmSkinSavedAlpha = nil
-        end
-      end
-    end
     if iconTex and s and s.origTexCoords then
       iconTex:SetTexCoord(unpack(s.origTexCoords))
     elseif iconTex then
@@ -1638,41 +1465,34 @@ local function SkinActionButton(btn, hide)
         cooldownFrame:SetAllPoints(btn)
       end
     end
-    if btn._ccmBorderTop then btn._ccmBorderTop:Hide() end
-    if btn._ccmBorderBottom then btn._ccmBorderBottom:Hide() end
-    if btn._ccmBorderLeft then btn._ccmBorderLeft:Hide() end
-    if btn._ccmBorderRight then btn._ccmBorderRight:Hide() end
     if btn.UpdateButtonArt then
       pcall(btn.UpdateButtonArt, btn)
     end
   end
 end
 
+local function GetBarEditModeSettings(bar)
+  local settings = { numRows = 1, numIcons = 12, isVertical = false, iconPadding = 0 }
+  if not bar or not Enum or not Enum.EditModeActionBarSetting then return settings end
+  if not bar.GetSettingValue then return settings end
+  pcall(function()
+    local orient = bar:GetSettingValue(Enum.EditModeActionBarSetting.Orientation)
+    settings.isVertical = (orient == 1)
+    settings.numRows = bar:GetSettingValue(Enum.EditModeActionBarSetting.NumRows) or 1
+    settings.numIcons = bar:GetSettingValue(Enum.EditModeActionBarSetting.NumIcons) or 12
+    settings.iconPadding = bar:GetSettingValue(Enum.EditModeActionBarSetting.IconPadding) or 0
+  end)
+  if settings.numRows < 1 then settings.numRows = 1 end
+  if settings.numIcons < 1 then settings.numIcons = 12 end
+  return settings
+end
+
 local function SkinBarButtons(barName, prefix, hide, numButtons)
   local bar = _G[barName]
   if not bar then return end
-  local profile = addonTable.GetProfile and addonTable.GetProfile()
   numButtons = numButtons or 12
   if bar.BorderArt then bar.BorderArt:SetShown(not hide) end
-  if hide then
-    local barRegions = {bar:GetRegions()}
-    for _, region in ipairs(barRegions) do
-      if region:IsObjectType("Texture") then
-        if not region._ccmBarSavedAlpha then
-          region._ccmBarSavedAlpha = region:GetAlpha()
-        end
-        region:SetAlpha(0)
-      end
-    end
-  else
-    local barRegions = {bar:GetRegions()}
-    for _, region in ipairs(barRegions) do
-      if region._ccmBarSavedAlpha then
-        region:SetAlpha(region._ccmBarSavedAlpha)
-        region._ccmBarSavedAlpha = nil
-      end
-    end
-  end
+  local emSettings = GetBarEditModeSettings(bar)
   for i = 1, numButtons do
     local btn = _G[prefix .. i]
     if btn then
@@ -1682,67 +1502,19 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
     end
     SkinActionButton(btn, hide)
   end
-  local function NormalizeSharedBorders(isVerticalLayout)
-    local edgeMode = isVerticalLayout and "vertical" or "horizontal"
-    for i = 1, numButtons do
-      local btn = _G[prefix .. i]
-      if btn and btn._ccmBorderTop and btn._ccmBorderBottom and btn._ccmBorderLeft and btn._ccmBorderRight then
-        btn._ccmIndex = i
-        btn._ccmSharedEdgeMode = hide and edgeMode or nil
-        if hide then
-          local prevBtn = (i > 1) and _G[prefix .. (i - 1)] or nil
-          local curHasOutline = ButtonHasVisibleOutline(btn, profile)
-          local prevHasOutline = ButtonHasVisibleOutline(prevBtn, profile)
-          if isVerticalLayout then
-            if i > 1 and curHasOutline and prevHasOutline then
-              btn._ccmBorderTop:Hide()
-            else
-              btn._ccmBorderTop:Show()
-            end
-            if curHasOutline then
-              btn._ccmBorderBottom:Show()
-              btn._ccmBorderLeft:Show()
-              btn._ccmBorderRight:Show()
-            else
-              btn._ccmBorderBottom:Hide()
-              btn._ccmBorderLeft:Hide()
-              btn._ccmBorderRight:Hide()
-            end
-          else
-            if i > 1 and curHasOutline and prevHasOutline then
-              btn._ccmBorderLeft:Hide()
-            else
-              btn._ccmBorderLeft:Show()
-            end
-            if curHasOutline then
-              btn._ccmBorderRight:Show()
-              btn._ccmBorderTop:Show()
-              btn._ccmBorderBottom:Show()
-            else
-              btn._ccmBorderRight:Hide()
-              btn._ccmBorderTop:Hide()
-              btn._ccmBorderBottom:Hide()
-            end
-          end
-        else
-          btn._ccmBorderTop:Show()
-          btn._ccmBorderBottom:Show()
-          btn._ccmBorderLeft:Show()
-          btn._ccmBorderRight:Show()
-        end
-      end
-    end
-  end
   if not InCombatLockdown() then
     local btn1 = _G[prefix .. "1"]
-    local btn2 = _G[prefix .. "2"]
-    if not btn1 or not btn2 then return end
-    local x1, y1 = btn1:GetCenter()
-    local x2, y2 = btn2:GetCenter()
-    if not x1 or not x2 then return end
-    local isVertical = math.abs(y2 - y1) > math.abs(x2 - x1)
+    if not btn1 then return end
+    local isVertical = emSettings.isVertical
+    local emNumRows = emSettings.numRows
+    local emNumIcons = emSettings.numIcons
+    if emNumIcons > numButtons then emNumIcons = numButtons end
+    local iconsPerRow = math.ceil(emNumIcons / emNumRows)
+    if iconsPerRow < 1 then iconsPerRow = 1 end
     if hide then
-      for i = 2, numButtons do
+      local btnWidth = btn1:GetWidth()
+      local btnHeight = btn1:GetHeight()
+      for i = 1, numButtons do
         local btn = _G[prefix .. i]
         if btn then
           if not btn._ccmOrigPoint then
@@ -1751,20 +1523,18 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
               btn._ccmOrigPoint = {point, relativeTo, relativePoint, ofsx, ofsy}
             end
           end
+          local col = (i - 1) % iconsPerRow
+          local row = math.floor((i - 1) / iconsPerRow)
           btn:ClearAllPoints()
-          local prevBtn = _G[prefix .. (i - 1)]
-          if prevBtn then
-            if isVertical then
-              btn:SetPoint("TOP", prevBtn, "BOTTOM", 0, 0)
-            else
-              btn:SetPoint("LEFT", prevBtn, "RIGHT", 0, 0)
-            end
+          if isVertical then
+            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", row * btnWidth, -col * btnHeight)
+          else
+            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", col * btnWidth, -row * btnHeight)
           end
         end
       end
-      NormalizeSharedBorders(isVertical)
     else
-      for i = 2, numButtons do
+      for i = 1, numButtons do
         local btn = _G[prefix .. i]
         if btn and btn._ccmOrigPoint then
           btn:ClearAllPoints()
@@ -1772,10 +1542,7 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
           btn._ccmOrigPoint = nil
         end
       end
-      NormalizeSharedBorders(isVertical)
     end
-  else
-    NormalizeSharedBorders(false)
   end
 end
 
@@ -1794,15 +1561,6 @@ local function RestoreAllActionBars()
   end
   local bar1Name = mainActionBar and "MainActionBar" or "MainMenuBar"
   SkinBarButtons(bar1Name, "ActionButton", false, 12)
-  if mainBar and bar1Name ~= "MainMenuBar" then
-    local barRegions = {mainBar:GetRegions()}
-    for _, region in ipairs(barRegions) do
-      if region._ccmBarSavedAlpha then
-        region:SetAlpha(region._ccmBarSavedAlpha)
-        region._ccmBarSavedAlpha = nil
-      end
-    end
-  end
   SkinBarButtons("MultiBarBottomLeft", "MultiBarBottomLeftButton", false, 12)
   SkinBarButtons("MultiBarBottomRight", "MultiBarBottomRightButton", false, 12)
   SkinBarButtons("MultiBarRight", "MultiBarRightButton", false, 12)
@@ -1839,17 +1597,6 @@ addonTable.SetupHideABBorders = function()
   end
   local bar1Name = mainActionBar and "MainActionBar" or "MainMenuBar"
   SkinBarButtons(bar1Name, "ActionButton", true, 12)
-  if mainBar and bar1Name ~= "MainMenuBar" then
-    local barRegions = {mainBar:GetRegions()}
-    for _, region in ipairs(barRegions) do
-      if region:IsObjectType("Texture") then
-        if not region._ccmBarSavedAlpha then
-          region._ccmBarSavedAlpha = region:GetAlpha()
-        end
-        region:SetAlpha(0)
-      end
-    end
-  end
   SkinBarButtons("MultiBarBottomLeft", "MultiBarBottomLeftButton", true, 12)
   SkinBarButtons("MultiBarBottomRight", "MultiBarBottomRightButton", true, 12)
   SkinBarButtons("MultiBarRight", "MultiBarRightButton", true, 12)
@@ -1917,19 +1664,12 @@ local function RefreshAllSkinnedActionButtonBorders()
 end
 do
   local cursorHotkeyFrame = CreateFrame("Frame")
-  cursorHotkeyFrame:RegisterEvent("CURSOR_CHANGED")
   cursorHotkeyFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
   cursorHotkeyFrame:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
-  cursorHotkeyFrame:RegisterEvent("ACTIONBAR_UPDATE_STATE")
-  cursorHotkeyFrame:RegisterEvent("ACTIONBAR_UPDATE_USABLE")
   cursorHotkeyFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
   cursorHotkeyFrame:SetScript("OnEvent", function()
     UpdateAllSkinnedActionButtonHotkeys()
     RefreshAllSkinnedActionButtonBorders()
-    C_Timer.After(0, function()
-      UpdateAllSkinnedActionButtonHotkeys()
-      RefreshAllSkinnedActionButtonBorders()
-    end)
   end)
 end
 C_Timer.After(2, function()
