@@ -5301,7 +5301,7 @@ local function UpdateCustomBar()
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
       if usableInfo ~= nil then
-        notEnoughResources = (not usableInfo) or (insufficientPower == true)
+        notEnoughResources = (insufficientPower == true)
       end
       if notEnoughResources and isOnCooldown then
         notEnoughResources = false
@@ -5327,7 +5327,7 @@ local function UpdateCustomBar()
       elseif cooldownMode == "hide" then
         if isOnCooldown then
           shouldShow = false
-        elseif notEnoughResources and not isOnCooldown then
+        elseif notEnoughResources then
           shouldShow = false
         end
       end
@@ -5860,7 +5860,7 @@ local function UpdateCustomBar2()
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
       if usableInfo ~= nil then
-        notEnoughResources = (not usableInfo) or (insufficientPower == true)
+        notEnoughResources = (insufficientPower == true)
       end
       if notEnoughResources and isOnCooldown then
         notEnoughResources = false
@@ -5886,7 +5886,7 @@ local function UpdateCustomBar2()
       elseif cooldownMode == "hide" then
         if isOnCooldown then
           shouldShow = false
-        elseif notEnoughResources and not isOnCooldown then
+        elseif notEnoughResources then
           shouldShow = false
         end
       end
@@ -6419,7 +6419,7 @@ local function UpdateCustomBar3()
     if not isItem then
       local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
       if usableInfo ~= nil then
-        notEnoughResources = (not usableInfo) or (insufficientPower == true)
+        notEnoughResources = (insufficientPower == true)
       end
       if notEnoughResources and isOnCooldown then
         notEnoughResources = false
@@ -6445,7 +6445,7 @@ local function UpdateCustomBar3()
       elseif cooldownMode == "hide" then
         if isOnCooldown then
           shouldShow = false
-        elseif notEnoughResources and not isOnCooldown then
+        elseif notEnoughResources then
           shouldShow = false
         end
       end
@@ -7351,7 +7351,7 @@ UpdateSpellIcon = function(icon)
   local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
   if usableInfo ~= nil then
     isUsable = usableInfo and not insufficientPower
-    notEnoughResources = (not usableInfo) or (insufficientPower == true)
+    notEnoughResources = (insufficientPower == true)
   end
   if notEnoughResources and isOnCooldown then
     notEnoughResources = false
