@@ -2099,7 +2099,9 @@ local function InitHandlers()
     if cur.cdTextSlider then cur.cdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.cdTextScale = v; s.valueText:SetText(string.format("%.1f", v)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
     if cur.stackTextSlider then cur.stackTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.stackTextScale = v; s.valueText:SetText(string.format("%.1f", v)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
     if cur.iconsPerRowSlider then cur.iconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.iconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); CreateIcons(); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end) end
-    if cur.cooldownModeDD then cur.cooldownModeDD.onSelect = function(v) local p = GetProfile(); if p then p.cooldownIconMode = v; if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end end
+    if cur.cooldownModeDD then cur.cooldownModeDD.onSelect = function(v)
+      local p = GetProfile(); if p then p.cooldownIconMode = v; if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end
+    end end
     if cur.showModeDD then cur.showModeDD.onSelect = function(v) local p = GetProfile(); if p then p.showMode = v; if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end end
     if cur.offsetXSlider then cur.offsetXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.offsetX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end) end
     if cur.offsetYSlider then cur.offsetYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.offsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end) end
@@ -2708,7 +2710,7 @@ local function InitHandlers()
               "layoutDirection", "growDirection", "iconsPerRow",
               "numColumns", "showGCD", "cursorShowGCD", "iconsCombatOnly", "cursorCombatOnly",
               "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "useBuffOverlay", "cooldownIconMode", "showMode",
-              "showBeforeCdEnds", "glowWhenReady", "showInCombatOnly"},
+              "glowWhenReady", "showInCombatOnly"},
     blizzcdm = {"disableBlizzCDM", "useBuffBar", "useEssentialBar",
                 "essentialBarSpacing", "standaloneIconBorderSize", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
                 "standaloneCentered", "standaloneBuffCentered", "standaloneEssentialCentered", "standaloneUtilityCentered",
@@ -2869,7 +2871,7 @@ local function InitHandlers()
                     if num == 0 or num == 1 then
                       local boolKeys = {
                         showRadialCircle = true, showGCD = true, cursorShowGCD = true, showInCombatOnly = true,
-                        iconsCombatOnly = true, cursorCombatOnly = true, glowWhenReady = true, showBeforeCdEnds = true,
+                        iconsCombatOnly = true, cursorCombatOnly = true, glowWhenReady = true,
                         customBarOutOfCombat = true, customBarShowGCD = true, customBarCentered = true,
                         customBar2OutOfCombat = true, customBar2ShowGCD = true, customBar2Centered = true,
                         customBar3OutOfCombat = true, customBar3ShowGCD = true, customBar3Centered = true,

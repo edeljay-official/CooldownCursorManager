@@ -38,7 +38,6 @@ CCM.Defaults = {
       cursorCombatOnly = true,
       cursorShowGCD = true,
       glowWhenReady = false,
-      showBeforeCdEnds = 0,
       useBuffOverlay = true,
       showRadialCircle = false,
       showGCD = false,

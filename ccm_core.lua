@@ -560,7 +560,6 @@ local defaults = {
       cursorCombatOnly = false,
       cursorShowGCD = false,
       glowWhenReady = false,
-      showBeforeCdEnds = 0,
       customBarEnabled = true,
       customBarOutOfCombat = true,
       customBarShowGCD = true,
@@ -2390,35 +2389,6 @@ local function EnsureIconRestored(icon)
   icon:Show()
   icon:SetScale(1)
   icon:SetAlpha(1)
-end
-local function Clamp01(v)
-  if type(v) ~= "number" then return 0 end
-  if v < 0 then return 0 end
-  if v > 1 then return 1 end
-  return v
-end
-local PreShowCurve = {
-  0.0000, 0.0000, 0.0000, 0.0000,
-  0.0010, 0.0040, 0.0100, 0.0200,
-  0.0350, 0.0550, 0.0800, 0.1100,
-  0.1450, 0.1850, 0.2300, 0.2800,
-  0.3350, 0.3950, 0.4600, 0.5300,
-  0.6050, 0.6850, 0.7700, 0.8600,
-  0.9400, 0.9800, 1.0000, 1.0000,
-  1.0000, 1.0000, 1.0000, 1.0000,
-}
-local function EvaluatePreShowCurve(progress)
-  local p = Clamp01(progress)
-  local maxIndex = #PreShowCurve - 1
-  if maxIndex <= 0 then return p end
-  local f = p * maxIndex
-  local i = math.floor(f)
-  if i < 0 then i = 0 end
-  if i >= maxIndex then return PreShowCurve[maxIndex + 1] or 1 end
-  local a = PreShowCurve[i + 1] or p
-  local b = PreShowCurve[i + 2] or a
-  local t = f - i
-  return a + (b - a) * t
 end
 local function SetIconScaledVisible(icon, scale, alpha)
   local s = scale
@@ -7414,14 +7384,6 @@ UpdateSpellIcon = function(icon)
       icon.icon:SetDesaturated(false)
     elseif cooldownMode == "hide" then
       if isOnCooldown then
-        local remaining = (icon._cdExpectedEnd or 0) - GetTime()
-        local preShowWindow = tonumber(profile.showBeforeCdEnds) or 0
-        if preShowWindow > 0 and remaining > 0 and remaining <= preShowWindow then
-          local curveVal = EvaluatePreShowCurve(1 - (remaining / preShowWindow))
-          SetIconScaledVisible(icon, curveVal, curveVal)
-          icon.icon:SetDesaturated(false)
-          return
-        end
         HideIconByScale(icon)
         return
       end
