@@ -1,72 +1,106 @@
 # Cooldown Cursor Manager
 
-World of Warcraft addon for tracking and displaying spell and item cooldowns with extensive customization options.
+Version 5.0.1
+
+Cooldown Cursor Manager is a modular addon for cooldown tracking, bar customization, unit frame styling, and QoL automation.
 
 ## Features
 
-### Cursor Cooldown Display
-- Display spell and item cooldowns near your cursor
-- Configurable icon size, spacing, and positioning
-- Multiple layout options (horizontal/vertical)
-- Combat-only visibility option
+### Cursor CDM
+- Track spell and item cooldowns near the cursor
+- GCD display and cooldown display modes
+- Horizontal/vertical growth, stacking anchors, spacing and offsets
+- Combat-only and show-mode filters (always, raid, dungeon, raid+dungeon)
+- Optional damage-reduction buff overlay
 
-### Custom Bars (up to 3)
-- Create custom icon bars for specific spells/items
-- Independent positioning and sizing
-- Drag & drop spell/item adding
-- Per-bar cooldown display options
+### Custom Bars (CBar 1-3)
+- Up to 3 fully configurable custom icon bars
+- Per-bar tracked spells/items (drag and drop supported)
+- Independent size, spacing, row, direction, anchoring, and visibility settings
+- Per-bar GCD option, cooldown mode, and buff overlay
 
-### Personal Resource Bar (NEW in 2.1.0)
-- Health, Power, Mana, and Class Resource tracking
-- Multiple texture styles
-- Full color customization
-- Auto-width matching with other bars
-- Combat-only visibility option
+### Blizzard CDM Integration
+- Skinning mode: None, CCM built-in, or Masque
+- Disable Blizzard CDM toggle
+- Attach Buff and Essential bars to cursor
+- Standalone Buff, Essential, and Utility bar controls
+- Bar spacing, border size, centering, grow direction, rows, icons-per-row
+- Quick buttons: Open Blizzard CDM and Open Edit Mode
 
-### Blizzard CDM Bar Skinning
-- Skin Blizzard's built-in cooldown bars
-- Icon appearance customization
-- Drag & drop positioning
-- Center all bars option
+### Personal Resource Bar (PRB)
+- Health, power, class power, and optional mana bar
+- Texture, text mode, color, and sizing controls per segment
+- Class/power-type color options
+- Heal prediction, heal absorb, absorb shield, over-absorb, absorb stripes
+- Auto-width and clamp/anchor options
 
-### Action Bar Visibility (NEW in 2.1.0)
-- Hide Action Bar 1 in combat
-- Hide Action Bars 2-8 in combat
-- Show on mouseover options
+### Castbars
+- Custom player castbar and custom focus castbar
+- Texture, color, icon, text display, time formatting, channel ticks
+- Width/height, positioning, centering, and auto-width integration
 
-### Radial Circle
-- Circular cooldown indicator around cursor
-- Customizable radius, thickness, and color
-- Combat-only option
+### Unit Frame Customization
+- Custom border and name colors
+- Optional class-colored health bars
+- Disable frame glows, combat text, and target buffs
+- Custom unit frame textures
+- Bigger healthbar overlays for player/target/focus
+- Heal prediction, heal absorb, absorb shield, stripes, and text positioning controls
+- Name trim and hide options
 
-### Additional Features
-- Masque skin support
-- Profile system with import/export
+### Player Debuffs Skinning
+- Player debuff icon skinning and layout controls
+- Size, spacing, sort direction, row growth, and border settings
+
+### QOL + Utility
+- Self highlight and no-target alert
+- Action bar enhancement and visibility/fade options
+- Radial circle around cursor with style controls
+- Combat timer, CR timer, and combat status display
+- Auto repair, auto sell junk, tooltip ID display, enhanced tooltips
+- Auto quest accept/turn-in with exclusion filters and reward mode
+- Character panel equipment detail enhancements
+
+### Chat Enhancement
+- Class-colored names
+- Clickable URLs
+- Hide chat buttons and disable tab flash
+- Styled edit box and position control
+- Timestamps with format selection
+- Copy chat button and chat tab visibility options
+- Custom chat background and fading controls
+
+### Skyriding Enhancement
+- Optional skyriding UI module
+- Vigor bar, speed display/bar, ability cooldown display
+- Centering, effects, texture, and speed unit options
+- Optional hide CDM/bars while skyriding
+
+### General
+- Profile system (new, delete, copy, import, export)
+- Example profiles (DPS, Tank, Healer)
 - Minimap button
-- Global font and outline selection
-- Frame strata control
+- Global font + outline via LibSharedMedia
+- Frame strata and UI scale controls
 
-## Installation
-
-1. Download from CurseForge
-2. Extract to `World of Warcraft\_retail_\Interface\AddOns\`
-3. Enable in-game via AddOns menu
-
-## Usage
-
-- Type `/ccm` to open settings
-- Right-click minimap button for quick access
-- Drag spells/items to the config window to track them
+## Slash Commands
+- `/ccm` -> Open CCM settings
+- `/cm` -> Toggle Blizzard Cooldown Viewer settings
+- `/em` -> Open Edit Mode
 
 ## Requirements
+- World of Warcraft Retail (Interface 120001)
+- Optional: Masque
+- Optional: LibSharedMedia-3.0 packs for additional fonts/textures
 
-- World of Warcraft: The War Within (11.1.5+)
-- Optional: Masque for additional skin support
+## Installation
+1. Download or clone the addon
+2. Place the folder in `World of Warcraft\_retail_\Interface\AddOns\`
+3. Reload UI or restart the game
+4. Open settings with `/ccm`
 
 ## Support
-
-Report issues on CurseForge or GitHub.
+- CurseForge: https://www.curseforge.com/wow/addons/cooldowncursormanager
 
 ## License
-
-All Rights Reserved © Edeljay
+All Rights Reserved (c) Edeljay

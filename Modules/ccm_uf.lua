@@ -3085,18 +3085,22 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
         if not o.targetNameSetTextHooked and nameEl.SetText and type(hooksecurefunc) == "function" then
           o.targetNameSetTextHooked = true
-          hooksecurefunc(nameEl, "SetText", function(self, text)
+          hooksecurefunc(nameEl, "SetText", function(self)
             if o.targetNameTrimming then return end
-            local p = addonTable.GetProfile and addonTable.GetProfile()
-            if not p or p.ufBigHBHideTargetName then return end
-            local mc = tonumber(p.ufBigHBNameMaxChars) or 0
-            if mc <= 0 then return end
-            local trimmed = TrimUFBigHBName(ApplyUFBigHBNameTransforms(text, "target", p), mc)
-            if trimmed and trimmed ~= text then
-              o.targetNameTrimming = true
-              self:SetText(trimmed)
-              o.targetNameTrimming = nil
-            end
+            pcall(function()
+              local p = addonTable.GetProfile and addonTable.GetProfile()
+              if not p or p.ufBigHBHideTargetName then return end
+              local mc = tonumber(p.ufBigHBNameMaxChars) or 0
+              if mc <= 0 then return end
+              local rawName = UnitName("target")
+              if not rawName or rawName == "" then return end
+              local trimmed = TrimUFBigHBName(ApplyUFBigHBNameTransforms(rawName, "target", p), mc)
+              if trimmed and trimmed ~= rawName then
+                o.targetNameTrimming = true
+                self:SetText(trimmed)
+                o.targetNameTrimming = nil
+              end
+            end)
           end)
         end
         local nx = (profile.ufBigHBTargetNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.target.nameX
@@ -3218,18 +3222,22 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
         if not o.focusNameSetTextHooked and nameEl.SetText and type(hooksecurefunc) == "function" then
           o.focusNameSetTextHooked = true
-          hooksecurefunc(nameEl, "SetText", function(self, text)
+          hooksecurefunc(nameEl, "SetText", function(self)
             if o.focusNameTrimming then return end
-            local p = addonTable.GetProfile and addonTable.GetProfile()
-            if not p or p.ufBigHBHideFocusName then return end
-            local mc = tonumber(p.ufBigHBNameMaxChars) or 0
-            if mc <= 0 then return end
-            local trimmed = TrimUFBigHBName(ApplyUFBigHBNameTransforms(text, "focus", p), mc)
-            if trimmed and trimmed ~= text then
-              o.focusNameTrimming = true
-              self:SetText(trimmed)
-              o.focusNameTrimming = nil
-            end
+            pcall(function()
+              local p = addonTable.GetProfile and addonTable.GetProfile()
+              if not p or p.ufBigHBHideFocusName then return end
+              local mc = tonumber(p.ufBigHBNameMaxChars) or 0
+              if mc <= 0 then return end
+              local rawName = UnitName("focus")
+              if not rawName or rawName == "" then return end
+              local trimmed = TrimUFBigHBName(ApplyUFBigHBNameTransforms(rawName, "focus", p), mc)
+              if trimmed and trimmed ~= rawName then
+                o.focusNameTrimming = true
+                self:SetText(trimmed)
+                o.focusNameTrimming = nil
+              end
+            end)
           end)
         end
         local nx = (profile.ufBigHBFocusNameX or 0) + addonTable.UF_BIG_HB_TEXT_BASE.focus.nameX

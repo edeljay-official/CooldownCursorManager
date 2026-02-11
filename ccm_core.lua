@@ -1466,8 +1466,8 @@ addonTable.SetupEnhancedTooltipHook = function()
       local profile = addonTable.GetProfile and addonTable.GetProfile()
       if not profile or not profile.enhancedTooltip then return end
       if tooltip ~= GameTooltip then return end
-      local _, unit = tooltip:GetUnit()
-      if not unit or not UnitIsPlayer(unit) then return end
+      local unit = "mouseover"
+      if not UnitExists(unit) or not UnitIsPlayer(unit) then return end
       local _, classToken = UnitClass(unit)
       if not classToken then return end
       local color = RAID_CLASS_COLORS[classToken]
