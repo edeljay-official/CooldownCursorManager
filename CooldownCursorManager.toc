@@ -2,7 +2,7 @@
 ## Title: |cffffffffCooldown|r |cff00ff00Cursor|r |cffffffffManager|r
 ## Notes: Display spell and item cooldowns near your cursor with extensive customization
 ## Author: Edeljay
-## Version: 4.1.0
+## Version: 4.1.1
 ## SavedVariables: CooldownCursorManagerDB
 ## IconTexture: Interface\AddOns\CooldownCursorManager\media\icon.tga
 ## OptionalDeps: Masque, LibSharedMedia-3.0
