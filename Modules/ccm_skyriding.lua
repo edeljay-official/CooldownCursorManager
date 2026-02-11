@@ -31,7 +31,19 @@ local smoothSpeed = 0
 local chargeSpellID
 local previewActive = false
 local speedFontDirty = true
+local colorsDirty = true
+local cdLayoutDirty = true
+local lastSpeedText
+local lastSpeedColorTier = 0
+local lastVigorFull, lastVigorTotal = -1, -1
+local cachedColors = {}
 local UpdatePreviewButtonState
+
+local math_floor = math.floor
+local math_min = math.min
+local math_max = math.max
+local math_sqrt = math.sqrt
+local string_format = string.format
 
 -- ============================================================
 -- Charge Data (12.0 spell charges system)
@@ -39,11 +51,11 @@ local UpdatePreviewButtonState
 
 local function FindChargeSpell()
   if chargeSpellID then
-    local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(chargeSpellID)
+    local info = C_Spell.GetSpellCharges(chargeSpellID)
     if info and info.maxCharges and info.maxCharges > 0 then return chargeSpellID end
   end
   for _, id in ipairs(CHARGE_SPELL_IDS) do
-    local info = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(id)
+    local info = C_Spell.GetSpellCharges(id)
     if info and info.maxCharges and info.maxCharges > 0 then
       chargeSpellID = id
       return id
@@ -52,19 +64,33 @@ local function FindChargeSpell()
   return nil
 end
 
-local function GetChargeData()
-  local spellID = FindChargeSpell()
-  if not spellID then return nil end
-  return C_Spell.GetSpellCharges(spellID)
-end
-
 local function IsOnSkyridingMount()
   if not IsMounted() then return false end
-  if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
-    local _, canGlide = C_PlayerInfo.GetGlidingInfo()
-    if not canGlide then return false end
-  end
+  local _, canGlide = C_PlayerInfo.GetGlidingInfo()
+  if not canGlide then return false end
   return FindChargeSpell() ~= nil
+end
+
+local function InvalidateColors()
+  colorsDirty = true
+end
+addonTable.InvalidateSkyridingColors = InvalidateColors
+
+local function RefreshCachedColors(profile)
+  if not colorsDirty then return end
+  colorsDirty = false
+  cachedColors.fullR = profile.skyridingVigorColorR or 0.2
+  cachedColors.fullG = profile.skyridingVigorColorG or 0.8
+  cachedColors.fullB = profile.skyridingVigorColorB or 0.2
+  cachedColors.emptyR = profile.skyridingVigorEmptyColorR or 0.15
+  cachedColors.emptyG = profile.skyridingVigorEmptyColorG or 0.15
+  cachedColors.emptyB = profile.skyridingVigorEmptyColorB or 0.15
+  cachedColors.rechargeR = profile.skyridingVigorRechargeColorR or 0.85
+  cachedColors.rechargeG = profile.skyridingVigorRechargeColorG or 0.65
+  cachedColors.rechargeB = profile.skyridingVigorRechargeColorB or 0.1
+  cachedColors.speedR = profile.skyridingSpeedColorR or 0.3
+  cachedColors.speedG = profile.skyridingSpeedColorG or 0.6
+  cachedColors.speedB = profile.skyridingSpeedColorB or 1.0
 end
 
 -- ============================================================
@@ -106,9 +132,9 @@ local function CreateMainFrame()
       local fx, fy = self:GetCenter()
       local rawY = fy * s - cy
       if not profile.skyridingCentered then
-        profile.skyridingX = math.floor(fx * s - cx + 0.5)
+        profile.skyridingX = math_floor(fx * s - cx + 0.5)
       end
-      profile.skyridingY = math.floor(rawY + 0.5)
+      profile.skyridingY = math_floor(rawY + 0.5)
       if profile.skyridingCentered then
         self:ClearAllPoints()
         self:SetPoint("CENTER", UIParent, "CENTER", 0, rawY)
@@ -182,6 +208,7 @@ local function CreateVigorSegments(count)
     bar:SetPoint("LEFT", vigorContainer, "LEFT", xOff, 0)
     bar:Show()
   end
+  lastVigorFull, lastVigorTotal = -1, -1
 end
 
 local function CreateCooldownIcon(index)
@@ -266,17 +293,68 @@ local function UpdateLayout()
   if showSpeed then totalHeight = totalHeight + SPEED_BAR_HEIGHT + 4 end
   if totalHeight == 0 then totalHeight = BAR_HEIGHT + 4 end
   mainFrame:SetHeight(totalHeight)
+
+  cdLayoutDirty = true
+end
+
+local function LayoutCooldownIcons(profile)
+  cdLayoutDirty = false
+
+  if #cdSpells == 0 then
+    for _, spell in ipairs(SKYRIDING_CD_SPELLS) do
+      local name = C_Spell.GetSpellName(spell.id)
+      if name then
+        local tex = C_Spell.GetSpellTexture(spell.id)
+        tinsert(cdSpells, {id = spell.id, name = name, icon = tex, vigorConsumer = spell.vigorConsumer})
+      end
+    end
+  end
+
+  if not profile.skyridingCooldowns then
+    for _, icon in ipairs(cdIcons) do icon:Hide() end
+    return
+  end
+
+  local pos = profile.skyridingCooldownPosition or "below"
+  local iconSize = profile.skyridingCooldownSize or CD_ICON_SIZE
+  local bottomAnchor = speedContainer:IsShown() and speedContainer or vigorContainer:IsShown() and vigorContainer or mainFrame
+  local topAnchor = vigorContainer:IsShown() and vigorContainer or speedContainer:IsShown() and speedContainer or mainFrame
+  local count = #cdSpells
+  local step = iconSize + 4
+
+  for i, spell in ipairs(cdSpells) do
+    local icon = CreateCooldownIcon(i)
+    icon:SetSize(iconSize, iconSize)
+    icon.tex:SetTexture(spell.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    icon:ClearAllPoints()
+    local centerOff = ((i - 1) * step) - ((math_min(count, 4) - 1) * step / 2)
+    if pos == "above" then
+      icon:SetPoint("BOTTOM", topAnchor, "TOP", centerOff, 3)
+    elseif pos == "left" then
+      icon:SetPoint("RIGHT", mainFrame, "LEFT", -3, -centerOff)
+    elseif pos == "right" then
+      icon:SetPoint("LEFT", mainFrame, "RIGHT", 3, -centerOff)
+    else
+      icon:SetPoint("TOP", bottomAnchor, "BOTTOM", centerOff, -3)
+    end
+    icon:Show()
+  end
+
+  for i = #cdSpells + 1, #cdIcons do
+    cdIcons[i]:Hide()
+  end
 end
 
 -- ============================================================
 -- Update Functions
 -- ============================================================
 
-local function UpdateVigorBar()
-  local profile = GetProfile and GetProfile()
-  if not profile or not profile.skyridingVigorBar then return end
+local function UpdateVigorBar(profile)
+  if not profile.skyridingVigorBar then return end
 
-  local data = GetChargeData()
+  if not chargeSpellID then FindChargeSpell() end
+  if not chargeSpellID then return end
+  local data = C_Spell.GetSpellCharges(chargeSpellID)
   if not data then return end
 
   local total = data.maxCharges or 6
@@ -286,44 +364,41 @@ local function UpdateVigorBar()
     CreateVigorSegments(total)
   end
 
-  local fullR = profile.skyridingVigorColorR or 0.2
-  local fullG = profile.skyridingVigorColorG or 0.8
-  local fullB = profile.skyridingVigorColorB or 0.2
-  local emptyR = profile.skyridingVigorEmptyColorR or 0.15
-  local emptyG = profile.skyridingVigorEmptyColorG or 0.15
-  local emptyB = profile.skyridingVigorEmptyColorB or 0.15
-  local rechargeR = profile.skyridingVigorRechargeColorR or 0.85
-  local rechargeG = profile.skyridingVigorRechargeColorG or 0.65
-  local rechargeB = profile.skyridingVigorRechargeColorB or 0.1
+  local c = cachedColors
+  local chargesChanged = full ~= lastVigorFull or total ~= lastVigorTotal
+  lastVigorFull, lastVigorTotal = full, total
 
   for i = 1, total do
     local bar = vigorSegments[i]
     if not bar then break end
 
     if i <= full then
-      bar:GetStatusBarTexture():SetVertexColor(fullR, fullG, fullB, 1)
-      bar:SetValue(1)
-      bar.bg:SetColorTexture(emptyR, emptyG, emptyB, 1)
+      if chargesChanged or colorsDirty then
+        bar:GetStatusBarTexture():SetVertexColor(c.fullR, c.fullG, c.fullB, 1)
+        bar:SetValue(1)
+        bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
+      end
     elseif i == full + 1 and full < total then
-      bar:GetStatusBarTexture():SetVertexColor(rechargeR, rechargeG, rechargeB, 1)
+      bar:GetStatusBarTexture():SetVertexColor(c.rechargeR, c.rechargeG, c.rechargeB, 1)
       local progress = 0
       if data.cooldownDuration and data.cooldownDuration > 0 and data.cooldownStartTime then
         local elapsed = GetTime() - data.cooldownStartTime
         progress = elapsed / data.cooldownDuration
       end
-      bar:SetValue(math.max(0, math.min(1, progress)))
-      bar.bg:SetColorTexture(emptyR, emptyG, emptyB, 1)
+      bar:SetValue(math_max(0, math_min(1, progress)))
+      bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
     else
-      bar:GetStatusBarTexture():SetVertexColor(emptyR, emptyG, emptyB, 0)
-      bar:SetValue(0)
-      bar.bg:SetColorTexture(emptyR, emptyG, emptyB, 1)
+      if chargesChanged or colorsDirty then
+        bar:GetStatusBarTexture():SetVertexColor(c.emptyR, c.emptyG, c.emptyB, 0)
+        bar:SetValue(0)
+        bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
+      end
     end
   end
 end
 
-local function UpdateSpeedDisplay()
-  local profile = GetProfile and GetProfile()
-  if not profile or not profile.skyridingSpeedDisplay then return end
+local function UpdateSpeedDisplay(profile)
+  if not profile.skyridingSpeedDisplay then return end
 
   local speed = GetUnitSpeed("player") or 0
   local speedPercent = 0
@@ -341,7 +416,7 @@ local function UpdateSpeedDisplay()
         if dt > 0.01 then
           local dx = x - prevX
           local dy = y - prevY
-          local dist = math.sqrt(dx * dx + dy * dy)
+          local dist = math_sqrt(dx * dx + dy * dy)
           local rawSpeed = dist / dt
           speedPercent = (rawSpeed / BASE_MOVEMENT_SPEED) * 100
           smoothSpeed = smoothSpeed + (speedPercent - smoothSpeed) * 0.3
@@ -357,36 +432,45 @@ local function UpdateSpeedDisplay()
     end
   end
 
-  local bgR = profile.skyridingVigorEmptyColorR or 0.15
-  local bgG = profile.skyridingVigorEmptyColorG or 0.15
-  local bgB = profile.skyridingVigorEmptyColorB or 0.15
-  speedBar.bg:SetColorTexture(bgR, bgG, bgB, 1)
+  local c = cachedColors
+  if colorsDirty then
+    speedBar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
+  end
 
   if profile.skyridingSpeedBar then
-    local sR = profile.skyridingSpeedColorR or 0.3
-    local sG = profile.skyridingSpeedColorG or 0.6
-    local sB = profile.skyridingSpeedColorB or 1.0
-    speedBar:SetValue(math.min(1000, speedPercent))
-    speedBar:GetStatusBarTexture():SetVertexColor(sR, sG, sB, 0.9)
+    speedBar:SetValue(math_min(1000, speedPercent))
+    if colorsDirty then
+      speedBar:GetStatusBarTexture():SetVertexColor(c.speedR, c.speedG, c.speedB, 0.9)
+    end
   else
     speedBar:SetValue(0)
   end
 
   local unit = profile.skyridingSpeedUnit or "percent"
+  local txt
   if unit == "yds" then
     local ydsPerSec = (speedPercent / 100) * BASE_MOVEMENT_SPEED
-    speedText:SetText(string.format("%.0f yds/s", ydsPerSec))
+    txt = string_format("%.0f yds/s", ydsPerSec)
   else
-    speedText:SetText(string.format("%.0f%%", speedPercent))
+    txt = string_format("%.0f%%", speedPercent)
+  end
+  if txt ~= lastSpeedText then
+    lastSpeedText = txt
+    speedText:SetText(txt)
   end
 
-  if speedPercent >= 830 then
-    speedText:SetTextColor(1, 0.2, 0.2)
-  elseif speedPercent >= 650 then
-    speedText:SetTextColor(0.3, 0.6, 1.0)
-  else
-    speedText:SetTextColor(0.9, 0.9, 0.9)
+  local tier = speedPercent >= 830 and 3 or speedPercent >= 650 and 2 or 1
+  if tier ~= lastSpeedColorTier then
+    lastSpeedColorTier = tier
+    if tier == 3 then
+      speedText:SetTextColor(1, 0.2, 0.2)
+    elseif tier == 2 then
+      speedText:SetTextColor(0.3, 0.6, 1.0)
+    else
+      speedText:SetTextColor(0.9, 0.9, 0.9)
+    end
   end
+
   if speedFontDirty and GetGlobalFont then
     local fontPath, fontOutline = GetGlobalFont()
     local _, size = speedText:GetFont()
@@ -396,57 +480,26 @@ local function UpdateSpeedDisplay()
   speedText:Show()
 end
 
-local function DiscoverCooldownSpells()
-  if #cdSpells > 0 then return end
-  for _, spell in ipairs(SKYRIDING_CD_SPELLS) do
-    local name = C_Spell and C_Spell.GetSpellName and C_Spell.GetSpellName(spell.id)
-    if name then
-      local tex = C_Spell.GetSpellTexture and C_Spell.GetSpellTexture(spell.id)
-      tinsert(cdSpells, {id = spell.id, name = name, icon = tex})
-    end
-  end
-end
+local function UpdateCooldowns(profile)
+  if not profile.skyridingCooldowns then return end
 
-local function UpdateCooldowns()
-  local profile = GetProfile and GetProfile()
-  if not profile or not profile.skyridingCooldowns then
-    for _, icon in ipairs(cdIcons) do icon:Hide() end
-    return
-  end
-
-  DiscoverCooldownSpells()
-
-  local pos = profile.skyridingCooldownPosition or "below"
-  local iconSize = profile.skyridingCooldownSize or CD_ICON_SIZE
-  local bottomAnchor = speedContainer:IsShown() and speedContainer or vigorContainer:IsShown() and vigorContainer or mainFrame
-  local topAnchor = vigorContainer:IsShown() and vigorContainer or speedContainer:IsShown() and speedContainer or mainFrame
-  local count = #cdSpells
-  local step = iconSize + 4
-
-  local shown = 0
   for i, spell in ipairs(cdSpells) do
-    local icon = CreateCooldownIcon(i)
-    icon:SetSize(iconSize, iconSize)
-    icon.tex:SetTexture(spell.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
+    local icon = cdIcons[i]
+    if not icon then break end
 
     local chargeInfo
     if not spell.vigorConsumer then
-      chargeInfo = C_Spell and C_Spell.GetSpellCharges and C_Spell.GetSpellCharges(spell.id)
+      chargeInfo = C_Spell.GetSpellCharges(spell.id)
     end
-    local cdSet = false
 
-    local cdInfo = C_Spell and C_Spell.GetSpellCooldown and C_Spell.GetSpellCooldown(spell.id)
+    local cdInfo = C_Spell.GetSpellCooldown(spell.id)
     if cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 1.5 then
       icon.cd:SetCooldown(cdInfo.startTime, cdInfo.duration)
-      cdSet = true
-    end
-
-    if not cdSet and chargeInfo and chargeInfo.cooldownStartTime and chargeInfo.cooldownDuration and chargeInfo.cooldownDuration > 0 then
+    elseif chargeInfo and chargeInfo.cooldownStartTime and chargeInfo.cooldownDuration and chargeInfo.cooldownDuration > 0 then
       icon.cd:SetCooldown(chargeInfo.cooldownStartTime, chargeInfo.cooldownDuration)
-      cdSet = true
+    else
+      icon.cd:Clear()
     end
-
-    if not cdSet then icon.cd:Clear() end
 
     if chargeInfo and chargeInfo.maxCharges and chargeInfo.maxCharges > 1 then
       icon.stacks:SetText(chargeInfo.currentCharges)
@@ -454,26 +507,6 @@ local function UpdateCooldowns()
     else
       icon.stacks:Hide()
     end
-
-    icon:ClearAllPoints()
-    local centerOff = (shown * step) - ((math.min(count, 4) - 1) * step / 2)
-    if pos == "above" then
-      icon:SetPoint("BOTTOM", topAnchor, "TOP", centerOff, 3)
-    elseif pos == "left" then
-      local vertOff = (shown * step) - ((math.min(count, 4) - 1) * step / 2)
-      icon:SetPoint("RIGHT", mainFrame, "LEFT", -3, -vertOff)
-    elseif pos == "right" then
-      local vertOff = (shown * step) - ((math.min(count, 4) - 1) * step / 2)
-      icon:SetPoint("LEFT", mainFrame, "RIGHT", 3, -vertOff)
-    else
-      icon:SetPoint("TOP", bottomAnchor, "BOTTOM", centerOff, -3)
-    end
-    icon:Show()
-    shown = shown + 1
-  end
-
-  for i = shown + 1, #cdIcons do
-    cdIcons[i]:Hide()
   end
 end
 
@@ -614,7 +647,7 @@ ApplyFrameLayout = function()
   if not profile then return end
 
   local scale = (profile.skyridingScale or 100) / 100
-  mainFrame:SetScale(math.max(0.5, math.min(2, scale)))
+  mainFrame:SetScale(math_max(0.5, math_min(2, scale)))
 
   if not mainFrame.isDragging then
     mainFrame:ClearAllPoints()
@@ -648,15 +681,28 @@ local function UpdateVisibility()
         if self.elapsed < 0.066 then return end
         self.elapsed = 0
         if not mainFrame or not mainFrame:IsShown() then self:Hide(); return end
-        UpdateVigorBar()
-        UpdateSpeedDisplay()
-        UpdateCooldowns()
+        local p = GetProfile and GetProfile()
+        if not p then return end
+        RefreshCachedColors(p)
+        if cdLayoutDirty then LayoutCooldownIcons(p) end
+        UpdateVigorBar(p)
+        UpdateSpeedDisplay(p)
+        UpdateCooldowns(p)
+        colorsDirty = false
       end)
     end
     onUpdateFrame:Show()
-    UpdateVigorBar()
-    UpdateSpeedDisplay()
-    UpdateCooldowns()
+    colorsDirty = true
+    cdLayoutDirty = true
+    local p = GetProfile and GetProfile()
+    if p then
+      RefreshCachedColors(p)
+      LayoutCooldownIcons(p)
+      UpdateVigorBar(p)
+      UpdateSpeedDisplay(p)
+      UpdateCooldowns(p)
+      colorsDirty = false
+    end
     ApplySkyridingFonts()
     HideBlizzardVigor()
     HideBlizzardCDM()
@@ -666,6 +712,9 @@ local function UpdateVisibility()
     if onUpdateFrame then onUpdateFrame:Hide() end
     smoothSpeed = 0
     prevX, prevY, prevTime = nil, nil, nil
+    lastSpeedText = nil
+    lastSpeedColorTier = 0
+    lastVigorFull, lastVigorTotal = -1, -1
     ShowBlizzardCDM()
     UpdatePreviewButtonState()
   end
@@ -703,8 +752,9 @@ addonTable.SetupSkyriding = function()
         C_Timer.After(0.2, UpdateVisibility)
       elseif event == "SPELL_UPDATE_CHARGES" or event == "SPELL_UPDATE_COOLDOWN" then
         if mainFrame and mainFrame:IsShown() then
-          UpdateVigorBar()
-          UpdateCooldowns()
+          RefreshCachedColors(p)
+          UpdateVigorBar(p)
+          UpdateCooldowns(p)
         end
       end
     end)
@@ -727,48 +777,36 @@ local function ShowSkyridingPreview()
   mainFrame:Show()
   HideBlizzardCDM()
 
+  RefreshCachedColors(profile)
+  local c = cachedColors
+
   local total = 6
   if #vigorSegments < total then
     CreateVigorSegments(total)
   end
-  local fullR = profile.skyridingVigorColorR or 0.2
-  local fullG = profile.skyridingVigorColorG or 0.8
-  local fullB = profile.skyridingVigorColorB or 0.2
-  local emptyR = profile.skyridingVigorEmptyColorR or 0.15
-  local emptyG = profile.skyridingVigorEmptyColorG or 0.15
-  local emptyB = profile.skyridingVigorEmptyColorB or 0.15
-  local rechargeR = profile.skyridingVigorRechargeColorR or 0.85
-  local rechargeG = profile.skyridingVigorRechargeColorG or 0.65
-  local rechargeB = profile.skyridingVigorRechargeColorB or 0.1
   for i = 1, total do
     local bar = vigorSegments[i]
     if not bar then break end
     if i <= 4 then
-      bar:GetStatusBarTexture():SetVertexColor(fullR, fullG, fullB, 1)
+      bar:GetStatusBarTexture():SetVertexColor(c.fullR, c.fullG, c.fullB, 1)
       bar:SetValue(1)
-      bar.bg:SetColorTexture(emptyR, emptyG, emptyB, 1)
+      bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
     elseif i == 5 then
-      bar:GetStatusBarTexture():SetVertexColor(rechargeR, rechargeG, rechargeB, 1)
+      bar:GetStatusBarTexture():SetVertexColor(c.rechargeR, c.rechargeG, c.rechargeB, 1)
       bar:SetValue(0.6)
-      bar.bg:SetColorTexture(emptyR, emptyG, emptyB, 1)
+      bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
     else
-      bar:GetStatusBarTexture():SetVertexColor(emptyR, emptyG, emptyB, 0)
+      bar:GetStatusBarTexture():SetVertexColor(c.emptyR, c.emptyG, c.emptyB, 0)
       bar:SetValue(0)
-      bar.bg:SetColorTexture(emptyR, emptyG, emptyB, 1)
+      bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
     end
   end
 
   if profile.skyridingSpeedDisplay then
-    local sR = profile.skyridingSpeedColorR or 0.3
-    local sG = profile.skyridingSpeedColorG or 0.6
-    local sB = profile.skyridingSpeedColorB or 1.0
-    local bgR = profile.skyridingVigorEmptyColorR or 0.15
-    local bgG = profile.skyridingVigorEmptyColorG or 0.15
-    local bgB = profile.skyridingVigorEmptyColorB or 0.15
-    speedBar.bg:SetColorTexture(bgR, bgG, bgB, 1)
+    speedBar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
     if profile.skyridingSpeedBar then
       speedBar:SetValue(420)
-      speedBar:GetStatusBarTexture():SetVertexColor(sR, sG, sB, 0.9)
+      speedBar:GetStatusBarTexture():SetVertexColor(c.speedR, c.speedG, c.speedB, 0.9)
     else
       speedBar:SetValue(0)
     end
@@ -782,32 +820,14 @@ local function ShowSkyridingPreview()
     speedText:Show()
   end
 
-  DiscoverCooldownSpells()
-  local iconSize = profile.skyridingCooldownSize or CD_ICON_SIZE
-  local pos = profile.skyridingCooldownPosition or "below"
-  local bottomAnchor = speedContainer:IsShown() and speedContainer or vigorContainer:IsShown() and vigorContainer or mainFrame
-  local topAnchor = vigorContainer:IsShown() and vigorContainer or speedContainer:IsShown() and speedContainer or mainFrame
-  local count = #cdSpells
-  local step = iconSize + 4
+  LayoutCooldownIcons(profile)
   if profile.skyridingCooldowns then
-    for i, spell in ipairs(cdSpells) do
-      local icon = CreateCooldownIcon(i)
-      icon:SetSize(iconSize, iconSize)
-      icon.tex:SetTexture(spell.icon or "Interface\\Icons\\INV_Misc_QuestionMark")
-      icon.cd:Clear()
-      icon.stacks:Hide()
-      icon:ClearAllPoints()
-      local centerOff = ((i - 1) * step) - ((math.min(count, 4) - 1) * step / 2)
-      if pos == "above" then
-        icon:SetPoint("BOTTOM", topAnchor, "TOP", centerOff, 3)
-      elseif pos == "left" then
-        icon:SetPoint("RIGHT", mainFrame, "LEFT", -3, -centerOff)
-      elseif pos == "right" then
-        icon:SetPoint("LEFT", mainFrame, "RIGHT", 3, -centerOff)
-      else
-        icon:SetPoint("TOP", bottomAnchor, "BOTTOM", centerOff, -3)
+    for i = 1, #cdSpells do
+      local icon = cdIcons[i]
+      if icon then
+        icon.cd:Clear()
+        icon.stacks:Hide()
       end
-      icon:Show()
     end
   end
   ApplySkyridingFonts()
