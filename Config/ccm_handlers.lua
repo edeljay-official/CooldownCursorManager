@@ -606,6 +606,8 @@ local function UpdateAllControls()
   if addonTable.hidePetBarAlwaysCB then addonTable.hidePetBarAlwaysCB:SetChecked(profile.hidePetBarAlways == true) end
   if addonTable.fadeMicroMenuCB then addonTable.fadeMicroMenuCB:SetChecked(profile.fadeMicroMenu == true) end
   if addonTable.hideABBordersCB then addonTable.hideABBordersCB:SetChecked(profile.hideActionBarBorders == true) end
+  local abSkinOn = profile.hideActionBarBorders == true
+  if addonTable.abSkinSpacingSlider then addonTable.abSkinSpacingSlider:SetValue(profile.abSkinSpacing or 2); addonTable.abSkinSpacingSlider:SetEnabled(abSkinOn); addonTable.abSkinSpacingSlider:SetAlpha(abSkinOn and 1 or 0.4) end
   if addonTable.fadeObjectiveTrackerCB then addonTable.fadeObjectiveTrackerCB:SetChecked(profile.fadeObjectiveTracker == true) end
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB:SetChecked(profile.fadeBagBar == true) end
   if addonTable.betterItemLevelCB then addonTable.betterItemLevelCB:SetChecked(profile.betterItemLevel == true) end
@@ -624,8 +626,8 @@ local function UpdateAllControls()
   if addonTable.chatBackgroundCB then addonTable.chatBackgroundCB:SetChecked(profile.chatBackground == true) end
   local chatBgEnabled = profile.chatBackground == true
   if addonTable.chatBgAlphaSlider then addonTable.chatBgAlphaSlider:SetValue(num(profile.chatBackgroundAlpha, 40)); addonTable.chatBgAlphaSlider.valueText:SetText(math.floor(num(profile.chatBackgroundAlpha, 40))); addonTable.chatBgAlphaSlider:SetEnabled(chatBgEnabled) end
-  if addonTable.chatBgColorBtn then addonTable.chatBgColorBtn:SetEnabled(chatBgEnabled) end
-  if addonTable.chatBgColorSwatch then addonTable.chatBgColorSwatch:SetBackdropColor(num(profile.chatBackgroundColorR, 0), num(profile.chatBackgroundColorG, 0), num(profile.chatBackgroundColorB, 0), 1) end
+  if addonTable.chatBgColorBtn then addonTable.chatBgColorBtn:SetEnabled(chatBgEnabled); addonTable.chatBgColorBtn:SetAlpha(chatBgEnabled and 1 or 0.4) end
+  if addonTable.chatBgColorSwatch then addonTable.chatBgColorSwatch:SetBackdropColor(num(profile.chatBackgroundColorR, 0), num(profile.chatBackgroundColorG, 0), num(profile.chatBackgroundColorB, 0), 1); addonTable.chatBgColorSwatch:SetAlpha(chatBgEnabled and 1 or 0.4) end
   if addonTable.chatHideButtonsCB then addonTable.chatHideButtonsCB:SetChecked(profile.chatHideButtons == true) end
   if addonTable.chatFadeToggleCB then addonTable.chatFadeToggleCB:SetChecked(profile.chatFadeToggle == true) end
   local chatFadeOn = profile.chatFadeToggle == true
@@ -635,36 +637,39 @@ local function UpdateAllControls()
   if addonTable.chatTabFlashCB then addonTable.chatTabFlashCB:SetChecked(profile.chatTabFlash == true) end
   if addonTable.chatHideTabsDD then addonTable.chatHideTabsDD:SetValue(profile.chatHideTabs or "off") end
   if addonTable.skyridingEnabledCB then addonTable.skyridingEnabledCB:SetChecked(profile.skyridingEnabled == true) end
-  if addonTable.skyridingHideBlizzardCB then addonTable.skyridingHideBlizzardCB:SetChecked(profile.skyridingHideBlizzard ~= false) end
   if addonTable.skyridingHideCDMCB then addonTable.skyridingHideCDMCB:SetChecked(profile.skyridingHideCDM == true) end
   if addonTable.skyridingVigorBarCB then addonTable.skyridingVigorBarCB:SetChecked(profile.skyridingVigorBar ~= false) end
   if addonTable.skyridingSpeedDisplayCB then addonTable.skyridingSpeedDisplayCB:SetChecked(profile.skyridingSpeedDisplay ~= false) end
   if addonTable.skyridingSpeedBarCB then addonTable.skyridingSpeedBarCB:SetChecked(profile.skyridingSpeedBar == true) end
   if addonTable.skyridingCooldownsCB then addonTable.skyridingCooldownsCB:SetChecked(profile.skyridingCooldowns ~= false) end
-  if addonTable.skyridingCooldownPosDD then addonTable.skyridingCooldownPosDD:SetValue(profile.skyridingCooldownPosition or "below") end
-  if addonTable.skyridingCooldownSizeSlider then addonTable.skyridingCooldownSizeSlider:SetValue(num(profile.skyridingCooldownSize, 28)); addonTable.skyridingCooldownSizeSlider.valueText:SetText(math.floor(num(profile.skyridingCooldownSize, 28))) end
   if addonTable.skyridingSpeedUnitDD then addonTable.skyridingSpeedUnitDD:SetValue(profile.skyridingSpeedUnit or "percent") end
   if addonTable.skyridingScaleSlider then addonTable.skyridingScaleSlider:SetValue(num(profile.skyridingScale, 100)); addonTable.skyridingScaleSlider.valueText:SetText(math.floor(num(profile.skyridingScale, 100))) end
   if addonTable.skyridingCenteredCB then addonTable.skyridingCenteredCB:SetChecked(profile.skyridingCentered == true) end
-  if addonTable.skyridingXSlider then addonTable.skyridingXSlider:SetValue(num(profile.skyridingX, 0)); addonTable.skyridingXSlider.valueText:SetText(math.floor(num(profile.skyridingX, 0))) end
+  if addonTable.skyridingXSlider then addonTable.skyridingXSlider:SetValue(num(profile.skyridingX, 0)); addonTable.skyridingXSlider.valueText:SetText(math.floor(num(profile.skyridingX, 0))); local cen = profile.skyridingCentered == true; addonTable.skyridingXSlider:SetEnabled(not cen); addonTable.skyridingXSlider:SetAlpha(cen and 0.4 or 1) end
   if addonTable.skyridingYSlider then addonTable.skyridingYSlider:SetValue(num(profile.skyridingY, -200)); addonTable.skyridingYSlider.valueText:SetText(math.floor(num(profile.skyridingY, -200))) end
+  if addonTable.skyridingScreenFxCB then local d = C_CVar and C_CVar.GetCVar("DisableAdvancedFlyingFullScreenEffects"); addonTable.skyridingScreenFxCB:SetChecked(d ~= "1") end
+  if addonTable.skyridingSpeedFxCB then local d = C_CVar and C_CVar.GetCVar("DisableAdvancedFlyingVelocityVFX"); addonTable.skyridingSpeedFxCB:SetChecked(d ~= "1") end
   if addonTable.skyridingVigorColorSwatch then addonTable.skyridingVigorColorSwatch:SetBackdropColor(num(profile.skyridingVigorColorR, 0.2), num(profile.skyridingVigorColorG, 0.8), num(profile.skyridingVigorColorB, 0.2), 1) end
   if addonTable.skyridingEmptyColorSwatch then addonTable.skyridingEmptyColorSwatch:SetBackdropColor(num(profile.skyridingVigorEmptyColorR, 0.15), num(profile.skyridingVigorEmptyColorG, 0.15), num(profile.skyridingVigorEmptyColorB, 0.15), 1) end
   if addonTable.skyridingRechargeColorSwatch then addonTable.skyridingRechargeColorSwatch:SetBackdropColor(num(profile.skyridingVigorRechargeColorR, 0.85), num(profile.skyridingVigorRechargeColorG, 0.65), num(profile.skyridingVigorRechargeColorB, 0.1), 1) end
   if addonTable.skyridingSpeedColorSwatch then addonTable.skyridingSpeedColorSwatch:SetBackdropColor(num(profile.skyridingSpeedColorR, 0.3), num(profile.skyridingSpeedColorG, 0.6), num(profile.skyridingSpeedColorB, 1.0), 1) end
+  if addonTable.skyridingSurgeColorSwatch then addonTable.skyridingSurgeColorSwatch:SetBackdropColor(num(profile.skyridingWhirlingSurgeColorR, 0.85), num(profile.skyridingWhirlingSurgeColorG, 0.65), num(profile.skyridingWhirlingSurgeColorB, 0.1), 1) end
+  if addonTable.skyridingWindColorSwatch then addonTable.skyridingWindColorSwatch:SetBackdropColor(num(profile.skyridingSecondWindColorR, 0.2), num(profile.skyridingSecondWindColorG, 0.8), num(profile.skyridingSecondWindColorB, 0.2), 1) end
+  if addonTable.skyridingTextureDD then addonTable.skyridingTextureDD:SetValue(profile.skyridingTexture or "solid") end
   if addonTable.prbCB then addonTable.prbCB:SetChecked(profile.usePersonalResourceBar == true) end
   if addonTable.castbarCB then addonTable.castbarCB:SetChecked(profile.useCastbar == true) end
   if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(profile.useFocusCastbar == true) end
   if addonTable.playerDebuffsCB then addonTable.playerDebuffsCB:SetChecked(profile.enablePlayerDebuffs == true) end
-  if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(profile.enableUnitFrameCustomization ~= false) end
-  local ufOn = profile.enableUnitFrameCustomization ~= false
+  if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(profile.enableUnitFrameCustomization == true) end
+  local ufOn = profile.enableUnitFrameCustomization == true
   if addonTable.radialCB then addonTable.radialCB:SetChecked(profile.showRadialCircle == true) end
   if addonTable.radialCombatCB then addonTable.radialCombatCB:SetChecked(profile.cursorCombatOnly == true) end
   if addonTable.radialGcdCB then addonTable.radialGcdCB:SetChecked(profile.showGCD == true) end
   if addonTable.ufClassColorCB then
+    local classColorOn = ufOn and profile.ufUseCustomTextures == true
     addonTable.ufClassColorCB:SetChecked(profile.ufClassColor == true)
-    addonTable.ufClassColorCB:SetEnabled(ufOn)
-    addonTable.ufClassColorCB:SetAlpha(ufOn and 1 or 0.5)
+    addonTable.ufClassColorCB:SetEnabled(classColorOn)
+    addonTable.ufClassColorCB:SetAlpha(classColorOn and 1 or 0.5)
   end
   local bigHBPlayerOn = ufOn and profile.ufBigHBPlayerEnabled == true
   if addonTable.ufDisableGlowsCB then
@@ -707,7 +712,7 @@ local function UpdateAllControls()
   end
   local texOn = ufOn and profile.ufUseCustomTextures == true
   if addonTable.ufHealthTextureDD then
-    addonTable.ufHealthTextureDD:SetValue(profile.ufHealthTexture or "solid")
+    addonTable.ufHealthTextureDD:SetValue(profile.ufHealthTexture or "lsm:Clean")
     addonTable.ufHealthTextureDD:SetEnabled(texOn)
     if addonTable.ufHealthTextureDD.SetAlpha then
       addonTable.ufHealthTextureDD:SetAlpha(texOn and 1 or 0.5)
@@ -899,15 +904,13 @@ local function UpdateAllControls()
   if addonTable.radialThicknessDD then addonTable.radialThicknessDD:SetValue(RadialThicknessToPreset(profile.radialThickness)) end
   if addonTable.colorSwatch then addonTable.colorSwatch:SetBackdropColor(num(profile.radialColorR, 1), num(profile.radialColorG, 1), num(profile.radialColorB, 1), 1) end
   if addonTable.UpdateRadialCircle then addonTable.UpdateRadialCircle() end
-  local shapeVal = profile.selfHighlightShape or "off"
-  local shapeEnabled = shapeVal ~= "off"
-  local isCross = shapeVal == "cross"
-  if addonTable.selfHighlightDD then addonTable.selfHighlightDD:SetValue(shapeVal) end
+  local shapeEnabled = (profile.selfHighlightShape or "off") ~= "off"
+  if addonTable.selfHighlightCB then addonTable.selfHighlightCB:SetChecked(shapeEnabled) end
   if addonTable.selfHighlightVisibilityDD then addonTable.selfHighlightVisibilityDD:SetValue(profile.selfHighlightCombatOnly and "combat" or "always"); addonTable.selfHighlightVisibilityDD:SetEnabled(shapeEnabled) end
   if addonTable.selfHighlightSizeSlider then addonTable.selfHighlightSizeSlider:SetValue(num(profile.selfHighlightSize, 20)); addonTable.selfHighlightSizeSlider.valueText:SetText(math.floor(num(profile.selfHighlightSize, 20))); addonTable.selfHighlightSizeSlider:SetEnabled(shapeEnabled) end
   if addonTable.selfHighlightYSlider then addonTable.selfHighlightYSlider:SetValue(num(profile.selfHighlightY, 0)); addonTable.selfHighlightYSlider.valueText:SetText(math.floor(num(profile.selfHighlightY, 0))); addonTable.selfHighlightYSlider:SetEnabled(shapeEnabled) end
-  if addonTable.selfHighlightThicknessDD then addonTable.selfHighlightThicknessDD:SetValue(profile.selfHighlightThickness or "medium"); addonTable.selfHighlightThicknessDD:SetEnabled(shapeEnabled and isCross) end
-  if addonTable.selfHighlightThicknessLbl then addonTable.selfHighlightThicknessLbl:SetTextColor(shapeEnabled and isCross and 0.9 or 0.4, shapeEnabled and isCross and 0.9 or 0.4, shapeEnabled and isCross and 0.9 or 0.4) end
+  if addonTable.selfHighlightThicknessDD then addonTable.selfHighlightThicknessDD:SetValue(profile.selfHighlightThickness or "medium"); addonTable.selfHighlightThicknessDD:SetEnabled(shapeEnabled) end
+  if addonTable.selfHighlightThicknessLbl then addonTable.selfHighlightThicknessLbl:SetTextColor(shapeEnabled and 0.9 or 0.4, shapeEnabled and 0.9 or 0.4, shapeEnabled and 0.9 or 0.4) end
   if addonTable.selfHighlightOutlineCB then addonTable.selfHighlightOutlineCB:SetChecked(profile.selfHighlightOutline ~= false); addonTable.selfHighlightOutlineCB:SetEnabled(shapeEnabled) end
   if addonTable.selfHighlightColorBtn then addonTable.selfHighlightColorBtn:SetEnabled(shapeEnabled) end
   if addonTable.selfHighlightColorSwatch then addonTable.selfHighlightColorSwatch:SetBackdropColor(num(profile.selfHighlightColorR, 1), num(profile.selfHighlightColorG, 1), num(profile.selfHighlightColorB, 1), 1) end
@@ -1431,7 +1434,8 @@ local function InitHandlers()
   if addonTable.hidePetBarMouseoverCB then addonTable.hidePetBarMouseoverCB.customOnClick = function(s) local p = GetProfile(); if p then p.hidePetBarMouseover = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.hidePetBarAlwaysCB then addonTable.hidePetBarAlwaysCB.customOnClick = function(s) local p = GetProfile(); if p then p.hidePetBarAlways = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.fadeMicroMenuCB then addonTable.fadeMicroMenuCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeMicroMenu = s:GetChecked(); if addonTable.SetupFadeMicroMenu then addonTable.SetupFadeMicroMenu() end end end end
-  if addonTable.hideABBordersCB then addonTable.hideABBordersCB.customOnClick = function(s) local p = GetProfile(); if p then local was = p.hideActionBarBorders; p.hideActionBarBorders = s:GetChecked(); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end; if was and not s:GetChecked() then ShowReloadPrompt("Disabling Action Bar Skinning requires a UI reload for best results. Reload now?", "Reload", "Later") end end end end
+  if addonTable.hideABBordersCB then addonTable.hideABBordersCB.customOnClick = function(s) local p = GetProfile(); if p then local was = p.hideActionBarBorders; p.hideActionBarBorders = s:GetChecked(); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end; if was and not s:GetChecked() then ShowReloadPrompt("Disabling Action Bar Skinning requires a UI reload for best results. Reload now?", "Reload", "Later") end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end end end end
+  if addonTable.abSkinSpacingSlider then addonTable.abSkinSpacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.abSkinSpacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end end end) end
   if addonTable.fadeObjectiveTrackerCB then addonTable.fadeObjectiveTrackerCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeObjectiveTracker = s:GetChecked(); if addonTable.SetupFadeObjectiveTracker then addonTable.SetupFadeObjectiveTracker() end end end end
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeBagBar = s:GetChecked(); if addonTable.SetupFadeBagBar then addonTable.SetupFadeBagBar() end end end end
   if addonTable.betterItemLevelCB then addonTable.betterItemLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.betterItemLevel = s:GetChecked(); if addonTable.SetupBetterItemLevel then addonTable.SetupBetterItemLevel() end end end end
@@ -1479,15 +1483,14 @@ local function InitHandlers()
   if addonTable.chatTabFlashCB then addonTable.chatTabFlashCB.customOnClick = function(s) local p = GetProfile(); if p then p.chatTabFlash = s:GetChecked() end end end
   if addonTable.chatHideTabsDD then addonTable.chatHideTabsDD.onSelect = function(v) local p = GetProfile(); if p then p.chatHideTabs = v end; if addonTable.SetupChatHideTabs then addonTable.SetupChatHideTabs() end end end
   if addonTable.skyridingEnabledCB then addonTable.skyridingEnabledCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingEnabled = s:GetChecked() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
-  if addonTable.skyridingHideBlizzardCB then addonTable.skyridingHideBlizzardCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingHideBlizzard = s:GetChecked() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingHideCDMCB then addonTable.skyridingHideCDMCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingHideCDM = s:GetChecked() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingVigorBarCB then addonTable.skyridingVigorBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingVigorBar = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingSpeedDisplayCB then addonTable.skyridingSpeedDisplayCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingSpeedDisplay = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingSpeedBarCB then addonTable.skyridingSpeedBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingSpeedBar = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingCooldownsCB then addonTable.skyridingCooldownsCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingCooldowns = s:GetChecked() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingSpeedUnitDD then addonTable.skyridingSpeedUnitDD.onSelect = function(v) local p = GetProfile(); if p then p.skyridingSpeedUnit = v end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end end end
-  if addonTable.skyridingCooldownPosDD then addonTable.skyridingCooldownPosDD.onSelect = function(v) local p = GetProfile(); if p then p.skyridingCooldownPosition = v end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end end end
-  if addonTable.skyridingCooldownSizeSlider then addonTable.skyridingCooldownSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingCooldownSize = math.floor(v); s.valueText:SetText(math.floor(v)) end end) end
+  if addonTable.skyridingScreenFxCB then addonTable.skyridingScreenFxCB.customOnClick = function(s) if C_CVar then C_CVar.SetCVar("DisableAdvancedFlyingFullScreenEffects", s:GetChecked() and "0" or "1") end end end
+  if addonTable.skyridingSpeedFxCB then addonTable.skyridingSpeedFxCB.customOnClick = function(s) if C_CVar then C_CVar.SetCVar("DisableAdvancedFlyingVelocityVFX", s:GetChecked() and "0" or "1") end end end
   if addonTable.skyridingPreviewOnBtn then
     addonTable.skyridingPreviewOnBtn:SetScript("OnClick", function()
       if addonTable.ShowSkyridingPreview then addonTable.ShowSkyridingPreview() end
@@ -1500,8 +1503,9 @@ local function InitHandlers()
       SetButtonHighlighted(addonTable.skyridingPreviewOnBtn, false)
     end)
   end
+  if addonTable.skyridingTextureDD then addonTable.skyridingTextureDD.onSelect = function(v) local p = GetProfile(); if p then p.skyridingTexture = v end; if addonTable.InvalidateSkyridingTexture then addonTable.InvalidateSkyridingTexture() end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end end end
   if addonTable.skyridingScaleSlider then addonTable.skyridingScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingScale = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end) end
-  if addonTable.skyridingCenteredCB then addonTable.skyridingCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingCentered = s:GetChecked(); if s:GetChecked() then p.skyridingX = 0 end end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
+  if addonTable.skyridingCenteredCB then addonTable.skyridingCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then p.skyridingCentered = s:GetChecked(); if s:GetChecked() then p.skyridingX = 0 end end; local cen = s:GetChecked(); if addonTable.skyridingXSlider then addonTable.skyridingXSlider:SetEnabled(not cen); addonTable.skyridingXSlider:SetAlpha(cen and 0.4 or 1); if cen then addonTable.skyridingXSlider:SetValue(0); addonTable.skyridingXSlider.valueText:SetText("0") end end; if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end
   if addonTable.skyridingXSlider then addonTable.skyridingXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end) end
   if addonTable.skyridingYSlider then addonTable.skyridingYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.skyridingY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end; if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end end end) end
   if addonTable.skyridingVigorColorBtn then
@@ -1513,9 +1517,13 @@ local function InitHandlers()
         local nr, ng, nb = ColorPickerFrame:GetColorRGB()
         p.skyridingVigorColorR = nr; p.skyridingVigorColorG = ng; p.skyridingVigorColorB = nb
         if addonTable.skyridingVigorColorSwatch then addonTable.skyridingVigorColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end, cancelFunc = function(prev)
         p.skyridingVigorColorR = prev.r; p.skyridingVigorColorG = prev.g; p.skyridingVigorColorB = prev.b
         if addonTable.skyridingVigorColorSwatch then addonTable.skyridingVigorColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end})
     end)
   end
@@ -1528,9 +1536,13 @@ local function InitHandlers()
         local nr, ng, nb = ColorPickerFrame:GetColorRGB()
         p.skyridingVigorEmptyColorR = nr; p.skyridingVigorEmptyColorG = ng; p.skyridingVigorEmptyColorB = nb
         if addonTable.skyridingEmptyColorSwatch then addonTable.skyridingEmptyColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end, cancelFunc = function(prev)
         p.skyridingVigorEmptyColorR = prev.r; p.skyridingVigorEmptyColorG = prev.g; p.skyridingVigorEmptyColorB = prev.b
         if addonTable.skyridingEmptyColorSwatch then addonTable.skyridingEmptyColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end})
     end)
   end
@@ -1543,9 +1555,13 @@ local function InitHandlers()
         local nr, ng, nb = ColorPickerFrame:GetColorRGB()
         p.skyridingVigorRechargeColorR = nr; p.skyridingVigorRechargeColorG = ng; p.skyridingVigorRechargeColorB = nb
         if addonTable.skyridingRechargeColorSwatch then addonTable.skyridingRechargeColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end, cancelFunc = function(prev)
         p.skyridingVigorRechargeColorR = prev.r; p.skyridingVigorRechargeColorG = prev.g; p.skyridingVigorRechargeColorB = prev.b
         if addonTable.skyridingRechargeColorSwatch then addonTable.skyridingRechargeColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end})
     end)
   end
@@ -1558,9 +1574,51 @@ local function InitHandlers()
         local nr, ng, nb = ColorPickerFrame:GetColorRGB()
         p.skyridingSpeedColorR = nr; p.skyridingSpeedColorG = ng; p.skyridingSpeedColorB = nb
         if addonTable.skyridingSpeedColorSwatch then addonTable.skyridingSpeedColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end, cancelFunc = function(prev)
         p.skyridingSpeedColorR = prev.r; p.skyridingSpeedColorG = prev.g; p.skyridingSpeedColorB = prev.b
         if addonTable.skyridingSpeedColorSwatch then addonTable.skyridingSpeedColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
+      end})
+    end)
+  end
+  if addonTable.skyridingSurgeColorBtn then
+    addonTable.skyridingSurgeColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r, g, b = p.skyridingWhirlingSurgeColorR or 0.85, p.skyridingWhirlingSurgeColorG or 0.65, p.skyridingWhirlingSurgeColorB or 0.1
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = function()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.skyridingWhirlingSurgeColorR = nr; p.skyridingWhirlingSurgeColorG = ng; p.skyridingWhirlingSurgeColorB = nb
+        if addonTable.skyridingSurgeColorSwatch then addonTable.skyridingSurgeColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
+      end, cancelFunc = function(prev)
+        p.skyridingWhirlingSurgeColorR = prev.r; p.skyridingWhirlingSurgeColorG = prev.g; p.skyridingWhirlingSurgeColorB = prev.b
+        if addonTable.skyridingSurgeColorSwatch then addonTable.skyridingSurgeColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
+      end})
+    end)
+  end
+  if addonTable.skyridingWindColorBtn then
+    addonTable.skyridingWindColorBtn:SetScript("OnClick", function()
+      local p = GetProfile()
+      if not p then return end
+      local r, g, b = p.skyridingSecondWindColorR or 0.2, p.skyridingSecondWindColorG or 0.8, p.skyridingSecondWindColorB or 0.2
+      ShowColorPicker({r = r, g = g, b = b, swatchFunc = function()
+        local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+        p.skyridingSecondWindColorR = nr; p.skyridingSecondWindColorG = ng; p.skyridingSecondWindColorB = nb
+        if addonTable.skyridingWindColorSwatch then addonTable.skyridingWindColorSwatch:SetBackdropColor(nr, ng, nb, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
+      end, cancelFunc = function(prev)
+        p.skyridingSecondWindColorR = prev.r; p.skyridingSecondWindColorG = prev.g; p.skyridingSecondWindColorB = prev.b
+        if addonTable.skyridingWindColorSwatch then addonTable.skyridingWindColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end
+        if addonTable.InvalidateSkyridingColors then addonTable.InvalidateSkyridingColors() end
+        if addonTable.UpdateSkyridingPreviewIfActive then addonTable.UpdateSkyridingPreviewIfActive() end
       end})
     end)
   end
@@ -1890,18 +1948,17 @@ local function InitHandlers()
   if addonTable.minimapCB then addonTable.minimapCB.customOnClick = function(s) local p = GetProfile(); if p then if p.compactMinimapIcons == true then s:SetChecked(true); p.showMinimapButton = true; if addonTable.ShowMinimapButton then addonTable.ShowMinimapButton() end; return end; p.showMinimapButton = s:GetChecked(); if s:GetChecked() then addonTable.ShowMinimapButton() else addonTable.HideMinimapButton() end end end end
   if addonTable.radiusSlider then addonTable.radiusSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.radialRadius = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateRadialCircle then addonTable.UpdateRadialCircle() end end end) end
   if addonTable.radialThicknessDD then addonTable.radialThicknessDD.onSelect = function(v) local p = GetProfile(); if p then p.radialThickness = PresetToRadialThickness(v); if addonTable.UpdateRadialCircle then addonTable.UpdateRadialCircle() end end end end
-  if addonTable.selfHighlightDD then
-    addonTable.selfHighlightDD.onSelect = function(v)
+  if addonTable.selfHighlightCB then
+    addonTable.selfHighlightCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
-        p.selfHighlightShape = v
-        local enabled = v ~= "off"
-        local isCross = v == "cross"
+        local enabled = s:GetChecked()
+        p.selfHighlightShape = enabled and "cross" or "off"
         if addonTable.selfHighlightVisibilityDD then addonTable.selfHighlightVisibilityDD:SetEnabled(enabled) end
         if addonTable.selfHighlightSizeSlider then addonTable.selfHighlightSizeSlider:SetEnabled(enabled) end
         if addonTable.selfHighlightYSlider then addonTable.selfHighlightYSlider:SetEnabled(enabled) end
-        if addonTable.selfHighlightThicknessDD then addonTable.selfHighlightThicknessDD:SetEnabled(enabled and isCross) end
-        if addonTable.selfHighlightThicknessLbl then addonTable.selfHighlightThicknessLbl:SetTextColor(enabled and isCross and 0.9 or 0.4, enabled and isCross and 0.9 or 0.4, enabled and isCross and 0.9 or 0.4) end
+        if addonTable.selfHighlightThicknessDD then addonTable.selfHighlightThicknessDD:SetEnabled(enabled) end
+        if addonTable.selfHighlightThicknessLbl then addonTable.selfHighlightThicknessLbl:SetTextColor(enabled and 0.9 or 0.4, enabled and 0.9 or 0.4, enabled and 0.9 or 0.4) end
         if addonTable.selfHighlightOutlineCB then addonTable.selfHighlightOutlineCB:SetEnabled(enabled) end
         if addonTable.selfHighlightColorBtn then addonTable.selfHighlightColorBtn:SetEnabled(enabled) end
         if addonTable.UpdateSelfHighlight then addonTable.UpdateSelfHighlight() end
@@ -2684,17 +2741,19 @@ local function InitHandlers()
                "hideAB8InCombat", "hideAB8Mouseover", "hideAB8Always",
                 "hideStanceBarInCombat", "hideStanceBarMouseover", "hideStanceBarAlways",
                 "hidePetBarInCombat", "hidePetBarMouseover", "hidePetBarAlways",
-                "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "fadeObjectiveTracker", "fadeBagBar",
+                "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "abSkinSpacing", "fadeObjectiveTracker", "fadeBagBar",
                "betterItemLevel", "showEquipmentDetails",
                "chatClassColorNames", "chatTimestamps", "chatTimestampFormat", "chatCopyButton", "chatCopyButtonCorner",
                "chatUrlDetection", "chatBackground", "chatBackgroundAlpha", "chatBackgroundColorR", "chatBackgroundColorG", "chatBackgroundColorB",
                "chatHideButtons", "chatFadeToggle", "chatFadeDelay", "chatEditBoxPosition", "chatEditBoxStyled", "chatTabFlash", "chatHideTabs",
-               "skyridingEnabled", "skyridingHideBlizzard", "skyridingScale", "skyridingCentered", "skyridingX", "skyridingY",
+               "skyridingEnabled", "skyridingScale", "skyridingCentered", "skyridingX", "skyridingY",
                "skyridingVigorBar", "skyridingVigorColorR", "skyridingVigorColorG", "skyridingVigorColorB",
                "skyridingVigorEmptyColorR", "skyridingVigorEmptyColorG", "skyridingVigorEmptyColorB",
                "skyridingVigorRechargeColorR", "skyridingVigorRechargeColorG", "skyridingVigorRechargeColorB",
                "skyridingSpeedDisplay", "skyridingSpeedBar", "skyridingSpeedUnit", "skyridingSpeedColorR", "skyridingSpeedColorG", "skyridingSpeedColorB",
-               "skyridingCooldowns", "skyridingCooldownPosition", "skyridingCooldownSize", "skyridingHideCDM",
+               "skyridingWhirlingSurgeColorR", "skyridingWhirlingSurgeColorG", "skyridingWhirlingSurgeColorB",
+               "skyridingSecondWindColorR", "skyridingSecondWindColorG", "skyridingSecondWindColorB",
+               "skyridingTexture", "skyridingCooldowns", "skyridingHideCDM",
                 "showRadialCircle", "radialRadius", "radialColorR", "radialColorG", "radialColorB",
              "autoRepair", "showTooltipIDs", "compactMinimapIcons", "enhancedTooltip",
              "autoQuest", "autoQuestExcludeDaily", "autoQuestExcludeWeekly", "autoQuestExcludeTrivial", "autoQuestExcludeCompleted", "autoQuestRewardMode",
@@ -2894,7 +2953,7 @@ local function InitHandlers()
                         hidePetBarInCombat = true, hidePetBarMouseover = true, hidePetBarAlways = true,
                         fadeMicroMenu = true, hideActionBarBorders = true, fadeObjectiveTracker = true, fadeBagBar = true, betterItemLevel = true, showEquipmentDetails = true,
                         chatClassColorNames = true, chatTimestamps = true, chatCopyButton = true, chatUrlDetection = true, chatBackground = true, chatHideButtons = true, chatFadeToggle = true, chatEditBoxStyled = true, chatTabFlash = true,
-                        skyridingEnabled = true, skyridingHideBlizzard = true, skyridingHideCDM = true, skyridingVigorBar = true, skyridingSpeedDisplay = true, skyridingSpeedBar = true, skyridingCooldowns = true, skyridingCentered = true,
+                        skyridingEnabled = true, skyridingHideCDM = true, skyridingVigorBar = true, skyridingSpeedDisplay = true, skyridingSpeedBar = true, skyridingCooldowns = true, skyridingCentered = true,
                         autoRepair = true, showTooltipIDs = true, compactMinimapIcons = true, enhancedTooltip = true,
                         autoQuest = true, autoQuestExcludeDaily = true, autoQuestExcludeWeekly = true, autoQuestExcludeTrivial = true, autoQuestExcludeCompleted = true,
                         autoSellJunk = true, autoFillDelete = true, quickRoleSignup = true,

@@ -703,7 +703,7 @@ local defaults = {
       combatStatusLeaveColorB = 1,
       ufClassColor = false,
       ufUseCustomTextures = false,
-      ufHealthTexture = "solid",
+      ufHealthTexture = "lsm:Clean",
       ufCustomBorderColorR = 0,
       ufCustomBorderColorG = 0,
       ufCustomBorderColorB = 0,
@@ -6842,6 +6842,9 @@ local function CreateIcons()
     UpdateSpellIcon(icon)
   end
   UpdateCursorIconAnchors()
+  if State.cursorIconPreviewActive and addonTable.ShowCursorIconPreview then
+    addonTable.ShowCursorIconPreview()
+  end
   C_Timer.After(0.1, function()
     for _, icon in ipairs(State.cursorIcons) do
       UpdateSpellIcon(icon)
@@ -8010,6 +8013,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
     if addonTable.ShowCombatStatusMessage then addonTable.ShowCombatStatusMessage(true) end
     if addonTable.ConfigFrame and addonTable.ConfigFrame:IsShown() then
+      State.openAfterCombat = true
       addonTable.ConfigFrame:Hide()
       if addonTable.SetGUIOpen then addonTable.SetGUIOpen(false) end
     end

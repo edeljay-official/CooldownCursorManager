@@ -1363,6 +1363,17 @@ local function ApplyButtonSkin(btn)
   if btn.IconBorder then btn.IconBorder:SetAlpha(0) end
   if btn.SlotArt then btn.SlotArt:Hide() end
   if btn.SlotBackground then btn.SlotBackground:Hide() end
+  local pushed = btn:GetPushedTexture()
+  if pushed then pushed:SetTexture(); pushed:SetAlpha(0) end
+  local checked = btn:GetCheckedTexture()
+  if checked then checked:SetAlpha(0) end
+  local highlight = btn:GetHighlightTexture()
+  if highlight then highlight:SetAlpha(0) end
+  if btn.IconBorder and not btn._ccmIconBorderHooked then
+    btn._ccmIconBorderHooked = true
+    hooksecurefunc(btn.IconBorder, "Show", function(self) if btn._ccmSkinned then self:SetAlpha(0) end end)
+    hooksecurefunc(btn.IconBorder, "SetShown", function(self, shown) if btn._ccmSkinned and shown then self:SetAlpha(0) end end)
+  end
   if iconTex then
     iconTex:ClearAllPoints()
     iconTex:SetAllPoints(btn)
@@ -1439,6 +1450,12 @@ local function SkinActionButton(btn, hide)
     if btn.IconBorder then btn.IconBorder:SetAlpha(1) end
     if btn.SlotArt then btn.SlotArt:Show() end
     if btn.SlotBackground then btn.SlotBackground:Show() end
+    local pushed = btn:GetPushedTexture()
+    if pushed then pushed:SetAlpha(1) end
+    local checked = btn:GetCheckedTexture()
+    if checked then checked:SetAlpha(1) end
+    local highlight = btn:GetHighlightTexture()
+    if highlight then highlight:SetAlpha(1) end
     if iconTex and s and s.origTexCoords then
       iconTex:SetTexCoord(unpack(s.origTexCoords))
     elseif iconTex then
@@ -1514,6 +1531,8 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
     if hide then
       local btnWidth = btn1:GetWidth()
       local btnHeight = btn1:GetHeight()
+      local p = addonTable.GetProfile and addonTable.GetProfile()
+      local spacing = p and p.abSkinSpacing or 2
       for i = 1, numButtons do
         local btn = _G[prefix .. i]
         if btn then
@@ -1527,9 +1546,9 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
           local row = math.floor((i - 1) / iconsPerRow)
           btn:ClearAllPoints()
           if isVertical then
-            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", row * btnWidth, -col * btnHeight)
+            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", row * (btnWidth + spacing), -col * (btnHeight + spacing))
           else
-            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", col * btnWidth, -row * btnHeight)
+            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", col * (btnWidth + spacing), -row * (btnHeight + spacing))
           end
         end
       end

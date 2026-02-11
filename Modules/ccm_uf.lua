@@ -219,7 +219,7 @@ addonTable.ApplyUnitFrameCustomization = function()
   State.playerFrameOriginal = State.playerFrameOriginal or {}
   local orig = State.playerFrameOriginal
   local useCustomTex = ufEnabled and profile.ufUseCustomTextures == true
-  local selectedTexture = useCustomTex and (profile.ufHealthTexture or "solid") or "blizzard"
+  local selectedTexture = useCustomTex and (profile.ufHealthTexture or "lsm:Clean") or "blizzard"
   local selectedTexturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(selectedTexture) or texturePaths[selectedTexture] or texturePaths.blizzard
   local function ResolveUnitHealthColor(unitToken, useClassColor)
     local r, g, b
@@ -2798,6 +2798,30 @@ addonTable.ApplyUnitFrameCustomization = function()
         o.healAbsorbTex:SetBlendMode("ADD")
       end
     end
+    if o.myHealPredFrame and o.myHealPredTex then
+      if o.myHealPredFrame.SetStatusBarTexture then
+        o.myHealPredFrame:SetStatusBarTexture(dmgAbsorbPathPrimary)
+        if not (o.myHealPredFrame.GetStatusBarTexture and o.myHealPredFrame:GetStatusBarTexture()) then
+          o.myHealPredFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
+        end
+      end
+      o.myHealPredTex = o.myHealPredFrame.GetStatusBarTexture and o.myHealPredFrame:GetStatusBarTexture() or o.myHealPredTex
+      if o.myHealPredTex.SetTexCoord then o.myHealPredTex:SetTexCoord(0, 1, 0, 1) end
+      o.myHealPredTex:SetVertexColor(0, 0.827, 0, 0.4)
+      if o.myHealPredTex.SetBlendMode then o.myHealPredTex:SetBlendMode("ADD") end
+    end
+    if o.otherHealPredFrame and o.otherHealPredTex then
+      if o.otherHealPredFrame.SetStatusBarTexture then
+        o.otherHealPredFrame:SetStatusBarTexture(dmgAbsorbPathPrimary)
+        if not (o.otherHealPredFrame.GetStatusBarTexture and o.otherHealPredFrame:GetStatusBarTexture()) then
+          o.otherHealPredFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
+        end
+      end
+      o.otherHealPredTex = o.otherHealPredFrame.GetStatusBarTexture and o.otherHealPredFrame:GetStatusBarTexture() or o.otherHealPredTex
+      if o.otherHealPredTex.SetTexCoord then o.otherHealPredTex:SetTexCoord(0, 1, 0, 1) end
+      o.otherHealPredTex:SetVertexColor(0, 0.631, 0.557, 0.4)
+      if o.otherHealPredTex.SetBlendMode then o.otherHealPredTex:SetBlendMode("ADD") end
+    end
     o.healthTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or o.healthTex
     if o.healthTex and o.healthTex.SetDrawLayer then
       o.healthTex:SetDrawLayer("ARTWORK", 2)
@@ -3121,7 +3145,8 @@ addonTable.ApplyUnitFrameCustomization = function()
           end
         end
         local targetLevelMode = profile.ufBigHBTargetLevelMode or "always"
-        local hideTargetLevel = targetLevelMode == "hide" or (targetLevelMode == "hidemax" and UnitLevel("target") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+        local tLvl = UnitLevel("target")
+        local hideTargetLevel = targetLevelMode == "hide" or (targetLevelMode == "hidemax" and (tLvl == -1 or tLvl >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80)))
         if hideTargetLevel then
           if levelEl.Hide then levelEl:Hide() end
         else
@@ -3139,7 +3164,8 @@ addonTable.ApplyUnitFrameCustomization = function()
             local p = addonTable.GetProfile and addonTable.GetProfile()
             if not p then return end
             local m = p.ufBigHBTargetLevelMode or "always"
-            local shouldHide = m == "hide" or (m == "hidemax" and UnitLevel("target") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+            local lv = UnitLevel("target")
+            local shouldHide = m == "hide" or (m == "hidemax" and (lv == -1 or lv >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80)))
             if shouldHide then self:Hide() end
           end)
         end
@@ -3252,7 +3278,8 @@ addonTable.ApplyUnitFrameCustomization = function()
           end
         end
         local focusLevelMode = profile.ufBigHBFocusLevelMode or "always"
-        local hideFocusLevel = focusLevelMode == "hide" or (focusLevelMode == "hidemax" and UnitLevel("focus") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+        local fLvl = UnitLevel("focus")
+        local hideFocusLevel = focusLevelMode == "hide" or (focusLevelMode == "hidemax" and (fLvl == -1 or fLvl >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80)))
         if hideFocusLevel then
           if levelEl.Hide then levelEl:Hide() end
         else
@@ -3270,7 +3297,8 @@ addonTable.ApplyUnitFrameCustomization = function()
             local p = addonTable.GetProfile and addonTable.GetProfile()
             if not p then return end
             local m = p.ufBigHBFocusLevelMode or "always"
-            local shouldHide = m == "hide" or (m == "hidemax" and UnitLevel("focus") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+            local lv = UnitLevel("focus")
+            local shouldHide = m == "hide" or (m == "hidemax" and (lv == -1 or lv >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80)))
             if shouldHide then self:Hide() end
           end)
         end
@@ -3336,7 +3364,8 @@ addonTable.ApplyUnitFrameCustomization = function()
           end
         end
         local playerLevelMode = profile.ufBigHBPlayerLevelMode or "always"
-        local hidePlayerLevel = playerLevelMode == "hide" or (playerLevelMode == "hidemax" and UnitLevel("player") >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80))
+        local pLvl = UnitLevel("player")
+        local hidePlayerLevel = playerLevelMode == "hide" or (playerLevelMode == "hidemax" and (pLvl == -1 or pLvl >= (GetMaxLevelForLatestExpansion and GetMaxLevelForLatestExpansion() or 80)))
         if hidePlayerLevel then
           if levelEl.SetAlpha then levelEl:SetAlpha(0) end
           if levelEl.Hide then levelEl:Hide() end

@@ -115,7 +115,8 @@ if prbFrame.healthBar.SetClipsChildren then prbFrame.healthBar:SetClipsChildren(
 prbFrame.healthBar.bg = prbFrame.healthBar:CreateTexture(nil, "BACKGROUND")
 prbFrame.healthBar.bg:SetAllPoints()
 prbFrame.healthBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
-prbFrame.healthBar.border = CreateFrame("Frame", nil, prbFrame.healthBar, "BackdropTemplate")
+prbFrame.healthBar.border = CreateFrame("Frame", nil, prbFrame, "BackdropTemplate")
+prbFrame.healthBar.border:SetFrameLevel(prbFrame.healthBar:GetFrameLevel() + 5)
 prbFrame.healthBar.border:SetPoint("TOPLEFT", prbFrame.healthBar, "TOPLEFT", 0, 0)
 prbFrame.healthBar.border:SetPoint("BOTTOMRIGHT", prbFrame.healthBar, "BOTTOMRIGHT", 0, 0)
 prbFrame.healthBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
@@ -696,8 +697,9 @@ local function UpdatePRB(force)
       prbFrame.healthBar:SetStatusBarTexture(healthTexturePath)
       prbFrame.healthBar:ClearAllPoints()
       local healthY = clampBars and GetBarYPos("health", 0, 0) or (yOff - healthYOffset)
-      PixelUtil.SetPoint(prbFrame.healthBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -healthY)
-      PixelUtil.SetSize(prbFrame.healthBar, width, healthHeight)
+      prbFrame.healthBar:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", 0, -healthY)
+      prbFrame.healthBar:SetPoint("RIGHT", prbFrame, "RIGHT")
+      prbFrame.healthBar:SetHeight(healthHeight)
       prbFrame.healthBar:SetMinMaxValues(0, UnitHealthMax("player") or 1)
       prbFrame.healthBar:SetValue(UnitHealth("player") or 0)
       if profile.prbUseClassColor then
@@ -785,8 +787,9 @@ local function UpdatePRB(force)
       if clampBars then
         powerYPosForClamp = powerY
       end
-      PixelUtil.SetPoint(prbFrame.powerBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -powerY)
-      PixelUtil.SetSize(prbFrame.powerBar, width, powerHeight)
+      prbFrame.powerBar:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", 0, -powerY)
+      prbFrame.powerBar:SetPoint("RIGHT", prbFrame, "RIGHT")
+      prbFrame.powerBar:SetHeight(powerHeight)
       local powerType = UnitPowerType("player") or 0
       prbFrame.powerBar:SetMinMaxValues(0, UnitPowerMax("player") or 1)
       prbFrame.powerBar:SetValue(UnitPower("player") or 0)
@@ -885,10 +888,12 @@ local function UpdatePRB(force)
         end
         minGap = math.max(1, minGap)
         prbFrame.manaBar:SetPoint("TOPLEFT", prbFrame.powerBar, "BOTTOMLEFT", 0, -minGap)
+        prbFrame.manaBar:SetPoint("RIGHT", prbFrame, "RIGHT")
       else
-        PixelUtil.SetPoint(prbFrame.manaBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -manaY)
+        prbFrame.manaBar:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", 0, -manaY)
+        prbFrame.manaBar:SetPoint("RIGHT", prbFrame, "RIGHT")
       end
-      PixelUtil.SetSize(prbFrame.manaBar, width, manaHeight)
+      prbFrame.manaBar:SetHeight(manaHeight)
       prbFrame.manaBar:SetMinMaxValues(0, UnitPowerMax("player", 0) or 1)
       prbFrame.manaBar:SetValue(UnitPower("player", 0) or 0)
       local mR = profile.prbManaColorR or 0
@@ -995,15 +1000,19 @@ local function UpdatePRB(force)
             prbFrame.classPowerSegments[i]:Hide()
           end
         end
-        PixelUtil.SetSize(prbFrame.classPowerBar, width, cpHeight)
         prbFrame.classPowerBar:ClearAllPoints()
         if clampBars then
           local classPowerYPos = GetBarYPos("classpower", 0, 0)
-          PixelUtil.SetPoint(prbFrame.classPowerBar, "TOPLEFT", prbFrame, "TOPLEFT", 0, -classPowerYPos)
+          prbFrame.classPowerBar:SetPoint("TOPLEFT", prbFrame, "TOPLEFT", 0, -classPowerYPos)
+          prbFrame.classPowerBar:SetPoint("RIGHT", prbFrame, "RIGHT")
+          prbFrame.classPowerBar:SetHeight(cpHeight)
         elseif profile.prbCentered then
           prbFrame.classPowerBar:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", 0, cpY)
+          prbFrame.classPowerBar:SetPoint("RIGHT", prbFrame, "RIGHT")
+          prbFrame.classPowerBar:SetHeight(cpHeight)
         else
           prbFrame.classPowerBar:SetPoint("BOTTOMLEFT", prbFrame, "TOPLEFT", cpX, cpY)
+          prbFrame.classPowerBar:SetSize(width, cpHeight)
         end
         prbFrame.classPowerBar:SetMinMaxValues(0, maxClassPower)
         prbFrame.classPowerBar:SetValue(classPower)

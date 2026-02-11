@@ -1350,7 +1350,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
           btn:SetScript("OnClick", function()
             dd.value = opt.value
             txt:SetText(opt.text)
-            list:Hide()
+            if not dd.keepOpenOnSelect then list:Hide() end
             if dd.onSelect then dd.onSelect(opt.value) end
           end)
         end
