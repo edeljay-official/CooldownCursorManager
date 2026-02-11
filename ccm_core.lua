@@ -5307,6 +5307,7 @@ local function UpdateCustomBar()
         notEnoughResources = false
       end
     end
+      local isOverride = not isItem and activeSpellID ~= actualID
       icon._tempData = {
         iconTexture = iconTexture,
         itemCount = itemCount,
@@ -5315,11 +5316,12 @@ local function UpdateCustomBar()
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
         chargesData = chargesData,
-        buffOverlayActive = buffOverlayActive
+        buffOverlayActive = buffOverlayActive,
+        isOverride = isOverride
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell and not buffOverlayActive then
+    if not isChargeSpell and not buffOverlayActive and not isOverride then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -5487,6 +5489,7 @@ local function UpdateCustomBar()
     local shouldDesaturate = false
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
     local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
+    local isOverride = icon._tempData and icon._tempData.isOverride
     local isUnavailable = isOnCooldown or notEnoughResources
     if buffOverlayActive then
       icon:SetAlpha(1)
@@ -5503,6 +5506,9 @@ local function UpdateCustomBar()
         icon:SetAlpha(1)
         icon.icon:SetDesaturated(false)
       end
+    elseif isOverride then
+      icon:SetAlpha(1)
+      shouldDesaturate = false
     else
       icon:SetAlpha(1)
       if cooldownMode == "desaturate" then
@@ -5866,6 +5872,7 @@ local function UpdateCustomBar2()
         notEnoughResources = false
       end
     end
+      local isOverride = not isItem and activeSpellID ~= actualID
       icon._tempData = {
         iconTexture = iconTexture,
         itemCount = itemCount,
@@ -5874,11 +5881,12 @@ local function UpdateCustomBar2()
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
         chargesData = chargesData,
-        buffOverlayActive = buffOverlayActive
+        buffOverlayActive = buffOverlayActive,
+        isOverride = isOverride
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell and not buffOverlayActive then
+    if not isChargeSpell and not buffOverlayActive and not isOverride then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -6046,6 +6054,7 @@ local function UpdateCustomBar2()
     local shouldDesaturate = false
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
     local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
+    local isOverride = icon._tempData and icon._tempData.isOverride
     local isUnavailable = isOnCooldown or notEnoughResources
     if buffOverlayActive then
       icon:SetAlpha(1)
@@ -6062,6 +6071,9 @@ local function UpdateCustomBar2()
         icon:SetAlpha(1)
         icon.icon:SetDesaturated(false)
       end
+    elseif isOverride then
+      icon:SetAlpha(1)
+      shouldDesaturate = false
     else
       icon:SetAlpha(1)
       if cooldownMode == "desaturate" then
@@ -6425,6 +6437,7 @@ local function UpdateCustomBar3()
         notEnoughResources = false
       end
     end
+      local isOverride = not isItem and activeSpellID ~= actualID
       icon._tempData = {
         iconTexture = iconTexture,
         itemCount = itemCount,
@@ -6433,11 +6446,12 @@ local function UpdateCustomBar3()
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
         chargesData = chargesData,
-        buffOverlayActive = buffOverlayActive
+        buffOverlayActive = buffOverlayActive,
+        isOverride = isOverride
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell and not buffOverlayActive then
+    if not isChargeSpell and not buffOverlayActive and not isOverride then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -6605,6 +6619,7 @@ local function UpdateCustomBar3()
     local shouldDesaturate = false
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
     local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
+    local isOverride = icon._tempData and icon._tempData.isOverride
     local isUnavailable = isOnCooldown or notEnoughResources
     if buffOverlayActive then
       icon:SetAlpha(1)
@@ -6621,6 +6636,9 @@ local function UpdateCustomBar3()
         icon:SetAlpha(1)
         icon.icon:SetDesaturated(false)
       end
+    elseif isOverride then
+      icon:SetAlpha(1)
+      shouldDesaturate = false
     else
       icon:SetAlpha(1)
       if cooldownMode == "desaturate" then
@@ -7358,6 +7376,9 @@ UpdateSpellIcon = function(icon)
   end
   local isUnavailable = isOnCooldown or notEnoughResources
   local cooldownMode = profile.cooldownIconMode or "show"
+  if activeSpellID ~= spellID then
+    cooldownMode = "show"
+  end
   if buffOverlayActive then
     icon:SetAlpha(1)
     icon.icon:SetDesaturated(false)
