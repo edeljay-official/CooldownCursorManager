@@ -2951,6 +2951,13 @@ local function InitHandlers()
         addonTable.exportImportScrollFrame:SetSize(420, 145)
         addonTable.importExportBox:SetWidth(400)
         addonTable.importExportBox:SetHeight(200)
+        if addonTable.exportImportOkBtn and addonTable.exportImportCancelBtn and addonTable.exportImportScrollFrame then
+          addonTable.exportImportOkBtn:ClearAllPoints()
+          addonTable.exportImportCancelBtn:ClearAllPoints()
+          addonTable.exportImportOkBtn:SetPoint("TOPRIGHT", addonTable.exportImportScrollFrame, "BOTTOM", -5, -14)
+          addonTable.exportImportCancelBtn:SetPoint("TOPLEFT", addonTable.exportImportScrollFrame, "BOTTOM", 5, -14)
+          addonTable.exportImportCancelBtn:Show()
+        end
         if addonTable.editBoxBg then
           addonTable.editBoxBg:SetPoint("TOPLEFT", addonTable.exportImportScrollFrame, "TOPLEFT", -5, 5)
           addonTable.editBoxBg:SetPoint("BOTTOMRIGHT", addonTable.exportImportScrollFrame, "BOTTOMRIGHT", 15, -5)
@@ -3137,6 +3144,19 @@ local function InitHandlers()
         addonTable.exportImportScrollFrame:SetPoint("TOPLEFT", addonTable.exportImportPopup, "TOPLEFT", 15, -205)
         addonTable.exportImportScrollFrame:SetSize(420, 130)
         addonTable.importExportBox:SetWidth(400)
+        if addonTable.generateExportBtn then
+          addonTable.generateExportBtn:ClearAllPoints()
+          addonTable.generateExportBtn:SetPoint("TOPLEFT", addonTable.exportImportPopup, "TOPLEFT", 290, -192)
+        end
+        if addonTable.exportImportOkBtn then
+          addonTable.exportImportOkBtn:ClearAllPoints()
+          addonTable.exportImportOkBtn:SetPoint("TOPLEFT", addonTable.exportImportPopup, "TOPLEFT", 290, -192)
+        end
+        if addonTable.exportImportCancelBtn then
+          addonTable.exportImportCancelBtn:ClearAllPoints()
+          addonTable.exportImportCancelBtn:SetPoint("TOPLEFT", addonTable.exportImportPopup, "TOPLEFT", 380, -192)
+          addonTable.exportImportCancelBtn:Show()
+        end
         if addonTable.editBoxBg then
           addonTable.editBoxBg:SetPoint("TOPLEFT", addonTable.exportImportScrollFrame, "TOPLEFT", -5, 5)
           addonTable.editBoxBg:SetPoint("BOTTOMRIGHT", addonTable.exportImportScrollFrame, "BOTTOMRIGHT", 15, -5)
