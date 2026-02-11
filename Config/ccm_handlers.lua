@@ -2644,6 +2644,51 @@ local function InitHandlers()
       end
     end
   end
+  if addonTable.openBlizzCDMBtn then
+    addonTable.openBlizzCDMBtn:SetScript("OnClick", function()
+      local cfg = addonTable.ConfigFrame
+      if cfg then
+        cfg:ClearAllPoints()
+        cfg:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+      end
+      local opened = false
+      if SlashCmdList and SlashCmdList.BLIZZCM then
+        local ok = pcall(SlashCmdList.BLIZZCM, "")
+        opened = ok == true
+      end
+      if not opened and C_AddOns and C_AddOns.LoadAddOn then
+        pcall(C_AddOns.LoadAddOn, "Blizzard_CooldownViewer")
+        if SlashCmdList and SlashCmdList.BLIZZCM then
+          pcall(SlashCmdList.BLIZZCM, "")
+          opened = true
+        end
+      end
+      if not opened and addonTable.ShowMessagePopup then
+        addonTable.ShowMessagePopup("Blizzard CDM konnte nicht geoeffnet werden.", "OK")
+      end
+    end)
+  end
+  if addonTable.openEditModeBtn then
+    addonTable.openEditModeBtn:SetScript("OnClick", function()
+      local cfg = addonTable.ConfigFrame
+      if cfg then
+        cfg:ClearAllPoints()
+        cfg:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+      end
+      local opened = false
+      if SlashCmdList and SlashCmdList.CCMEDITMODE then
+        local ok = pcall(SlashCmdList.CCMEDITMODE, "")
+        opened = ok == true
+      end
+      if not opened and EditModeManagerFrame and EditModeManagerFrame.Show then
+        local ok = pcall(EditModeManagerFrame.Show, EditModeManagerFrame)
+        opened = ok == true
+      end
+      if not opened and addonTable.ShowMessagePopup then
+        addonTable.ShowMessagePopup("Edit Mode konnte nicht geoeffnet werden.", "OK")
+      end
+    end)
+  end
   if addonTable.buffBarCB then addonTable.buffBarCB.customOnClick = function(s) 
     local p = GetProfile()
     if p and p.disableBlizzCDM == true then s:SetChecked(false); return end
