@@ -2383,11 +2383,11 @@ addonTable.ShowCursorIconPreview = function()
       icon._ccmPreviewSaved = true
       icon._ccmPreviewStrata = icon:GetFrameStrata()
       icon._ccmPreviewLevel = icon:GetFrameLevel()
-      icon._ccmPreviewShown = icon:IsShown()
+      icon._ccmPreviewWasHidden = icon._ccmHiddenByScale
     end
     icon:SetFrameStrata("TOOLTIP")
     icon:SetFrameLevel(9999)
-    icon:Show()
+    EnsureIconRestored(icon)
   end
 end
 addonTable.StopCursorIconPreview = function()
@@ -2397,11 +2397,11 @@ addonTable.StopCursorIconPreview = function()
     if icon._ccmPreviewSaved then
       icon:SetFrameStrata(icon._ccmPreviewStrata or "MEDIUM")
       icon:SetFrameLevel(icon._ccmPreviewLevel or 1)
-      if not icon._ccmPreviewShown then icon:Hide() end
+      if icon._ccmPreviewWasHidden then HideIconByScale(icon) end
       icon._ccmPreviewSaved = nil
       icon._ccmPreviewStrata = nil
       icon._ccmPreviewLevel = nil
-      icon._ccmPreviewShown = nil
+      icon._ccmPreviewWasHidden = nil
     end
   end
 end
@@ -4904,6 +4904,18 @@ if C_Timer and C_Timer.NewTicker and not State.cooldownViewerChargePatchTicker t
     end
   end)
 end
+local function HideIconByScale(icon)
+  icon._ccmHiddenByScale = true
+  icon:SetScale(0.0001)
+  icon:SetAlpha(0)
+  icon:Show()
+end
+local function EnsureIconRestored(icon)
+  if icon._ccmHiddenByScale then icon._ccmHiddenByScale = false end
+  icon:Show()
+  icon:SetScale(1)
+  icon:SetAlpha(1)
+end
 local function ClearCustomBarIcons()
   if Masque and MasqueGroups.CustomBar then
     for _, icon in ipairs(State.customBar1Icons) do
@@ -4911,7 +4923,7 @@ local function ClearCustomBarIcons()
     end
   end
   for _, icon in ipairs(State.customBar1Icons) do
-    icon:Hide()
+    HideIconByScale(icon)
     icon:SetScript("OnUpdate", nil)
   end
   wipe(State.customBar1Icons)
@@ -5072,7 +5084,7 @@ local function UpdateCustomBar()
     local isChargeSpell = false
     local cdStart, cdDuration = 0, 0
     local chargesData = nil
-    icon:Show()
+    EnsureIconRestored(icon)
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
@@ -5177,10 +5189,7 @@ local function UpdateCustomBar()
           if icon.cooldown:IsShown() then
             local cdRegion = icon.cooldown:GetRegions()
             if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-              local alpha = cdRegion:GetAlpha()
-              if alpha and alpha > 0.1 then
-                isOnCooldown = true
-              end
+              isOnCooldown = true
             end
           end
         end
@@ -5224,7 +5233,7 @@ local function UpdateCustomBar()
     if iconTexture and shouldShow then
       table.insert(visibleIcons, icon)
     else
-      icon:Hide()
+      HideIconByScale(icon)
     end
   end
   local visibleCount = #visibleIcons
@@ -5431,7 +5440,7 @@ local function UpdateCustomBar()
     if not (isChargeSpell and not isItem) then
       icon.icon:SetDesaturated(shouldDesaturate)
     end
-    icon:Show()
+    EnsureIconRestored(icon)
   end
   if layoutChanged then
     if Masque and profile.enableMasque and MasqueGroups.CustomBar then
@@ -5483,7 +5492,7 @@ local function ClearCustomBar2Icons()
     end
   end
   for _, icon in ipairs(State.customBar2Icons) do
-    icon:Hide()
+    HideIconByScale(icon)
     icon:SetScript("OnUpdate", nil)
   end
   wipe(State.customBar2Icons)
@@ -5617,7 +5626,7 @@ local function UpdateCustomBar2()
     local isChargeSpell = false
     local cdStart, cdDuration = 0, 0
     local chargesData = nil
-    icon:Show()
+    EnsureIconRestored(icon)
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
@@ -5722,10 +5731,7 @@ local function UpdateCustomBar2()
           if icon.cooldown:IsShown() then
             local cdRegion = icon.cooldown:GetRegions()
             if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-              local alpha = cdRegion:GetAlpha()
-              if alpha and alpha > 0.1 then
-                isOnCooldown = true
-              end
+              isOnCooldown = true
             end
           end
         end
@@ -5769,7 +5775,7 @@ local function UpdateCustomBar2()
     if iconTexture and shouldShow then
       table.insert(visibleIcons, icon)
     else
-      icon:Hide()
+      HideIconByScale(icon)
     end
   end
   local visibleCount = #visibleIcons
@@ -5976,7 +5982,7 @@ local function UpdateCustomBar2()
     if not (isChargeSpell and not isItem) then
       icon.icon:SetDesaturated(shouldDesaturate)
     end
-    icon:Show()
+    EnsureIconRestored(icon)
   end
   if layoutChanged then
     if Masque and profile.enableMasque and MasqueGroups.CustomBar2 then
@@ -6028,7 +6034,7 @@ local function ClearCustomBar3Icons()
     end
   end
   for _, icon in ipairs(State.customBar3Icons) do
-    icon:Hide()
+    HideIconByScale(icon)
     icon:SetScript("OnUpdate", nil)
   end
   wipe(State.customBar3Icons)
@@ -6162,7 +6168,7 @@ local function UpdateCustomBar3()
     local isChargeSpell = false
     local cdStart, cdDuration = 0, 0
     local chargesData = nil
-    icon:Show()
+    EnsureIconRestored(icon)
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
@@ -6267,10 +6273,7 @@ local function UpdateCustomBar3()
           if icon.cooldown:IsShown() then
             local cdRegion = icon.cooldown:GetRegions()
             if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-              local alpha = cdRegion:GetAlpha()
-              if alpha and alpha > 0.1 then
-                isOnCooldown = true
-              end
+              isOnCooldown = true
             end
           end
         end
@@ -6314,7 +6317,7 @@ local function UpdateCustomBar3()
     if iconTexture and shouldShow then
       table.insert(visibleIcons, icon)
     else
-      icon:Hide()
+      HideIconByScale(icon)
     end
   end
   local visibleCount = #visibleIcons
@@ -6521,7 +6524,7 @@ local function UpdateCustomBar3()
     if not (isChargeSpell and not isItem) then
       icon.icon:SetDesaturated(shouldDesaturate)
     end
-    icon:Show()
+    EnsureIconRestored(icon)
   end
   if layoutChanged then
     if Masque and profile.enableMasque and MasqueGroups.CustomBar3 then
@@ -6574,7 +6577,7 @@ local function UpdateCursorIconAnchors()
   local cache = State.cursorLayoutCache
   local row, col = 0, 0
   for _, icon in ipairs(State.cursorIcons) do
-    if icon:IsShown() then
+    if not icon._ccmHiddenByScale then
       local xPos, yPos
       if cache.isHorizontal then
         xPos = col * (cache.iconSize + cache.iconSpacing)
@@ -6609,7 +6612,7 @@ local function ClearIcons()
     end
   end
   for i, icon in ipairs(State.cursorIcons) do
-    icon:Hide()
+    HideIconByScale(icon)
     icon:SetScript("OnUpdate", nil)
     icon:SetScript("OnEvent", nil)
     icon:UnregisterAllEvents()
@@ -6640,7 +6643,7 @@ local function CreateIcons()
       icon:SetFrameLevel(200)
       icon:EnableMouse(false)
       icon:SetSize(iconSize, iconSize)
-      icon:Hide()
+      HideIconByScale(icon)
       icon.Icon = icon:CreateTexture(nil, "BACKGROUND")
       icon.Icon:SetPoint("TOPLEFT", icon, "TOPLEFT", borderSize, -borderSize)
       icon.Icon:SetPoint("BOTTOMRIGHT", icon, "BOTTOMRIGHT", -borderSize, borderSize)
@@ -6705,10 +6708,10 @@ addonTable.CreateIcons = function()
       icon._ccmPreviewSaved = true
       icon._ccmPreviewStrata = icon:GetFrameStrata()
       icon._ccmPreviewLevel = icon:GetFrameLevel()
-      icon._ccmPreviewShown = true
+      icon._ccmPreviewWasHidden = false
       icon:SetFrameStrata("TOOLTIP")
       icon:SetFrameLevel(9999)
-      icon:Show()
+      EnsureIconRestored(icon)
     end
     UpdateCursorIconAnchors()
   end
@@ -6974,22 +6977,22 @@ UpdateSpellIcon = function(icon)
         icon.cooldown:Clear()
       end
     end
-    icon:Show()
+    EnsureIconRestored(icon)
     return
   end
   if profile.cursorIconsEnabled == false then
-    icon:Hide()
+    HideIconByScale(icon)
     return
   end
   local spellID = icon.spellID
   local isItem = icon.isItem
   local showGCD = profile.cursorShowGCD == true
   if not IsShowModeActive(profile.showMode) then
-    icon:Hide()
+    HideIconByScale(icon)
     return
   end
   if (profile.iconsCombatOnly or profile.showInCombatOnly) and not UnitAffectingCombat("player") then
-    icon:Hide()
+    HideIconByScale(icon)
     return
   end
   if isItem then
@@ -7006,11 +7009,11 @@ UpdateSpellIcon = function(icon)
     end
     if not itemIcon then
       C_Item.RequestLoadItemDataByID(spellID)
-      icon:Show()
+      EnsureIconRestored(icon)
       icon.icon:SetTexture("Interface\\Icons\\INV_Misc_QuestionMark")
       return
     end
-    icon:Show()
+    EnsureIconRestored(icon)
     icon.icon:SetTexture(itemIcon)
     icon.icon:SetVertexColor(1, 1, 1)
     icon.icon:SetDesaturated(false)
@@ -7049,12 +7052,12 @@ UpdateSpellIcon = function(icon)
     local cooldownMode = profile.cooldownIconMode or "show"
     if cooldownMode == "hideAvailable" then
       if not isItemOnCooldown then
-        icon:Hide()
+        HideIconByScale(icon)
         return
       end
       icon.icon:SetDesaturated(itemNotInBags)
     elseif cooldownMode == "hide" and isItemOnCooldown then
-      icon:Hide()
+      HideIconByScale(icon)
       return
     elseif cooldownMode == "desaturate" then
       icon.icon:SetDesaturated(isItemOnCooldown)
@@ -7078,15 +7081,15 @@ UpdateSpellIcon = function(icon)
   end
   local activeSpellID = ResolveTrackedSpellID(spellID)
   if not IsTrackedEntryAvailable(false, spellID, activeSpellID) then
-    icon:Hide()
+    HideIconByScale(icon)
     return
   end
   local info = C_Spell.GetSpellInfo(activeSpellID)
   if not info or not info.iconID then
-    icon:Hide()
+    HideIconByScale(icon)
     return
   end
-  icon:Show()
+  EnsureIconRestored(icon)
   icon.icon:SetTexture(info.iconID)
   icon.icon:SetVertexColor(1, 1, 1)
   if icon.cdText then
@@ -7182,10 +7185,7 @@ UpdateSpellIcon = function(icon)
       if icon.cooldown:IsShown() then
         local cdRegion = icon.cooldown:GetRegions()
         if cdRegion and cdRegion.IsShown and cdRegion:IsShown() then
-          local alpha = cdRegion:GetAlpha()
-          if alpha and alpha > 0.1 then
-            isOnCooldown = true
-          end
+          isOnCooldown = true
         end
       end
     end
@@ -7221,17 +7221,17 @@ UpdateSpellIcon = function(icon)
     icon:SetAlpha(1)
     if cooldownMode == "hideAvailable" then
       if not isUnavailable then
-        icon:Hide()
+        HideIconByScale(icon)
         return
       end
       icon.icon:SetDesaturated(false)
     elseif cooldownMode == "hide" then
       if isOnCooldown then
-        icon:Hide()
+        HideIconByScale(icon)
         return
       end
       if notEnoughResources and not isOnCooldown then
-        icon:Hide()
+        HideIconByScale(icon)
         return
       end
       icon.icon:SetDesaturated(false)
