@@ -30,6 +30,7 @@ local prevX, prevY, prevTime
 local smoothSpeed = 0
 local chargeSpellID
 local previewActive = false
+local speedFontDirty = true
 local UpdatePreviewButtonState
 
 -- ============================================================
@@ -142,14 +143,13 @@ local function CreateMainFrame()
   speedBar.bg:SetAllPoints()
   speedBar.bg:SetColorTexture(0.08, 0.08, 0.10, 1)
 
-  speedText = speedBar:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+  speedText = speedBar:CreateFontString(nil, "OVERLAY")
   speedText:SetPoint("CENTER", speedBar, "CENTER", 0, 0)
   speedText:SetTextColor(0.9, 0.9, 0.9, 1)
-  if GetGlobalFont then
-    local fontPath, fontOutline = GetGlobalFont()
-    local _, size = speedText:GetFont()
-    speedText:SetFont(fontPath, size, fontOutline or "OUTLINE")
-  end
+  local fontPath, fontOutline
+  if GetGlobalFont then fontPath, fontOutline = GetGlobalFont() end
+  speedText:SetFont(fontPath or "Fonts\\FRIZQT__.TTF", 10, fontOutline or "OUTLINE")
+  speedFontDirty = false
 end
 
 local function CreateVigorSegments(count)
@@ -387,6 +387,12 @@ local function UpdateSpeedDisplay()
   else
     speedText:SetTextColor(0.9, 0.9, 0.9)
   end
+  if speedFontDirty and GetGlobalFont then
+    local fontPath, fontOutline = GetGlobalFont()
+    local _, size = speedText:GetFont()
+    speedText:SetFont(fontPath, size or 10, fontOutline or "OUTLINE")
+    speedFontDirty = false
+  end
   speedText:Show()
 end
 
@@ -477,7 +483,8 @@ local function ApplySkyridingFonts()
 
   if speedText then
     local _, size = speedText:GetFont()
-    speedText:SetFont(fontPath, size, fontOutline or "OUTLINE")
+    speedText:SetFont(fontPath, size or 10, fontOutline or "OUTLINE")
+    speedFontDirty = false
   end
 
   for _, icon in ipairs(cdIcons) do
@@ -497,6 +504,7 @@ local function ApplySkyridingFonts()
   end
 end
 addonTable.ApplySkyridingFonts = ApplySkyridingFonts
+addonTable.MarkSkyridingFontDirty = function() speedFontDirty = true end
 
 -- ============================================================
 -- Blizzard UI Hiding

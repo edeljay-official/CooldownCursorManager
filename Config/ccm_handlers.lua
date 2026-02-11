@@ -1324,6 +1324,7 @@ local function InitHandlers()
         if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
         if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
         if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        if addonTable.MarkSkyridingFontDirty then addonTable.MarkSkyridingFontDirty() end
         if addonTable.ApplySkyridingFonts then addonTable.ApplySkyridingFonts() end
       end
     end
@@ -1341,6 +1342,7 @@ local function InitHandlers()
         if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
         if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
         if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        if addonTable.MarkSkyridingFontDirty then addonTable.MarkSkyridingFontDirty() end
         if addonTable.ApplySkyridingFonts then addonTable.ApplySkyridingFonts() end
       end
     end
