@@ -408,17 +408,18 @@ importSharedLbl:SetPoint("LEFT", importSharedCB, "RIGHT", 6, 0)
 importSharedLbl:SetText("Shared Profile (available for all classes)")
 importSharedLbl:SetTextColor(0.9, 0.9, 0.9)
 addonTable.importSharedCB = importSharedCB
-local generateExportBtn = CreateStyledButton(exportCheckboxContainer, "Generate", 85, 20)
+local generateExportBtn = CreateStyledButton(exportImportPopup, "Generate", 85, 20)
 generateExportBtn:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 290, -192)
-local exportImportOkBtn = CreateStyledButton(exportCheckboxContainer, "Import", 85, 20)
+local exportImportOkBtn = CreateStyledButton(exportImportPopup, "Import", 85, 20)
 exportImportOkBtn:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 290, -192)
-local exportImportCancelBtn = CreateStyledButton(exportCheckboxContainer, "Close", 85, 20)
+local exportImportCancelBtn = CreateStyledButton(exportImportPopup, "Close", 85, 20)
 exportImportCancelBtn:SetPoint("TOPLEFT", exportImportPopup, "TOPLEFT", 380, -192)
 exportImportCancelBtn:SetScript("OnClick", function() exportImportPopup:Hide() end)
 addonTable.exportImportPopup = exportImportPopup
 addonTable.exportImportTitle = exportImportTitle
 addonTable.importExportBox = exportImportEditBox
 addonTable.exportImportOkBtn = exportImportOkBtn
+addonTable.exportImportCancelBtn = exportImportCancelBtn
 addonTable.exportCategories = exportCategories
 addonTable.exportCheckboxContainer = exportCheckboxContainer
 addonTable.generateExportBtn = generateExportBtn
