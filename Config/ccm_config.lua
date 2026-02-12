@@ -9,6 +9,9 @@ local function GetProfile() return addonTable.GetProfile and addonTable.GetProfi
 local function CreateIcons() if addonTable.CreateIcons then addonTable.CreateIcons() end end
 local function UpdateAllIcons() if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end
 local function SetGUIOpen(v) if addonTable.SetGUIOpen then addonTable.SetGUIOpen(v) end end
+local _activeDropdownList = nil
+local _dropdownClickCatcher = nil
+local HideActiveDropdownList
 addonTable.ConfigGetProfile = GetProfile
 addonTable.ConfigCreateIcons = CreateIcons
 addonTable.ConfigSetGUIOpen = SetGUIOpen
@@ -46,6 +49,7 @@ cfg:SetScript("OnShow", function(self)
   self:Raise()
 end)
 cfg:SetScript("OnHide", function()
+  if HideActiveDropdownList then HideActiveDropdownList() end
   SetGUIOpen(false)
   if addonTable.StopCursorIconPreview then
     addonTable.StopCursorIconPreview()
@@ -1227,7 +1231,27 @@ local function Checkbox(p, txt, x, y)
   end
   return cb, l
 end
-local _activeDropdownList = nil
+HideActiveDropdownList = function()
+  if _activeDropdownList and _activeDropdownList.Hide then
+    _activeDropdownList:Hide()
+  end
+  _activeDropdownList = nil
+  if _dropdownClickCatcher and _dropdownClickCatcher.Hide then
+    _dropdownClickCatcher:Hide()
+  end
+end
+local function EnsureDropdownClickCatcher()
+  if _dropdownClickCatcher then return end
+  local catcher = CreateFrame("Button", nil, UIParent)
+  catcher:SetAllPoints(UIParent)
+  catcher:EnableMouse(true)
+  catcher:RegisterForClicks("AnyDown")
+  catcher:SetScript("OnClick", function()
+    HideActiveDropdownList()
+  end)
+  catcher:Hide()
+  _dropdownClickCatcher = catcher
+end
 local function StyledDropdown(p, labelTxt, x, y, w)
   local lbl = nil
   local dd = CreateFrame("Frame", nil, p, "BackdropTemplate")
@@ -1263,10 +1287,16 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   list:SetFrameStrata("TOOLTIP")
   list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
   list:Hide()
-  list:SetScript("OnHide", function() if _activeDropdownList == list then _activeDropdownList = nil end end)
+  list:SetScript("OnHide", function()
+    if _activeDropdownList == list then
+      _activeDropdownList = nil
+      if _dropdownClickCatcher then _dropdownClickCatcher:Hide() end
+    end
+  end)
   dd.list = list
   dd.options = {}
   dd.value = nil
+  dd.keepOpenOnSelect = true
   dd._scrollOffset = 0
   dd._maxVisibleOptions = 12
   dd._buttons = {}
@@ -1459,14 +1489,17 @@ local function StyledDropdown(p, labelTxt, x, y, w)
       dd._scrollOffset = 0
       RenderDropdownOptions()
       list:ClearAllPoints()
-      local scale = dd:GetEffectiveScale()
-      local uiScale = UIParent:GetEffectiveScale()
-      local ratio = scale / uiScale
-      list:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", dd:GetLeft() * ratio, dd:GetBottom() * ratio - 2)
+      list:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
       list:SetFrameStrata("TOOLTIP")
       list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
       list:Show()
       _activeDropdownList = list
+      EnsureDropdownClickCatcher()
+      if _dropdownClickCatcher then
+        _dropdownClickCatcher:SetFrameStrata(list:GetFrameStrata())
+        _dropdownClickCatcher:SetFrameLevel(math.max((list:GetFrameLevel() or 2) - 1, 1))
+        _dropdownClickCatcher:Show()
+      end
     end
   end)
   dd:SetScript("OnEnter", function() dd:SetBackdropColor(0.18, 0.18, 0.22, 1) end)

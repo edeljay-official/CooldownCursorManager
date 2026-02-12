@@ -60,6 +60,17 @@ local math_min = math.min
 local math_max = math.max
 local math_sqrt = math.sqrt
 local string_format = string.format
+local function GetPixelScale(frame)
+  local s = (frame and frame.GetEffectiveScale and frame:GetEffectiveScale()) or (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
+  if not s or s == 0 then s = 1 end
+  return s
+end
+local function ToScreenPixels(v, frame)
+  return math_floor((v * GetPixelScale(frame)) + 0.5)
+end
+local function ToLocalUnits(px, frame)
+  return px / GetPixelScale(frame)
+end
 
 -- ============================================================
 -- Charge Data (12.0 spell charges system)
@@ -250,9 +261,16 @@ local function CreateVigorSegments(count)
     vigorSegments[i]:Hide()
   end
 
-  local innerWidth = mainFrame:GetWidth() - 4
-  local totalGaps = (count - 1) * SEGMENT_GAP
-  local segWidth = (innerWidth - totalGaps) / count
+  local frame = vigorContainer or mainFrame
+  local insetPx = math_max(1, ToScreenPixels(2, frame))
+  local gapPx = math_max(1, ToScreenPixels(SEGMENT_GAP, frame))
+  local totalWidthPx = math_max(1, ToScreenPixels(mainFrame:GetWidth(), frame))
+  local innerWidthPx = math_max(1, totalWidthPx - (insetPx * 2))
+  local totalGapsPx = (count - 1) * gapPx
+  local usablePx = math_max(count, innerWidthPx - totalGapsPx)
+  local baseSegPx = math_floor(usablePx / count)
+  local remainderPx = usablePx - (baseSegPx * count)
+  local cursorXPx = insetPx
 
   for i = 1, count do
     if not vigorSegments[i] then
@@ -269,11 +287,12 @@ local function CreateVigorSegments(count)
     end
 
     local bar = vigorSegments[i]
-    bar:SetSize(segWidth, BAR_HEIGHT)
+    local segPx = baseSegPx + ((i <= remainderPx) and 1 or 0)
+    bar:SetSize(ToLocalUnits(segPx, frame), BAR_HEIGHT)
     bar:ClearAllPoints()
-    local xOff = 2 + (i - 1) * (segWidth + SEGMENT_GAP)
-    bar:SetPoint("LEFT", vigorContainer, "LEFT", xOff, 0)
+    bar:SetPoint("LEFT", vigorContainer, "LEFT", ToLocalUnits(cursorXPx, frame), 0)
     bar:Show()
+    cursorXPx = cursorXPx + segPx + gapPx
   end
   lastVigorFull, lastVigorTotal = -1, -1
 end
@@ -283,9 +302,16 @@ local function CreateSecondWindSegments(count)
     secondWindSegments[i]:Hide()
   end
 
-  local innerWidth = mainFrame:GetWidth() - 4
-  local totalGaps = (count - 1) * SEGMENT_GAP
-  local segWidth = (innerWidth - totalGaps) / count
+  local frame = secondWindContainer or mainFrame
+  local insetPx = math_max(1, ToScreenPixels(2, frame))
+  local gapPx = math_max(1, ToScreenPixels(SEGMENT_GAP, frame))
+  local totalWidthPx = math_max(1, ToScreenPixels(mainFrame:GetWidth(), frame))
+  local innerWidthPx = math_max(1, totalWidthPx - (insetPx * 2))
+  local totalGapsPx = (count - 1) * gapPx
+  local usablePx = math_max(count, innerWidthPx - totalGapsPx)
+  local baseSegPx = math_floor(usablePx / count)
+  local remainderPx = usablePx - (baseSegPx * count)
+  local cursorXPx = insetPx
 
   for i = 1, count do
     if not secondWindSegments[i] then
@@ -302,11 +328,12 @@ local function CreateSecondWindSegments(count)
     end
 
     local bar = secondWindSegments[i]
-    bar:SetSize(segWidth, CD_BAR_HEIGHT)
+    local segPx = baseSegPx + ((i <= remainderPx) and 1 or 0)
+    bar:SetSize(ToLocalUnits(segPx, frame), CD_BAR_HEIGHT)
     bar:ClearAllPoints()
-    local xOff = 2 + (i - 1) * (segWidth + SEGMENT_GAP)
-    bar:SetPoint("LEFT", secondWindContainer, "LEFT", xOff, 0)
+    bar:SetPoint("LEFT", secondWindContainer, "LEFT", ToLocalUnits(cursorXPx, frame), 0)
     bar:Show()
+    cursorXPx = cursorXPx + segPx + gapPx
   end
   lastSWFull, lastSWTotal = -1, -1
 end

@@ -1,4 +1,9 @@
-﻿local _, addonTable = ...
+﻿--------------------------------------------------------------------------------
+-- CooldownCursorManager - ccm_castbar.lua
+-- Player castbar customization and updates
+-- Author: Edeljay
+--------------------------------------------------------------------------------
+local _, addonTable = ...
 local State = addonTable.State
 local GetClassColor = addonTable.GetClassColor
 local GetGlobalFont = addonTable.GetGlobalFont

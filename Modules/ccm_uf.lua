@@ -1,4 +1,10 @@
-﻿local _, addonTable = ...
+--------------------------------------------------------------------------------
+-- CooldownCursorManager - ccm_uf.lua
+-- Unit frame customization and big healthbar overlays
+-- Author: Edeljay
+--------------------------------------------------------------------------------
+
+local _, addonTable = ...
 local State = addonTable.State
 local GetClassColor = addonTable.GetClassColor
 local GetGlobalFont = addonTable.GetGlobalFont
@@ -417,7 +423,11 @@ addonTable.ApplyUnitFrameCustomization = function()
   local function IsGlowSuppressionEnabled()
     local p = addonTable.GetProfile and addonTable.GetProfile()
     if not p or p.enableUnitFrameCustomization == false then return false end
-    return p.ufDisableGlows == true
+    if p.ufDisableGlows == true then return true end
+    if p.ufBigHBPlayerEnabled == true then return true end
+    if p.ufBigHBTargetEnabled == true then return true end
+    if p.ufBigHBFocusEnabled == true then return true end
+    return false
   end
   local function ApplyGlowSuppression(enabled)
     orig.glowTargets = orig.glowTargets or CollectPlayerGlowTargets()
@@ -581,7 +591,7 @@ addonTable.ApplyUnitFrameCustomization = function()
   end
 
   ApplyPlayerHealthColor()
-  local disableGlows = ufEnabled and (profile.ufDisableGlows == true or profile.ufBigHBPlayerEnabled == true)
+  local disableGlows = ufEnabled and IsGlowSuppressionEnabled()
   if disableGlows then
     ApplyGlowSuppression(true)
   else
@@ -1118,14 +1128,19 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     local hfStrata = (o.healthFrame.GetFrameStrata and o.healthFrame:GetFrameStrata()) or "LOW"
     local hfLevel = (o.healthFrame.GetFrameLevel and o.healthFrame:GetFrameLevel()) or 2
-    local dmgAbsorbLevel = hfLevel + 3
+    local bgLevel = (o.bgFrame and o.bgFrame.GetFrameLevel and o.bgFrame:GetFrameLevel()) or math.max(1, hfLevel - 2)
+    local dmgAbsorbLevel = math.max(bgLevel + 1, hfLevel - 1)
+    if dmgAbsorbLevel >= hfLevel then
+      dmgAbsorbLevel = math.max(1, hfLevel - 1)
+    end
+    local fullDmgAbsorbLevel = hfLevel + 3
     if o.dmgAbsorbFrame then
       if o.dmgAbsorbFrame.SetFrameStrata then o.dmgAbsorbFrame:SetFrameStrata(hfStrata) end
       if o.dmgAbsorbFrame.SetFrameLevel then o.dmgAbsorbFrame:SetFrameLevel(dmgAbsorbLevel) end
     end
     if o.fullDmgAbsorbFrame then
       if o.fullDmgAbsorbFrame.SetFrameStrata then o.fullDmgAbsorbFrame:SetFrameStrata(hfStrata) end
-      if o.fullDmgAbsorbFrame.SetFrameLevel then o.fullDmgAbsorbFrame:SetFrameLevel(dmgAbsorbLevel) end
+      if o.fullDmgAbsorbFrame.SetFrameLevel then o.fullDmgAbsorbFrame:SetFrameLevel(fullDmgAbsorbLevel) end
     end
     local visW = w / (o.fillScale or 1)
     if not visW or visW <= 0 then
@@ -2340,7 +2355,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     if isPlayerFrame then
       hW = -1.0; hH = 11.5; hX = -0.5; hY = 8.0; hScalePct = 0.0
       bW = 16.0; bH = 32.5; bX = -4.5; bY = 3.0; bScalePct = 0.0
-      mW = 18.0; mH = -12.5; mX = -10.0; mY = 4.5; mScalePct = 0.5
+      mW = -68.5; mH = -21.0; mX = -10.0; mY = -7.5; mScalePct = 123.5
     else
       hW = 2.5; hH = 11.0; hX = 3.0; hY = 7.0; hScalePct = 0.0
       bW = 19.5; bH = 30.5; bX = 7.0; bY = 1.0; bScalePct = 0.0
@@ -2407,7 +2422,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     local bgAnchor = anchorPower
     local healthAnchorX, healthAnchorY = hX, hY
     local bgAnchorX, bgAnchorY = bX, bY
-    if portraitAnchor then
+    if portraitAnchor and isPlayerFrame then
       local px, py = GetSafeCenter(portraitAnchor)
       if px and py then
         local hx2, hy2 = GetSafeCenter(hp)
@@ -2705,7 +2720,7 @@ addonTable.ApplyUnitFrameCustomization = function()
         o.healthFrame:SetFrameLevel(healthLevel)
       end
       o.dmgAbsorbFrame:SetFrameStrata(strata)
-      o.dmgAbsorbFrame:SetFrameLevel(healthLevel + 3)
+      o.dmgAbsorbFrame:SetFrameLevel(math.max(1, healthLevel - 1))
     end
     if o.fullDmgAbsorbFrame then
       o.fullDmgAbsorbFrame:SetFrameStrata(strata)
@@ -2724,7 +2739,7 @@ addonTable.ApplyUnitFrameCustomization = function()
       o.healAbsorbFrame:SetFrameStrata(strata)
       o.healAbsorbFrame:SetFrameLevel(healthLevel + 1)
     end
-    o.maskFixFrame:SetFrameLevel(math.max(1, healthLevel + 1))
+    o.maskFixFrame:SetFrameLevel(math.max(1, healthLevel + 5))
     if (key == "target" or key == "focus") and portrait and portrait.SetFrameStrata and portrait.SetFrameLevel then
       portrait:SetFrameStrata(strata)
       portrait:SetFrameLevel(math.max(1, healthLevel + 2))
@@ -2754,15 +2769,9 @@ addonTable.ApplyUnitFrameCustomization = function()
     if o.dmgAbsorbTex then
       if o.dmgAbsorbFrame and o.dmgAbsorbFrame.SetStatusBarTexture then
         o.dmgAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathPrimary)
-        if not (o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
-          o.dmgAbsorbFrame:SetStatusBarTexture(dmgAbsorbPathLegacy)
-        end
       end
       o.dmgAbsorbTex = o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture() or o.dmgAbsorbTex
       o.dmgAbsorbTex:SetTexture(dmgAbsorbPathPrimary)
-      if not (o.dmgAbsorbFrame and o.dmgAbsorbFrame.GetStatusBarTexture and o.dmgAbsorbFrame:GetStatusBarTexture()) then
-        o.dmgAbsorbTex:SetTexture(dmgAbsorbPathLegacy)
-      end
       if o.dmgAbsorbTex.SetTexCoord then
         o.dmgAbsorbTex:SetTexCoord(0, 1, 0, 1)
       end
@@ -2903,7 +2912,18 @@ addonTable.ApplyUnitFrameCustomization = function()
       if srcBar.SetWidth then hooksecurefunc(srcBar, "SetWidth", syncDmgAbsorb) end
       if srcBar.SetPoint then hooksecurefunc(srcBar, "SetPoint", syncDmgAbsorb) end
       if srcBar.Show then hooksecurefunc(srcBar, "Show", syncDmgAbsorb) end
-      if srcBar.Hide then hooksecurefunc(srcBar, "Hide", syncDmgAbsorb) end
+      if srcBar.Hide then
+        hooksecurefunc(srcBar, "Hide", function()
+          local ov = State.ufBigHBOverlays[hookKey]
+          if ov then
+            if ov.dmgAbsorbFrame and ov.dmgAbsorbFrame.Hide then ov.dmgAbsorbFrame:Hide() end
+            if ov.fullDmgAbsorbFrame and ov.fullDmgAbsorbFrame.Hide then ov.fullDmgAbsorbFrame:Hide() end
+            if ov.dmgAbsorbGlow and ov.dmgAbsorbGlow.Hide then ov.dmgAbsorbGlow:Hide() end
+            UpdateUFBigHBHealPrediction(ov, hookKey)
+            UpdateUFBigHBDmgAbsorb(ov, hookKey)
+          end
+        end)
+      end
       local overGlow = hp.OverAbsorbGlow
       if overGlow then
         if overGlow.Show then hooksecurefunc(overGlow, "Show", syncDmgAbsorb) end
@@ -2974,6 +2994,46 @@ addonTable.ApplyUnitFrameCustomization = function()
           end
         end)
       end
+    end
+    if (key == "target" or key == "focus") and hp and o.layoutHookTarget ~= hp then
+      o.layoutHookTarget = hp
+      local hookKey = key
+      local hookRoot = bigHBRoot
+      local hookHP = hp
+      local hookMP = mp
+      local hookPortrait = portrait
+      local hookIsPlayer = isPlayerFrame
+      local function QueueOverlayReanchor()
+        if InCombatLockdown and InCombatLockdown() then
+          State.unitFrameCustomizationPending = true
+          return
+        end
+        local ov = State.ufBigHBOverlays and State.ufBigHBOverlays[hookKey]
+        if not ov then return end
+        ov._ccmAnchorRefreshSeq = (ov._ccmAnchorRefreshSeq or 0) + 1
+        local seq = ov._ccmAnchorRefreshSeq
+        local function RunReanchor()
+          local cur = State.ufBigHBOverlays and State.ufBigHBOverlays[hookKey]
+          if not cur or cur._ccmAnchorRefreshSeq ~= seq then return end
+          local p = addonTable.GetProfile and addonTable.GetProfile()
+          if not p or p.enableUnitFrameCustomization == false then return end
+          if hookKey == "target" and p.ufBigHBTargetEnabled ~= true then return end
+          if hookKey == "focus" and p.ufBigHBFocusEnabled ~= true then return end
+          if InCombatLockdown and InCombatLockdown() then
+            State.unitFrameCustomizationPending = true
+            return
+          end
+          ApplyUFBigHBForFrame(hookKey, hookRoot, hookHP, hookMP, hookPortrait, hookIsPlayer)
+        end
+        if C_Timer and C_Timer.After then
+          C_Timer.After(0, RunReanchor)
+        else
+          RunReanchor()
+        end
+      end
+      if hookHP.SetPoint then hooksecurefunc(hookHP, "SetPoint", QueueOverlayReanchor) end
+      if hookHP.SetWidth then hooksecurefunc(hookHP, "SetWidth", QueueOverlayReanchor) end
+      if hookHP.SetHeight then hooksecurefunc(hookHP, "SetHeight", QueueOverlayReanchor) end
     end
     SetUFBaseHealthBarCovered(o, hp, true, bigHBRoot and bigHBRoot.HealthBarsContainer, bigHBRoot)
     if (key == "target" or key == "focus") and bigHBRoot and bigHBRoot.ReputationColor then
@@ -3078,11 +3138,11 @@ addonTable.ApplyUnitFrameCustomization = function()
       local x = tonumber(xOff) or 0
       if unitToken == "target" then
         if anchorMode == "left" then
-          return x + 4
+          return x + 5
         elseif anchorMode == "right" then
-          return x + 86
+          return x - 1
         else
-          return x + 45
+          return x + 1
         end
       end
       if unitToken == "focus" then
@@ -3538,7 +3598,10 @@ addonTable.ApplyUnitFrameCustomization = function()
     local focusRoot, focusHB, focusMP, focusPortrait = ResolveTargetLikeBars(FocusFrame)
     ApplyUFBigHBForFrame("focus", focusRoot or FocusFrame, focusHB, focusMP, focusPortrait, false)
     if C_Timer and C_Timer.After and profile.ufBigHBPlayerEnabled then
-      C_Timer.After(0.5, function()
+      State.ufBigHBPlayerDeferredSyncSeq = (State.ufBigHBPlayerDeferredSyncSeq or 0) + 1
+      local syncSeq = State.ufBigHBPlayerDeferredSyncSeq
+      C_Timer.After(0.08, function()
+        if syncSeq ~= State.ufBigHBPlayerDeferredSyncSeq then return end
         local ov = State.ufBigHBOverlays and State.ufBigHBOverlays["player"]
         if not ov or not ov.healthFrame then return end
         local pRoot = PlayerFrame and PlayerFrame.PlayerFrameContent and PlayerFrame.PlayerFrameContent.PlayerFrameContentMain

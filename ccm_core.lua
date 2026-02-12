@@ -4804,9 +4804,6 @@ local function UpdateStandaloneBlizzardBars()
       if #visibleIcons > 0 then
         local iconSize = utilitySize
         local iconSpacing = spacing
-        if iconSpacing == 0 then
-          iconSpacing = -1
-        end
         local numCols = #visibleIcons
         if utility.iconGridNumColumns and utility.iconGridNumColumns > 0 then
           numCols = utility.iconGridNumColumns
@@ -4944,7 +4941,6 @@ if CooldownViewerSettings and CooldownViewerSettings.RefreshLayout then
     end)
   end)
 end
--- Per-bar RefreshLayout hooks: recenter immediately after Blizzard refreshes each bar
 for _, viewerName in ipairs({"EssentialCooldownViewer", "UtilityCooldownViewer", "BuffIconCooldownViewer"}) do
   local viewer = _G[viewerName]
   if viewer and viewer.RefreshLayout then
@@ -4954,7 +4950,6 @@ for _, viewerName in ipairs({"EssentialCooldownViewer", "UtilityCooldownViewer",
     end)
   end
 end
--- OnUpdate centering: runs last before render, ensures our positions always win
 do
   local centerFrame = CreateFrame("Frame")
   centerFrame.elapsed = 0
@@ -5346,7 +5341,7 @@ local function UpdateCustomBar()
     return
   end
   local totalIcons = #State.customBar1Icons
-  local direction = profile.customBarDirection or "horizontal"
+  local direction = profile.customBar2Direction or "horizontal"
   local isHorizontal = (direction == "horizontal")
   local numRows, numCols
   if centered then
@@ -5911,7 +5906,7 @@ local function UpdateCustomBar2()
     return
   end
   local totalIcons = #State.customBar2Icons
-  local direction = profile.customBarDirection or "horizontal"
+  local direction = profile.customBar2Direction or "horizontal"
   local isHorizontal = (direction == "horizontal")
   local numRows, numCols
   if centered then
@@ -6476,7 +6471,7 @@ local function UpdateCustomBar3()
     return
   end
   local totalIcons = #State.customBar3Icons
-  local direction = profile.customBarDirection or "horizontal"
+  local direction = profile.customBar3Direction or "horizontal"
   local isHorizontal = (direction == "horizontal")
   local numRows, numCols
   if centered then
@@ -7815,28 +7810,80 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
     if addonTable.TryAutoSellJunk then addonTable.TryAutoSellJunk() end
   elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-    if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    if State.ufBigHBOverlays then
+      State.ufBigHBAbsorbSwapUntil = State.ufBigHBAbsorbSwapUntil or {}
+      local nowTs = (GetTime and GetTime()) or 0
+      if type(nowTs) ~= "number" then nowTs = 0 end
+      local swapUnits = {"target", "focus"}
+      for i = 1, #swapUnits do
+        local unit = swapUnits[i]
+        local ov = State.ufBigHBOverlays[unit]
+        State.ufBigHBAbsorbSwapUntil[unit] = nowTs + 0.10
+        if ov then
+          if ov.dmgAbsorbFrame and ov.dmgAbsorbFrame.Hide then ov.dmgAbsorbFrame:Hide() end
+          if ov.fullDmgAbsorbFrame and ov.fullDmgAbsorbFrame.Hide then ov.fullDmgAbsorbFrame:Hide() end
+          if ov.dmgAbsorbGlow and ov.dmgAbsorbGlow.Hide then ov.dmgAbsorbGlow:Hide() end
+        end
+      end
+    end
     if C_Timer and C_Timer.After and State.ufBigHBOverlays and addonTable.UpdateUFBigHBHealPrediction then
       C_Timer.After(0.02, function()
-        local ov = State.ufBigHBOverlays and State.ufBigHBOverlays["player"]
-        if ov then
-          addonTable.UpdateUFBigHBHealPrediction(ov, "player")
-          if addonTable.UpdateUFBigHBDmgAbsorb then
-            addonTable.UpdateUFBigHBDmgAbsorb(ov, "player")
+        local units = {"target", "focus"}
+        for i = 1, #units do
+          local unit = units[i]
+          local ov = State.ufBigHBOverlays and State.ufBigHBOverlays[unit]
+          if ov then
+            if ov.origHP and addonTable.SyncUFBigHBOverlayValue then
+              addonTable.SyncUFBigHBOverlayValue(ov, ov.origHP)
+            end
+            addonTable.UpdateUFBigHBHealPrediction(ov, unit)
           end
+        end
+        if C_Timer and C_Timer.After and State.ufBigHBOverlays and addonTable.UpdateUFBigHBDmgAbsorb then
+          C_Timer.After(0.10, function()
+            local swapUnits = {"target", "focus"}
+            for i = 1, #swapUnits do
+              local unit = swapUnits[i]
+              local ov = State.ufBigHBOverlays and State.ufBigHBOverlays[unit]
+              if ov then
+                if ov.origHP and addonTable.SyncUFBigHBOverlayValue then
+                  addonTable.SyncUFBigHBOverlayValue(ov, ov.origHP)
+                end
+                addonTable.UpdateUFBigHBDmgAbsorb(ov, unit)
+              end
+              if State.ufBigHBAbsorbSwapUntil then
+                State.ufBigHBAbsorbSwapUntil[unit] = nil
+              end
+            end
+          end)
         end
       end)
     end
   elseif event == "UNIT_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_ABSORB_AMOUNT_CHANGED" or event == "UNIT_HEAL_PREDICTION" or event == "UNIT_HEALTH" or event == "UNIT_MAXHEALTH" then
     if (arg1 == "player" or arg1 == "target" or arg1 == "focus") and State.ufBigHBOverlays then
       local ov = State.ufBigHBOverlays[arg1]
+      local skipAbsorbUpdate = false
+      if (arg1 == "target" or arg1 == "focus") and State.ufBigHBAbsorbSwapUntil and GetTime then
+        local blockUntil = State.ufBigHBAbsorbSwapUntil[arg1]
+        local nowTs = GetTime()
+        if type(blockUntil) == "number" and type(nowTs) == "number" and nowTs < blockUntil then
+          skipAbsorbUpdate = true
+        else
+          State.ufBigHBAbsorbSwapUntil[arg1] = nil
+        end
+      end
       if ov and ov.origHP and addonTable.SyncUFBigHBOverlayValue then
         addonTable.SyncUFBigHBOverlayValue(ov, ov.origHP)
       end
       if ov and ov.myHealPredFrame and addonTable.UpdateUFBigHBHealPrediction then
         addonTable.UpdateUFBigHBHealPrediction(ov, arg1)
       end
-      if ov and ov.dmgAbsorbFrame and addonTable.UpdateUFBigHBDmgAbsorb then
+      if skipAbsorbUpdate and ov then
+        if ov.dmgAbsorbFrame and ov.dmgAbsorbFrame.Hide then ov.dmgAbsorbFrame:Hide() end
+        if ov.fullDmgAbsorbFrame and ov.fullDmgAbsorbFrame.Hide then ov.fullDmgAbsorbFrame:Hide() end
+        if ov.dmgAbsorbGlow and ov.dmgAbsorbGlow.Hide then ov.dmgAbsorbGlow:Hide() end
+      end
+      if (not skipAbsorbUpdate) and ov and ov.dmgAbsorbFrame and addonTable.UpdateUFBigHBDmgAbsorb then
         addonTable.UpdateUFBigHBDmgAbsorb(ov, arg1)
       end
     end

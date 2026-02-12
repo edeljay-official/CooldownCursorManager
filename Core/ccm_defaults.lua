@@ -166,6 +166,7 @@ CCM.Defaults = {
       hidePetBarAlways = false,
       fadeMicroMenu = false,
       hideActionBarBorders = false,
+      hideActionBarGlows = true,
       abSkinSpacing = 2,
       actionBarGlobalMode = "custom",
       fadeObjectiveTracker = false,
@@ -323,24 +324,6 @@ CCM.Defaults = {
       ufBigHBFocusDmgAbsorb = "bar_glow",
       ufBigHBFocusHealPred = "on",
       ufBigHBFocusAbsorbStripes = true,
-      ufBigHBPlayerMaskFixWidth = 18.0,
-      ufBigHBPlayerMaskFixHeight = -12.5,
-      ufBigHBPlayerMaskFixXOffset = -10.0,
-      ufBigHBPlayerMaskFixYOffset = 4.5,
-      ufBigHBPlayerMaskFixScale = 0.5,
-      ufBigHBPlayerMaskFixColorR = 0,
-      ufBigHBPlayerMaskFixColorG = 0,
-      ufBigHBPlayerMaskFixColorB = 0,
-      ufBigHBPlayerMaskFixColorA = 1,
-      ufBigHBOtherMaskFixWidth = -76.5,
-      ufBigHBOtherMaskFixHeight = 18.5,
-      ufBigHBOtherMaskFixXOffset = 84.0,
-      ufBigHBOtherMaskFixYOffset = 1.0,
-      ufBigHBOtherMaskFixScale = -8.5,
-      ufBigHBOtherMaskFixColorR = 0,
-      ufBigHBOtherMaskFixColorG = 0,
-      ufBigHBOtherMaskFixColorB = 0,
-      ufBigHBOtherMaskFixColorA = 1,
       usePersonalResourceBar = false,
       prbX = 0,
       prbY = -180,
@@ -718,4 +701,3 @@ end
 function CCM:GetDefault(key)
   return self.Defaults.profiles.Default[key]
 end
-

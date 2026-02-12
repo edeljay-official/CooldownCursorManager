@@ -1,4 +1,9 @@
-﻿local _, addonTable = ...
+﻿--------------------------------------------------------------------------------
+-- CooldownCursorManager - ccm_fcastbar.lua
+-- Focus castbar customization and updates
+-- Author: Edeljay
+--------------------------------------------------------------------------------
+local _, addonTable = ...
 local State = addonTable.State
 local GetGlobalFont = addonTable.GetGlobalFont
 local FitTextToBar = addonTable.FitTextToBar
