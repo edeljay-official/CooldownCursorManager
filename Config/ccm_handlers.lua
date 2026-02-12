@@ -607,6 +607,7 @@ local function UpdateAllControls()
   if addonTable.fadeMicroMenuCB then addonTable.fadeMicroMenuCB:SetChecked(profile.fadeMicroMenu == true) end
   if addonTable.hideABBordersCB then addonTable.hideABBordersCB:SetChecked(profile.hideActionBarBorders == true) end
   local abSkinOn = profile.hideActionBarBorders == true
+  if addonTable.hideABGlowsCB then addonTable.hideABGlowsCB:SetChecked(profile.hideActionBarGlows ~= false); addonTable.hideABGlowsCB:SetEnabled(abSkinOn); addonTable.hideABGlowsCB:SetAlpha(abSkinOn and 1 or 0.4) end
   if addonTable.abSkinSpacingSlider then addonTable.abSkinSpacingSlider:SetValue(profile.abSkinSpacing or 2); addonTable.abSkinSpacingSlider:SetEnabled(abSkinOn); addonTable.abSkinSpacingSlider:SetAlpha(abSkinOn and 1 or 0.4) end
   if addonTable.fadeObjectiveTrackerCB then addonTable.fadeObjectiveTrackerCB:SetChecked(profile.fadeObjectiveTracker == true) end
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB:SetChecked(profile.fadeBagBar == true) end
@@ -1438,6 +1439,7 @@ local function InitHandlers()
   if addonTable.hidePetBarAlwaysCB then addonTable.hidePetBarAlwaysCB.customOnClick = function(s) local p = GetProfile(); if p then p.hidePetBarAlways = s:GetChecked(); if addonTable.UpdateActionBarVisibility then addonTable.UpdateActionBarVisibility() end end end end
   if addonTable.fadeMicroMenuCB then addonTable.fadeMicroMenuCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeMicroMenu = s:GetChecked(); if addonTable.SetupFadeMicroMenu then addonTable.SetupFadeMicroMenu() end end end end
   if addonTable.hideABBordersCB then addonTable.hideABBordersCB.customOnClick = function(s) local p = GetProfile(); if p then local was = p.hideActionBarBorders; p.hideActionBarBorders = s:GetChecked(); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end; if was and not s:GetChecked() then ShowReloadPrompt("Disabling Action Bar Skinning requires a UI reload for best results. Reload now?", "Reload", "Later") end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end end end end
+  if addonTable.hideABGlowsCB then addonTable.hideABGlowsCB.customOnClick = function(s) local p = GetProfile(); if p then p.hideActionBarGlows = s:GetChecked(); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end end end end
   if addonTable.abSkinSpacingSlider then addonTable.abSkinSpacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.abSkinSpacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.SetupHideABBorders then addonTable.SetupHideABBorders() end end end) end
   if addonTable.fadeObjectiveTrackerCB then addonTable.fadeObjectiveTrackerCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeObjectiveTracker = s:GetChecked(); if addonTable.SetupFadeObjectiveTracker then addonTable.SetupFadeObjectiveTracker() end end end end
   if addonTable.fadeBagBarCB then addonTable.fadeBagBarCB.customOnClick = function(s) local p = GetProfile(); if p then p.fadeBagBar = s:GetChecked(); if addonTable.SetupFadeBagBar then addonTable.SetupFadeBagBar() end end end end
@@ -1745,31 +1747,6 @@ local function InitHandlers()
       end)
     end
   end
-  local function GetUFBigHBAnchorCompensation(unitToken, anchorMode)
-    local mode = type(anchorMode) == "string" and string.lower(anchorMode) or "center"
-    if unitToken == "target" then
-      if mode == "left" then return 4 end
-      if mode == "right" then return 86 end
-      return 45
-    end
-    if unitToken == "focus" then
-      if mode == "left" then return 4 end
-      if mode == "right" then return 86 end
-      return 45
-    end
-    if unitToken == "player" then
-      if mode == "left" then return -78 end
-      if mode == "right" then return 8 end
-      return -34
-    end
-    return 0
-  end
-  local function RebaseUFBigHBNameX(oldX, oldAnchor, newAnchor, unitToken)
-    local x = tonumber(oldX) or 0
-    local oldComp = GetUFBigHBAnchorCompensation(unitToken, oldAnchor)
-    local newComp = GetUFBigHBAnchorCompensation(unitToken, newAnchor)
-    return math.floor((x + oldComp - newComp) + 0.5)
-  end
   if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
   if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
   if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
@@ -1777,13 +1754,13 @@ local function InitHandlers()
 
   if addonTable.ufBigHBNameMaxCharsSlider then addonTable.ufBigHBNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
   if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHidePlayerName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
-  if addonTable.ufBigHBPlayerNameAnchorDD then addonTable.ufBigHBPlayerNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then local oldAnchor = p.ufBigHBPlayerNameAnchor or "center"; local newAnchor = v or "center"; p.ufBigHBPlayerNameX = RebaseUFBigHBNameX(p.ufBigHBPlayerNameX, oldAnchor, newAnchor, "player"); p.ufBigHBPlayerNameAnchor = newAnchor; ApplyUFBigHealthbarChanges(true) end end end
+  if addonTable.ufBigHBPlayerNameAnchorDD then addonTable.ufBigHBPlayerNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerNameAnchor = v or "center"; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBPlayerLevelDD then addonTable.ufBigHBPlayerLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelMode = v; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBHideTargetNameCB then addonTable.ufBigHBHideTargetNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideTargetName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
-  if addonTable.ufBigHBTargetNameAnchorDD then addonTable.ufBigHBTargetNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then local oldAnchor = p.ufBigHBTargetNameAnchor or "center"; local newAnchor = v or "center"; p.ufBigHBTargetNameX = RebaseUFBigHBNameX(p.ufBigHBTargetNameX, oldAnchor, newAnchor, "target"); p.ufBigHBTargetNameAnchor = newAnchor; ApplyUFBigHealthbarChanges(true) end end end
+  if addonTable.ufBigHBTargetNameAnchorDD then addonTable.ufBigHBTargetNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBTargetNameAnchor = v or "center"; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBTargetLevelDD then addonTable.ufBigHBTargetLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBTargetLevelMode = v; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBHideFocusNameCB then addonTable.ufBigHBHideFocusNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideFocusName = s:GetChecked(); ApplyUFBigHealthbarChanges(true) end end end
-  if addonTable.ufBigHBFocusNameAnchorDD then addonTable.ufBigHBFocusNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then local oldAnchor = p.ufBigHBFocusNameAnchor or "center"; local newAnchor = v or "center"; p.ufBigHBFocusNameX = RebaseUFBigHBNameX(p.ufBigHBFocusNameX, oldAnchor, newAnchor, "focus"); p.ufBigHBFocusNameAnchor = newAnchor; ApplyUFBigHealthbarChanges(true) end end end
+  if addonTable.ufBigHBFocusNameAnchorDD then addonTable.ufBigHBFocusNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBFocusNameAnchor = v or "center"; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBFocusLevelDD then addonTable.ufBigHBFocusLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBFocusLevelMode = v; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerNameXSlider then addonTable.ufBigHBPlayerNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
   if addonTable.ufBigHBPlayerNameYSlider then addonTable.ufBigHBPlayerNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
@@ -2828,7 +2805,7 @@ local function InitHandlers()
                "hideAB8InCombat", "hideAB8Mouseover", "hideAB8Always",
                 "hideStanceBarInCombat", "hideStanceBarMouseover", "hideStanceBarAlways",
                 "hidePetBarInCombat", "hidePetBarMouseover", "hidePetBarAlways",
-                "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "abSkinSpacing", "fadeObjectiveTracker", "fadeBagBar",
+                "actionBarGlobalMode", "fadeMicroMenu", "hideActionBarBorders", "hideActionBarGlows", "abSkinSpacing", "fadeObjectiveTracker", "fadeBagBar",
                "betterItemLevel", "showEquipmentDetails",
                "chatClassColorNames", "chatTimestamps", "chatTimestampFormat", "chatCopyButton", "chatCopyButtonCorner",
                "chatUrlDetection", "chatBackground", "chatBackgroundAlpha", "chatBackgroundColorR", "chatBackgroundColorG", "chatBackgroundColorB",
@@ -2923,14 +2900,10 @@ local function InitHandlers()
                "ufBigHBTargetNameTextScale", "ufBigHBTargetLevelTextScale",
                "ufBigHBHideFocusName", "ufBigHBFocusNameAnchor", "ufBigHBFocusLevelMode",
                "ufBigHBFocusNameX", "ufBigHBFocusNameY", "ufBigHBFocusLevelX", "ufBigHBFocusLevelY",
-               "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
-               "ufBigHBNameMaxChars",
-               "ufBigHBHideRealm",
-               "ufBigHBPlayerMaskFixWidth", "ufBigHBPlayerMaskFixHeight", "ufBigHBPlayerMaskFixXOffset", "ufBigHBPlayerMaskFixYOffset", "ufBigHBPlayerMaskFixScale",
-               "ufBigHBPlayerMaskFixColorR", "ufBigHBPlayerMaskFixColorG", "ufBigHBPlayerMaskFixColorB", "ufBigHBPlayerMaskFixColorA",
-               "ufBigHBOtherMaskFixWidth", "ufBigHBOtherMaskFixHeight", "ufBigHBOtherMaskFixXOffset", "ufBigHBOtherMaskFixYOffset", "ufBigHBOtherMaskFixScale",
-               "ufBigHBOtherMaskFixColorR", "ufBigHBOtherMaskFixColorG", "ufBigHBOtherMaskFixColorB", "ufBigHBOtherMaskFixColorA",
-               },
+                "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
+                "ufBigHBNameMaxChars",
+                "ufBigHBHideRealm",
+                },
   }
   local keyToCategory = {}
   for cat, keys in pairs(exportCategoryKeys) do
@@ -3045,7 +3018,7 @@ local function InitHandlers()
                         hideAB8InCombat = true, hideAB8Mouseover = true, hideAB8Always = true,
                         hideStanceBarInCombat = true, hideStanceBarMouseover = true, hideStanceBarAlways = true,
                         hidePetBarInCombat = true, hidePetBarMouseover = true, hidePetBarAlways = true,
-                        fadeMicroMenu = true, hideActionBarBorders = true, fadeObjectiveTracker = true, fadeBagBar = true, betterItemLevel = true, showEquipmentDetails = true,
+                        fadeMicroMenu = true, hideActionBarBorders = true, hideActionBarGlows = true, fadeObjectiveTracker = true, fadeBagBar = true, betterItemLevel = true, showEquipmentDetails = true,
                         chatClassColorNames = true, chatTimestamps = true, chatCopyButton = true, chatUrlDetection = true, chatBackground = true, chatHideButtons = true, chatFadeToggle = true, chatEditBoxStyled = true, chatTabFlash = true,
                         skyridingEnabled = true, skyridingHideCDM = true, skyridingVigorBar = true, skyridingSpeedDisplay = true, skyridingSpeedBar = true, skyridingCooldowns = true, skyridingCentered = true,
                         autoRepair = true, showTooltipIDs = true, compactMinimapIcons = true, enhancedTooltip = true,
@@ -3231,9 +3204,9 @@ local function InitHandlers()
       if prb.healthYOffsetSlider then prb.healthYOffsetSlider:SetValue(num(p.prbHealthYOffset, 0)); prb.healthYOffsetSlider.valueText:SetText(math.floor(num(p.prbHealthYOffset, 0))) end
       if prb.healthTextureDD then prb.healthTextureDD:SetValue(p.prbHealthTexture or "solid") end
       if prb.healAbsorbCB then prb.healAbsorbCB:SetChecked((p.prbHealAbsorb or "on") ~= "off") end
-      if prb.absorbModeDD then
+      if prb.showAbsorbCB then
         local dmgMode = p.prbDmgAbsorb or "bar"
-        prb.absorbModeDD:SetValue((dmgMode == "bar" or dmgMode == "bar_glow") and "shield" or "off")
+        prb.showAbsorbCB:SetChecked(dmgMode ~= "off")
       end
       if prb.absorbStripesCB then prb.absorbStripesCB:SetChecked(p.prbAbsorbStripes == true) end
       if prb.healPredCB then prb.healPredCB:SetChecked((p.prbHealPred or "on") ~= "off") end
@@ -3310,9 +3283,9 @@ local function InitHandlers()
     if prb.healthYOffsetSlider then prb.healthYOffsetSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local r = math.floor(v); s._updating = true; s:SetValue(r); s._updating = false; s.valueText:SetText(r); local p = GetProfile(); if p then p.prbHealthYOffset = r; UpdatePRBAndHighlight() end end) end
     if prb.healthTextureDD then prb.healthTextureDD.onSelect = function(v) local p = GetProfile(); if p then p.prbHealthTexture = v; UpdatePRBAndHighlight() end end end
     if prb.healAbsorbCB then prb.healAbsorbCB.customOnClick = function(s) local p = GetProfile(); if p then p.prbHealAbsorb = s:GetChecked() and "on" or "off"; UpdatePRBAndHighlight() end end end
-    if prb.absorbModeDD then prb.absorbModeDD.onSelect = function(v)
+    if prb.showAbsorbCB then prb.showAbsorbCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
-      p.prbDmgAbsorb = (v == "shield") and "bar" or "off"
+      p.prbDmgAbsorb = s:GetChecked() and "bar" or "off"
       UpdatePRBAndHighlight()
       if addonTable.UpdatePRBSectionVisibility then addonTable.UpdatePRBSectionVisibility() end
     end end
@@ -3959,8 +3932,3 @@ local function InitHandlers()
   end
 end
 C_Timer.After(0.1, InitHandlers)
-
-
-
-
-

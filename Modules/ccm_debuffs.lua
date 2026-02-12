@@ -1,4 +1,9 @@
-﻿local _, addonTable = ...
+﻿--------------------------------------------------------------------------------
+-- CooldownCursorManager - ccm_debuffs.lua
+-- Player debuff icon skinning and layout
+-- Author: Edeljay
+--------------------------------------------------------------------------------
+local _, addonTable = ...
 local State = addonTable.State
 local AddIconBorder = addonTable.AddIconBorder
 local GetGlobalFont = addonTable.GetGlobalFont

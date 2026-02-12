@@ -626,16 +626,12 @@ local function InitTabs()
     ApplyTextureOptionsToDropdown(prb.healthTextureDD)
     prb.healthTextDD, prb.healthTextLbl = StyledDropdown(pc, "Text", 170, y, 105)
     prb.healthTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
-    prb.absorbModeDD, prb.absorbModeLbl = StyledDropdown(pc, "Absorb", 295, y, 130)
-    prb.absorbModeDD:SetOptions({
-      {text = "Off", value = "off"},
-      {text = "Shield", value = "shield"},
-    })
-    y = y - 50
-    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", COL1, y)
-    prb.healAbsorbCB = Checkbox(pc, "Heal Absorb", 170, y)
-    prb.overAbsorbBarCB = Checkbox(pc, "Overabsorb", 295, y)
-    prb.healPredCB = Checkbox(pc, "Heal Prediction", 420, y)
+    prb.showAbsorbCB = Checkbox(pc, "Show Absorb", 295, y - 18)
+    y = y - 54
+    prb.healAbsorbCB = Checkbox(pc, "Heal Absorb", COL1, y)
+    prb.healPredCB = Checkbox(pc, "Heal Prediction", 170, y)
+    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", 295, y)
+    prb.overAbsorbBarCB = Checkbox(pc, "Overabsorb", 420, y)
     y = y - 25
     prb.healthColorBtn, prb.healthColorSwatch = ColorBtn("Bar Color", COL1, y - 22, 0, 0.8, 0)
     prb.healthTextColorBtn, prb.healthTextColorSwatch = ColorBtn("Text Color", COL1 + 110, y - 22, 1, 1, 1)
@@ -649,10 +645,10 @@ local function InitTabs()
       prb.healthTextureDD, prb.healthTextureLbl,
       prb.healthTextDD, prb.healthTextLbl,
       prb.healAbsorbCB, prb.healAbsorbCB.label,
-      prb.absorbModeDD, prb.absorbModeLbl,
-      prb.absorbStripesCB, prb.absorbStripesCB.label,
       prb.healPredCB, prb.healPredCB.label,
+      prb.absorbStripesCB, prb.absorbStripesCB.label,
       prb.overAbsorbBarCB, prb.overAbsorbBarCB.label,
+      prb.showAbsorbCB, prb.showAbsorbCB.label,
       prb.healthTextYSlider, prb.healthTextYSlider.label, prb.healthTextYSlider.valueText, prb.healthTextYSlider.valueTextBg, prb.healthTextYSlider.upBtn, prb.healthTextYSlider.downBtn,
       prb.healthColorBtn, prb.healthColorSwatch, prb.healthTextColorBtn, prb.healthTextColorSwatch,
       prb.useClassColorCB, prb.useClassColorCB.label,
@@ -1333,10 +1329,11 @@ local function InitTabs()
     abRowY = abRowY - AB_ROW_H
     CreateABModeRow("petBar", "Pet Bar", abRowY)
     addonTable.fadeMicroMenuCB = Checkbox(qc, "Fade Micro Menu", 15, -794)
-    addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", AB_DD_X, -794)
+    addonTable.hideABGlowsCB = Checkbox(qc, "Hide Glows", AB_DD_X, -794)
     addonTable.fadeObjectiveTrackerCB = Checkbox(qc, "Fade Objective Tracker", 15, -819)
-    addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", AB_DD_X, -819)
-    addonTable.abSkinSpacingSlider = Slider(qc, "Skinning Spacing", AB_DD_X, -846, 0, 10, 2, 1)
+    addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", AB_DD_X, -819)
+    addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", 15, -844)
+    addonTable.abSkinSpacingSlider = Slider(qc, "Skinning Spacing", AB_DD_X, -862, 0, 10, 2, 1)
     Section(qcTop, "Radial Circle", -12)
     addonTable.radialCB = Checkbox(qcTop, "Enable Radial Circle", 15, -37)
     addonTable.radialCombatCB = Checkbox(qcTop, "Combat Only", 200, -37)
@@ -1408,7 +1405,7 @@ local function InitTabs()
     end)
     local qcAfterAB = CreateFrame("Frame", nil, qc)
     qcAfterAB:SetSize(490, 3140)
-    qcAfterAB:SetPoint("TOPLEFT", qc, "TOPLEFT", 0, 115)
+    qcAfterAB:SetPoint("TOPLEFT", qc, "TOPLEFT", 0, 70)
     qc = qcAfterAB
     Section(qc, "Useful Features", -1003)
     addonTable.autoRepairCB = Checkbox(qc, "Auto Repair (Guild > Gold)", 15, -1028)
@@ -1596,6 +1593,3 @@ local function InitTabs()
   end
 end
 C_Timer.After(0, InitTabs)
-
-
-

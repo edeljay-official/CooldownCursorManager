@@ -1353,6 +1353,134 @@ local function UpdateSkinnedButtonTexts(btn, hasAction, st)
   end
 end
 
+local function CaptureCooldownVisualState(state, cooldownFrame)
+  if not state or not cooldownFrame or state.origCooldownVisual then return end
+  local visual = {}
+  if cooldownFrame.GetDrawSwipe then visual.drawSwipe = cooldownFrame:GetDrawSwipe() end
+  if cooldownFrame.GetDrawEdge then visual.drawEdge = cooldownFrame:GetDrawEdge() end
+  if cooldownFrame.GetDrawBling then visual.drawBling = cooldownFrame:GetDrawBling() end
+  if cooldownFrame.GetSwipeColor then
+    local r, g, b, a = cooldownFrame:GetSwipeColor()
+    if r then visual.swipeColor = { r, g, b, a } end
+  end
+  state.origCooldownVisual = visual
+end
+
+local function ShouldHideActionBarGlows()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return false end
+  if profile.hideActionBarBorders ~= true then return false end
+  return profile.hideActionBarGlows ~= false
+end
+
+local function RestoreCooldownVisualState(state, cooldownFrame)
+  if not state or not cooldownFrame then return end
+  local visual = state.origCooldownVisual
+  if not visual then return end
+  if visual.drawSwipe ~= nil and cooldownFrame.SetDrawSwipe then cooldownFrame:SetDrawSwipe(visual.drawSwipe) end
+  if visual.drawEdge ~= nil and cooldownFrame.SetDrawEdge then cooldownFrame:SetDrawEdge(visual.drawEdge) end
+  if visual.drawBling ~= nil and cooldownFrame.SetDrawBling then cooldownFrame:SetDrawBling(visual.drawBling) end
+  if visual.swipeColor and cooldownFrame.SetSwipeColor then
+    cooldownFrame:SetSwipeColor(visual.swipeColor[1], visual.swipeColor[2], visual.swipeColor[3], visual.swipeColor[4])
+  end
+end
+
+local function ApplyCustomCooldownVisual(cooldownFrame, parentButton)
+  if not cooldownFrame then return end
+  cooldownFrame:ClearAllPoints()
+  cooldownFrame:SetAllPoints(parentButton or cooldownFrame:GetParent())
+  if cooldownFrame.SetDrawSwipe then cooldownFrame:SetDrawSwipe(true) end
+  if cooldownFrame.SetDrawEdge then cooldownFrame:SetDrawEdge(false) end
+  if cooldownFrame.SetDrawBling then cooldownFrame:SetDrawBling(false) end
+  if cooldownFrame.SetSwipeTexture then cooldownFrame:SetSwipeTexture("Interface\\Cooldown\\star4") end
+  if cooldownFrame.SetSwipeColor then cooldownFrame:SetSwipeColor(0, 0, 0, 0.55) end
+end
+
+local function RestoreButtonGlowVisual(btn)
+  if not btn then return end
+  if btn.Border then btn.Border:SetAlpha(1) end
+  if btn.overlay then btn.overlay:SetAlpha(1) end
+  local activationAlert = btn.SpellActivationAlert or (btn.GetName and _G[btn:GetName() .. "SpellActivationAlert"])
+  if activationAlert then
+    activationAlert:SetAlpha(1)
+    if activationAlert.spark and activationAlert.spark.SetAlpha then activationAlert.spark:SetAlpha(1) end
+  end
+  if btn.SpellHighlightTexture then btn.SpellHighlightTexture:SetAlpha(1) end
+  if ActionButton_UpdateOverlayGlow then pcall(ActionButton_UpdateOverlayGlow, btn) end
+  if ActionButton_UpdateSpellActivationAlert then pcall(ActionButton_UpdateSpellActivationAlert, btn) end
+end
+
+local function SuppressButtonGlow(btn)
+  if not btn then return end
+  if ActionButton_HideOverlayGlow then ActionButton_HideOverlayGlow(btn) end
+  if btn.Border then
+    btn.Border:SetAlpha(0)
+    btn.Border:Hide()
+  end
+  if btn.overlay then
+    btn.overlay:SetAlpha(0)
+    btn.overlay:Hide()
+  end
+  local activationAlert = btn.SpellActivationAlert or (btn.GetName and _G[btn:GetName() .. "SpellActivationAlert"])
+  if activationAlert then
+    if activationAlert.animIn and activationAlert.animIn.Stop then activationAlert.animIn:Stop() end
+    if activationAlert.animOut and activationAlert.animOut.Stop then activationAlert.animOut:Stop() end
+    if activationAlert.spark and activationAlert.spark.SetAlpha then activationAlert.spark:SetAlpha(0) end
+    activationAlert:SetAlpha(0)
+    activationAlert:Hide()
+    if not btn._ccmActivationAlertHooked then
+      btn._ccmActivationAlertHooked = true
+      hooksecurefunc(activationAlert, "Show", function(self)
+        if btn._ccmSkinned and ShouldHideActionBarGlows() then
+          if self.animIn and self.animIn.Stop then self.animIn:Stop() end
+          if self.animOut and self.animOut.Stop then self.animOut:Stop() end
+          if self.spark and self.spark.SetAlpha then self.spark:SetAlpha(0) end
+          self:SetAlpha(0)
+          self:Hide()
+        end
+      end)
+    end
+  end
+  local texToSuppress = {
+    btn.NewActionTexture,
+    btn.Flash,
+    btn.AutoCastable,
+    btn.AutoCastShine,
+    btn.SpellCastOverlay,
+  }
+  for _, tex in ipairs(texToSuppress) do
+    if tex then
+      tex:SetAlpha(0)
+      tex:Hide()
+    end
+  end
+  if btn.SpellHighlightTexture then
+    btn.SpellHighlightTexture:SetAlpha(0)
+    btn.SpellHighlightTexture:Hide()
+    if not btn._ccmSpellHighlightHooked then
+      btn._ccmSpellHighlightHooked = true
+      hooksecurefunc(btn.SpellHighlightTexture, "Show", function(self)
+        if btn._ccmSkinned and ShouldHideActionBarGlows() then
+          self:SetAlpha(0)
+          self:Hide()
+        end
+      end)
+    end
+  end
+end
+
+local ccmOverlayGlowHooked = false
+local function EnsureOverlayGlowSuppressedHook()
+  if ccmOverlayGlowHooked then return end
+  if not hooksecurefunc or not ActionButton_ShowOverlayGlow then return end
+  ccmOverlayGlowHooked = true
+  hooksecurefunc("ActionButton_ShowOverlayGlow", function(button)
+    if button and button._ccmSkinned and ShouldHideActionBarGlows() then
+      SuppressButtonGlow(button)
+    end
+  end)
+end
+
 local function ApplyButtonSkin(btn)
   local iconTex = btn.icon or btn.Icon
   local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
@@ -1371,8 +1499,13 @@ local function ApplyButtonSkin(btn)
   if highlight then highlight:SetAlpha(0) end
   if btn.IconBorder and not btn._ccmIconBorderHooked then
     btn._ccmIconBorderHooked = true
-    hooksecurefunc(btn.IconBorder, "Show", function(self) if btn._ccmSkinned then self:SetAlpha(0) end end)
-    hooksecurefunc(btn.IconBorder, "SetShown", function(self, shown) if btn._ccmSkinned and shown then self:SetAlpha(0) end end)
+    hooksecurefunc(btn.IconBorder, "Show", function(self)
+      if btn._ccmSkinned then
+        if self.GetAlpha and self:GetAlpha() ~= 0 then
+          self:SetAlpha(0)
+        end
+      end
+    end)
   end
   if iconTex then
     iconTex:ClearAllPoints()
@@ -1387,10 +1520,12 @@ local function ApplyButtonSkin(btn)
         mask = iconTex:GetMaskTexture(1)
       end
     end
-    if cooldownFrame then
-      cooldownFrame:ClearAllPoints()
-      cooldownFrame:SetAllPoints(btn)
-    end
+    if cooldownFrame then ApplyCustomCooldownVisual(cooldownFrame, btn) end
+  end
+  if ShouldHideActionBarGlows() then
+    SuppressButtonGlow(btn)
+  else
+    RestoreButtonGlowVisual(btn)
   end
 end
 
@@ -1400,6 +1535,7 @@ local function SkinActionButton(btn, hide)
   local iconTex = btn.icon or btn.Icon
   local cooldownFrame = btn.cooldown or btn.Cooldown or (btn.GetName and _G[btn:GetName() .. "Cooldown"])
   if hide then
+    EnsureOverlayGlowSuppressedHook()
     if not abSkinState[key] then
       abSkinState[key] = { skinned = false }
     end
@@ -1421,6 +1557,7 @@ local function SkinActionButton(btn, hide)
           s.origCooldownPoints[i] = {cooldownFrame:GetPoint(i)}
         end
       end
+      CaptureCooldownVisualState(s, cooldownFrame)
       if iconTex and iconTex.GetMaskTexture then
         s.origMasks = {}
         local idx = 1
@@ -1447,6 +1584,7 @@ local function SkinActionButton(btn, hide)
     local nt = btn:GetNormalTexture()
     if nt then nt:SetAlpha(1) end
     if btn.FloatingBG then btn.FloatingBG:Show() end
+    if btn.Border then btn.Border:SetAlpha(1) end
     if btn.IconBorder then btn.IconBorder:SetAlpha(1) end
     if btn.SlotArt then btn.SlotArt:Show() end
     if btn.SlotBackground then btn.SlotBackground:Show() end
@@ -1456,6 +1594,11 @@ local function SkinActionButton(btn, hide)
     if checked then checked:SetAlpha(1) end
     local highlight = btn:GetHighlightTexture()
     if highlight then highlight:SetAlpha(1) end
+    if btn.SpellHighlightTexture then btn.SpellHighlightTexture:SetAlpha(1) end
+    if btn.NewActionTexture then btn.NewActionTexture:SetAlpha(1) end
+    if btn.Flash then btn.Flash:SetAlpha(1) end
+    if btn.AutoCastable then btn.AutoCastable:SetAlpha(1) end
+    if btn.AutoCastShine then btn.AutoCastShine:SetAlpha(1) end
     if iconTex and s and s.origTexCoords then
       iconTex:SetTexCoord(unpack(s.origTexCoords))
     elseif iconTex then
@@ -1481,6 +1624,7 @@ local function SkinActionButton(btn, hide)
       else
         cooldownFrame:SetAllPoints(btn)
       end
+      RestoreCooldownVisualState(s, cooldownFrame)
     end
     if btn.UpdateButtonArt then
       pcall(btn.UpdateButtonArt, btn)
@@ -1507,6 +1651,36 @@ end
 local function SkinBarButtons(barName, prefix, hide, numButtons)
   local bar = _G[barName]
   if not bar then return end
+  local function UseGlobalReferenceStep()
+    return true
+  end
+  local function GetGlobalStepScreen(spacingX, spacingY, fallbackBtn)
+    local ref = _G["ActionButton1"] or fallbackBtn
+    if not ref then return nil, nil end
+    local rw = ref:GetWidth() or 0
+    local rh = ref:GetHeight() or 0
+    local rs = (ref.GetEffectiveScale and ref:GetEffectiveScale()) or 1
+    if rs == 0 then rs = 1 end
+    local sx = math.floor((rw * rs) + 0.5) + spacingX
+    local sy = math.floor((rh * rs) + 0.5) + spacingY
+    return sx, sy
+  end
+  local function GetGlobalButtonScreenSize(fallbackBtn)
+    local ref = _G["ActionButton1"] or fallbackBtn
+    if not ref then return nil, nil end
+    local rw = ref:GetWidth() or 0
+    local rh = ref:GetHeight() or 0
+    local rs = (ref.GetEffectiveScale and ref:GetEffectiveScale()) or 1
+    if rs == 0 then rs = 1 end
+    local sw = math.floor((rw * rs) + 0.5)
+    local sh = math.floor((rh * rs) + 0.5)
+    if sw < 1 then sw = 1 end
+    if sh < 1 then sh = 1 end
+    return sw, sh
+  end
+  local function GetGlobalReferenceButton(fallbackBtn)
+    return _G["ActionButton1"] or fallbackBtn
+  end
   numButtons = numButtons or 12
   if bar.BorderArt then bar.BorderArt:SetShown(not hide) end
   local emSettings = GetBarEditModeSettings(bar)
@@ -1529,26 +1703,97 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
     local iconsPerRow = math.ceil(emNumIcons / emNumRows)
     if iconsPerRow < 1 then iconsPerRow = 1 end
     if hide then
-      local btnWidth = btn1:GetWidth()
-      local btnHeight = btn1:GetHeight()
-      local p = addonTable.GetProfile and addonTable.GetProfile()
-      local spacing = p and p.abSkinSpacing or 2
-      for i = 1, numButtons do
-        local btn = _G[prefix .. i]
-        if btn then
-          if not btn._ccmOrigPoint then
-            local point, relativeTo, relativePoint, ofsx, ofsy = btn:GetPoint(1)
-            if point then
-              btn._ccmOrigPoint = {point, relativeTo, relativePoint, ofsx, ofsy}
+      local preserveNativeLayout = (prefix == "StanceButton")
+      if preserveNativeLayout then
+        for i = 1, numButtons do
+          local btn = _G[prefix .. i]
+          if btn then
+            if not btn._ccmOrigPoint then
+              local point, relativeTo, relativePoint, ofsx, ofsy = btn:GetPoint(1)
+              if point then
+                btn._ccmOrigPoint = {point, relativeTo, relativePoint, ofsx, ofsy}
+              end
+            end
+            if not btn._ccmOrigSize then
+              btn._ccmOrigSize = {btn:GetWidth(), btn:GetHeight()}
+            end
+            if btn._ccmOrigPoint then
+              btn:ClearAllPoints()
+              btn:SetPoint(btn._ccmOrigPoint[1], btn._ccmOrigPoint[2], btn._ccmOrigPoint[3], btn._ccmOrigPoint[4], btn._ccmOrigPoint[5])
+            end
+            if btn._ccmOrigSize and btn._ccmOrigSize[1] and btn._ccmOrigSize[2] then
+              btn:SetSize(btn._ccmOrigSize[1], btn._ccmOrigSize[2])
             end
           end
-          local col = (i - 1) % iconsPerRow
-          local row = math.floor((i - 1) / iconsPerRow)
-          btn:ClearAllPoints()
-          if isVertical then
-            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", row * (btnWidth + spacing), -col * (btnHeight + spacing))
-          else
-            btn:SetPoint("TOPLEFT", bar, "TOPLEFT", col * (btnWidth + spacing), -row * (btnHeight + spacing))
+        end
+      else
+        local btnWidth = btn1:GetWidth()
+        local btnHeight = btn1:GetHeight()
+        local p = addonTable.GetProfile and addonTable.GetProfile()
+        local spacing = p and p.abSkinSpacing or 2
+        spacing = math.floor((tonumber(spacing) or 2) + 0.5)
+        local barScale = (bar.GetEffectiveScale and bar:GetEffectiveScale()) or 1
+        if barScale == 0 then barScale = 1 end
+        local btnScale = (btn1.GetEffectiveScale and btn1:GetEffectiveScale()) or barScale
+        if btnScale == 0 then btnScale = barScale end
+        local stepXScreen = math.floor((btnWidth * btnScale) + 0.5) + spacing
+        local stepYScreen = math.floor((btnHeight * btnScale) + 0.5) + spacing
+        local targetBtnW, targetBtnH = btnWidth, btnHeight
+        local targetScreenW, targetScreenH = nil, nil
+        if UseGlobalReferenceStep() then
+          local gsx, gsy = GetGlobalStepScreen(spacing, spacing, btn1)
+          if gsx and gsy then
+            stepXScreen = gsx
+            stepYScreen = gsy
+          end
+          local refBtn = GetGlobalReferenceButton(btn1)
+          if refBtn then
+            targetBtnW = refBtn:GetWidth() or targetBtnW
+            targetBtnH = refBtn:GetHeight() or targetBtnH
+          end
+          targetScreenW, targetScreenH = GetGlobalButtonScreenSize(btn1)
+        end
+        local stepX = SnapToPixel(stepXScreen / barScale)
+        local stepY = SnapToPixel(stepYScreen / barScale)
+        local anchorBtn = _G[prefix .. "1"]
+        for i = 1, numButtons do
+          local btn = _G[prefix .. i]
+          if btn then
+            if not btn._ccmOrigPoint then
+              local point, relativeTo, relativePoint, ofsx, ofsy = btn:GetPoint(1)
+              if point then
+                btn._ccmOrigPoint = {point, relativeTo, relativePoint, ofsx, ofsy}
+              end
+            end
+            if not btn._ccmOrigSize then
+              btn._ccmOrigSize = {btn:GetWidth(), btn:GetHeight()}
+            end
+            if targetScreenW and targetScreenH then
+              local curScale = (btn.GetEffectiveScale and btn:GetEffectiveScale()) or barScale
+              if curScale == 0 then curScale = barScale end
+              local localW = SnapSize(targetScreenW / curScale, 1)
+              local localH = SnapSize(targetScreenH / curScale, 1)
+              btn:SetSize(localW, localH)
+            elseif targetBtnW and targetBtnH then
+              btn:SetSize(SnapSize(targetBtnW, 1), SnapSize(targetBtnH, 1))
+            end
+            local col = (i - 1) % iconsPerRow
+            local row = math.floor((i - 1) / iconsPerRow)
+            if i == 1 then
+              btn:ClearAllPoints()
+              if btn._ccmOrigPoint then
+                btn:SetPoint(btn._ccmOrigPoint[1], btn._ccmOrigPoint[2], btn._ccmOrigPoint[3], btn._ccmOrigPoint[4], btn._ccmOrigPoint[5])
+              else
+                SetPointSnapped(btn, "TOPLEFT", bar, "TOPLEFT", 0, 0)
+              end
+            else
+              btn:ClearAllPoints()
+              if isVertical then
+                SetPointSnapped(btn, "TOPLEFT", anchorBtn or bar, "TOPLEFT", row * stepX, -col * stepY)
+              else
+                SetPointSnapped(btn, "TOPLEFT", anchorBtn or bar, "TOPLEFT", col * stepX, -row * stepY)
+              end
+            end
           end
         end
       end
@@ -1559,6 +1804,10 @@ local function SkinBarButtons(barName, prefix, hide, numButtons)
           btn:ClearAllPoints()
           btn:SetPoint(btn._ccmOrigPoint[1], btn._ccmOrigPoint[2], btn._ccmOrigPoint[3], btn._ccmOrigPoint[4], btn._ccmOrigPoint[5])
           btn._ccmOrigPoint = nil
+          if btn._ccmOrigSize and btn._ccmOrigSize[1] and btn._ccmOrigSize[2] then
+            btn:SetSize(btn._ccmOrigSize[1], btn._ccmOrigSize[2])
+          end
+          btn._ccmOrigSize = nil
         end
       end
     end
@@ -1681,14 +1930,41 @@ local function RefreshAllSkinnedActionButtonBorders()
   RefreshPrefix("StanceButton", 10)
   RefreshPrefix("PetActionButton", 10)
 end
+
+local abSkinRefreshQueued = false
+local abSkinRefreshNeedsFull = false
+local function QueueSkinnedActionButtonRefresh(fullRefresh)
+  if fullRefresh then
+    abSkinRefreshNeedsFull = true
+  end
+  if abSkinRefreshQueued then return end
+  abSkinRefreshQueued = true
+  local function Run()
+    abSkinRefreshQueued = false
+    local doFull = abSkinRefreshNeedsFull
+    abSkinRefreshNeedsFull = false
+    UpdateAllSkinnedActionButtonHotkeys()
+    if doFull then
+      RefreshAllSkinnedActionButtonBorders()
+    end
+  end
+  if C_Timer and C_Timer.After then
+    C_Timer.After(0.05, Run)
+  else
+    Run()
+  end
+end
 do
   local cursorHotkeyFrame = CreateFrame("Frame")
   cursorHotkeyFrame:RegisterEvent("ACTIONBAR_SLOT_CHANGED")
   cursorHotkeyFrame:RegisterEvent("ACTIONBAR_PAGE_CHANGED")
   cursorHotkeyFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
-  cursorHotkeyFrame:SetScript("OnEvent", function()
-    UpdateAllSkinnedActionButtonHotkeys()
-    RefreshAllSkinnedActionButtonBorders()
+  cursorHotkeyFrame:SetScript("OnEvent", function(_, event)
+    if event == "ACTIONBAR_PAGE_CHANGED" or event == "PLAYER_ENTERING_WORLD" then
+      QueueSkinnedActionButtonRefresh(true)
+    else
+      QueueSkinnedActionButtonRefresh(false)
+    end
   end)
 end
 C_Timer.After(2, function()
