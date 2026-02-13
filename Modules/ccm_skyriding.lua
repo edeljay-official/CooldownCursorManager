@@ -85,10 +85,12 @@ local function FindChargeSpell()
 end
 
 local function IsOnSkyridingMount()
-  if not IsMounted() then return false end
   local _, canGlide = C_PlayerInfo.GetGlidingInfo()
   if not canGlide then return false end
-  return FindChargeSpell() ~= nil
+  if IsMounted() then return FindChargeSpell() ~= nil end
+  local _, playerClass = UnitClass("player")
+  if playerClass == "DRUID" then return FindChargeSpell() ~= nil end
+  return false
 end
 
 local function InvalidateColors()
@@ -313,8 +315,8 @@ local function UpdateLayout()
   local profile = GetProfile and GetProfile()
   if not profile then return end
 
-  local showVigor = profile.skyridingVigorBar
-  local showCDs = profile.skyridingCooldowns
+  local showVigor = profile.skyridingVigorBar ~= false
+  local showCDs = profile.skyridingCooldowns ~= false
 
   local prevContainer = nil
 
@@ -372,7 +374,7 @@ end
 -- ============================================================
 
 local function UpdateVigorBar(profile)
-  if not profile.skyridingVigorBar then return end
+  if profile.skyridingVigorBar == false then return end
 
   if not chargeSpellID then FindChargeSpell() end
   if not chargeSpellID then return end
@@ -420,7 +422,7 @@ local function UpdateVigorBar(profile)
 end
 
 local function UpdateWhirlingSurge(profile)
-  if not profile.skyridingCooldowns then return end
+  if profile.skyridingCooldowns == false then return end
 
   local c = cachedColors
   local cdInfo = C_Spell.GetSpellCooldown(WHIRLING_SURGE_ID)
@@ -448,7 +450,7 @@ local function UpdateWhirlingSurge(profile)
 end
 
 local function UpdateSecondWind(profile)
-  if not profile.skyridingCooldowns then return end
+  if profile.skyridingCooldowns == false then return end
 
   local chargeInfo = C_Spell.GetSpellCharges(SECOND_WIND_ID)
   if not chargeInfo then return end
@@ -693,13 +695,36 @@ addonTable.SetupSkyriding = function()
     eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("SPELL_UPDATE_CHARGES")
     eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+    eventFrame:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
+    local pendingRetries = 0
+    local function RetryUpdateVisibility()
+      pendingRetries = pendingRetries - 1
+      UpdateVisibility()
+      if pendingRetries <= 0 and mainFrame and not mainFrame:IsShown() then
+        local p2 = GetProfile and GetProfile()
+        if p2 and p2.skyridingEnabled and (IsMounted() or (UnitClass("player") == nil or select(2, UnitClass("player")) == "DRUID")) then
+          if pendingRetries <= 0 then
+            pendingRetries = 3
+            C_Timer.After(1.0, RetryUpdateVisibility)
+            C_Timer.After(2.0, RetryUpdateVisibility)
+            C_Timer.After(3.0, RetryUpdateVisibility)
+          end
+        end
+      end
+    end
     eventFrame:SetScript("OnEvent", function(self, event)
       local p = GetProfile and GetProfile()
       if not p or not p.skyridingEnabled then return end
-      if event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
-        C_Timer.After(0.2, UpdateVisibility)
+      if event == "PLAYER_MOUNT_DISPLAY_CHANGED" or event == "UPDATE_SHAPESHIFT_FORM" then
+        pendingRetries = 2
+        C_Timer.After(0.3, RetryUpdateVisibility)
+        C_Timer.After(1.0, RetryUpdateVisibility)
       elseif event == "PLAYER_ENTERING_WORLD" then
-        C_Timer.After(1.0, UpdateVisibility)
+        pendingRetries = 4
+        C_Timer.After(0.5, RetryUpdateVisibility)
+        C_Timer.After(1.5, RetryUpdateVisibility)
+        C_Timer.After(3.0, RetryUpdateVisibility)
+        C_Timer.After(5.0, RetryUpdateVisibility)
       elseif event == "SPELL_UPDATE_CHARGES" or event == "SPELL_UPDATE_COOLDOWN" then
         if mainFrame and mainFrame:IsShown() then
           RefreshCachedColors(p)
@@ -733,7 +758,7 @@ local function ShowSkyridingPreview()
   RefreshCachedColors(profile)
   local c = cachedColors
 
-  if profile.skyridingVigorBar then
+  if profile.skyridingVigorBar ~= false then
     local total = 6
     CreateVigorSegments(total)
     for i = 1, total do
@@ -755,7 +780,7 @@ local function ShowSkyridingPreview()
     end
   end
 
-  if profile.skyridingCooldowns then
+  if profile.skyridingCooldowns ~= false then
     whirlingSurgeBar:SetValue(0.6)
     whirlingSurgeBar:GetStatusBarTexture():SetVertexColor(c.surgeR, c.surgeG, c.surgeB, 1)
     whirlingSurgeBar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)

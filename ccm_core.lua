@@ -595,6 +595,8 @@ local defaults = {
       spellGlowDefaultType = "pixel",
       spellGlowSpeed = 0.0,
       spellGlowThickness = 2.0,
+      useCustomHideReveal = false,
+      spellHideRevealThresholds = {},
       customBarEnabled = true,
       customBarOutOfCombat = true,
       customBarShowGCD = true,
@@ -621,6 +623,7 @@ local defaults = {
       customBarCdGradientB = 0.0,
       customBarUseSpellGlows = false,
       customBarSpellGlowDefaultType = "pixel",
+      customBarUseCustomHideReveal = false,
       customBar2Enabled = true,
       customBar2OutOfCombat = true,
       customBar2ShowGCD = true,
@@ -647,6 +650,7 @@ local defaults = {
       customBar2CdGradientB = 0.0,
       customBar2UseSpellGlows = false,
       customBar2SpellGlowDefaultType = "pixel",
+      customBar2UseCustomHideReveal = false,
       customBar3Enabled = true,
       customBar3OutOfCombat = true,
       customBar3ShowGCD = true,
@@ -673,6 +677,7 @@ local defaults = {
       customBar3CdGradientB = 0.0,
       customBar3UseSpellGlows = false,
       customBar3SpellGlowDefaultType = "pixel",
+      customBar3UseCustomHideReveal = false,
       blizzardBarSkinning = true,
       disableBlizzCDM = false,
       buffBarIconSizeOffset = -10,
@@ -961,6 +966,9 @@ local defaults = {
   characterCustomBarSpellGlowType = {},
   characterCustomBar2SpellGlowType = {},
   characterCustomBar3SpellGlowType = {},
+  characterCustomBarHideRevealThresholds = {},
+  characterCustomBar2HideRevealThresholds = {},
+  characterCustomBar3HideRevealThresholds = {},
   minimap = {
     hide = true,
     minimapPos = 220,
@@ -2952,11 +2960,25 @@ local function GetProfile()
   if profile.combatStatusLeaveColorR == nil then profile.combatStatusLeaveColorR = defaults.profiles.Default.combatStatusLeaveColorR end
   if profile.combatStatusLeaveColorG == nil then profile.combatStatusLeaveColorG = defaults.profiles.Default.combatStatusLeaveColorG end
   if profile.combatStatusLeaveColorB == nil then profile.combatStatusLeaveColorB = defaults.profiles.Default.combatStatusLeaveColorB end
+  if profile.useCustomHideReveal == nil then profile.useCustomHideReveal = false end
+  if type(profile.spellHideRevealThresholds) ~= "table" then profile.spellHideRevealThresholds = {} end
+  if profile.customBarUseCustomHideReveal == nil then profile.customBarUseCustomHideReveal = false end
+  if profile.customBar2UseCustomHideReveal == nil then profile.customBar2UseCustomHideReveal = false end
+  if profile.customBar3UseCustomHideReveal == nil then profile.customBar3UseCustomHideReveal = false end
   return profile
 end
 addonTable.GetProfile = GetProfile
 addonTable.GetGlobalFont = GetGlobalFont
 addonTable.IsClassPowerRedundant = IsClassPowerRedundant
+local function NormalizeHideRevealThresholdValue(value)
+  local n = tonumber(value)
+  if not n then return 0 end
+  n = math.floor(n * 2 + 0.5) / 2
+  if n < 0 then n = 0 end
+  if n > 10 then n = 10 end
+  return n
+end
+addonTable.NormalizeHideRevealThresholdValue = NormalizeHideRevealThresholdValue
 local function HasClassPowerAvailable()
   local cpConfig = GetClassPowerConfig()
   if not cpConfig then return false end
@@ -2970,20 +2992,23 @@ end
 addonTable.HasClassPowerAvailable = HasClassPowerAvailable
 local function GetSpellList()
   local profile = addonTable.GetProfile()
-  if not profile then return {}, {}, {}, {} end
+  if not profile then return {}, {}, {}, {}, {} end
   if not profile.trackedSpells then profile.trackedSpells = {} end
   if not profile.spellsEnabled then profile.spellsEnabled = {} end
   if not profile.spellGlowEnabled then profile.spellGlowEnabled = {} end
   if not profile.spellGlowType then profile.spellGlowType = {} end
-  return profile.trackedSpells, profile.spellsEnabled, profile.spellGlowEnabled, profile.spellGlowType
+  if type(profile.spellHideRevealThresholds) ~= "table" then profile.spellHideRevealThresholds = {} end
+  return profile.trackedSpells, profile.spellsEnabled, profile.spellGlowEnabled, profile.spellGlowType, profile.spellHideRevealThresholds
 end
-local function SetSpellList(spells, enabled, glowEnabled, glowType)
+local function SetSpellList(spells, enabled, glowEnabled, glowType, hideRevealThresholds)
   local profile = addonTable.GetProfile()
   if not profile then return end
   profile.trackedSpells = spells or {}
   profile.spellsEnabled = enabled or {}
   profile.spellGlowEnabled = glowEnabled or profile.spellGlowEnabled or {}
   profile.spellGlowType = glowType or profile.spellGlowType or {}
+  if hideRevealThresholds then profile.spellHideRevealThresholds = hideRevealThresholds end
+  if type(profile.spellHideRevealThresholds) ~= "table" then profile.spellHideRevealThresholds = {} end
   local listSize = #profile.trackedSpells
   for i = 1, listSize do
     if profile.spellGlowEnabled[i] == nil then
@@ -2992,12 +3017,19 @@ local function SetSpellList(spells, enabled, glowEnabled, glowType)
     if type(profile.spellGlowType[i]) ~= "string" then
       profile.spellGlowType[i] = profile.spellGlowDefaultType or "pixel"
     end
+    if profile.spellHideRevealThresholds[i] then
+      profile.spellHideRevealThresholds[i] = NormalizeHideRevealThresholdValue(profile.spellHideRevealThresholds[i])
+    end
   end
   for i = #profile.spellGlowEnabled, listSize + 1, -1 do
     profile.spellGlowEnabled[i] = nil
   end
   for i = #profile.spellGlowType, listSize + 1, -1 do
     profile.spellGlowType[i] = nil
+  end
+  local thresholds = profile.spellHideRevealThresholds
+  for i = #thresholds, listSize + 1, -1 do
+    thresholds[i] = nil
   end
 end
 addonTable.GetSpellList = GetSpellList
@@ -3014,9 +3046,9 @@ local function GetCurrentSpecID()
   return GetSpecialization() or 1
 end
 local function GetCustomBarSpells()
-  if not CooldownCursorManagerDB then return {}, {}, {}, {} end
+  if not CooldownCursorManagerDB then return {}, {}, {}, {}, {} end
   local charKey = GetCharacterKey()
-  if not charKey then return {}, {}, {}, {} end
+  if not charKey then return {}, {}, {}, {}, {} end
   local specID = GetCurrentSpecID()
   CooldownCursorManagerDB.characterCustomBarSpells = CooldownCursorManagerDB.characterCustomBarSpells or {}
   CooldownCursorManagerDB.characterCustomBarSpells[charKey] = CooldownCursorManagerDB.characterCustomBarSpells[charKey] or {}
@@ -3030,12 +3062,16 @@ local function GetCustomBarSpells()
   CooldownCursorManagerDB.characterCustomBarSpellGlowType = CooldownCursorManagerDB.characterCustomBarSpellGlowType or {}
   CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] or {}
   CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBarHideRevealThresholds = CooldownCursorManagerDB.characterCustomBarHideRevealThresholds or {}
+  CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey] = CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID] = CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID] or {}
   return CooldownCursorManagerDB.characterCustomBarSpells[charKey][specID],
          CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey][specID],
          CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID],
-         CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID]
+         CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID]
 end
-local function SetCustomBarSpells(spells, enabled, glowEnabled, glowType)
+local function SetCustomBarSpells(spells, enabled, glowEnabled, glowType, hideRevealThresholds)
   if not CooldownCursorManagerDB then return end
   local charKey = GetCharacterKey()
   if not charKey then return end
@@ -3052,15 +3088,27 @@ local function SetCustomBarSpells(spells, enabled, glowEnabled, glowType)
   CooldownCursorManagerDB.characterCustomBarSpellGlowType = CooldownCursorManagerDB.characterCustomBarSpellGlowType or {}
   CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] or {}
   CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] = glowType or CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBarHideRevealThresholds = CooldownCursorManagerDB.characterCustomBarHideRevealThresholds or {}
+  CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey] = CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey] or {}
+  if hideRevealThresholds then
+    CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID] = hideRevealThresholds
+  end
+  if type(CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID]) ~= "table" then
+    CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID] = {}
+  end
   local listSize = #CooldownCursorManagerDB.characterCustomBarSpells[charKey][specID]
   local glowEnabledTable = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID]
   local glowTypeTable = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID]
+  local hrTable = CooldownCursorManagerDB.characterCustomBarHideRevealThresholds[charKey][specID]
   for i = 1, listSize do
     if glowEnabledTable[i] == nil then
       glowEnabledTable[i] = false
     end
     if type(glowTypeTable[i]) ~= "string" then
       glowTypeTable[i] = "pixel"
+    end
+    if hrTable[i] then
+      hrTable[i] = NormalizeHideRevealThresholdValue(hrTable[i])
     end
   end
   for i = #glowEnabledTable, listSize + 1, -1 do
@@ -3069,15 +3117,18 @@ local function SetCustomBarSpells(spells, enabled, glowEnabled, glowType)
   for i = #glowTypeTable, listSize + 1, -1 do
     glowTypeTable[i] = nil
   end
+  for i = #hrTable, listSize + 1, -1 do
+    hrTable[i] = nil
+  end
 end
 addonTable.GetCharacterKey = GetCharacterKey
 addonTable.GetCurrentSpecID = GetCurrentSpecID
 addonTable.GetCustomBarSpells = GetCustomBarSpells
 addonTable.SetCustomBarSpells = SetCustomBarSpells
 local function GetCustomBar2Spells()
-  if not CooldownCursorManagerDB then return {}, {}, {}, {} end
+  if not CooldownCursorManagerDB then return {}, {}, {}, {}, {} end
   local charKey = GetCharacterKey()
-  if not charKey then return {}, {}, {}, {} end
+  if not charKey then return {}, {}, {}, {}, {} end
   local specID = GetCurrentSpecID()
   CooldownCursorManagerDB.characterCustomBar2Spells = CooldownCursorManagerDB.characterCustomBar2Spells or {}
   CooldownCursorManagerDB.characterCustomBar2Spells[charKey] = CooldownCursorManagerDB.characterCustomBar2Spells[charKey] or {}
@@ -3091,12 +3142,16 @@ local function GetCustomBar2Spells()
   CooldownCursorManagerDB.characterCustomBar2SpellGlowType = CooldownCursorManagerDB.characterCustomBar2SpellGlowType or {}
   CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds = CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds or {}
+  CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey] = CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID] = CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID] or {}
   return CooldownCursorManagerDB.characterCustomBar2Spells[charKey][specID],
          CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey][specID],
          CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID],
-         CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID]
+         CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID]
 end
-local function SetCustomBar2Spells(spells, enabled, glowEnabled, glowType)
+local function SetCustomBar2Spells(spells, enabled, glowEnabled, glowType, hideRevealThresholds)
   if not CooldownCursorManagerDB then return end
   local charKey = GetCharacterKey()
   if not charKey then return end
@@ -3113,15 +3168,27 @@ local function SetCustomBar2Spells(spells, enabled, glowEnabled, glowType)
   CooldownCursorManagerDB.characterCustomBar2SpellGlowType = CooldownCursorManagerDB.characterCustomBar2SpellGlowType or {}
   CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] = glowType or CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds = CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds or {}
+  CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey] = CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey] or {}
+  if hideRevealThresholds then
+    CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID] = hideRevealThresholds
+  end
+  if type(CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID]) ~= "table" then
+    CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID] = {}
+  end
   local listSize = #CooldownCursorManagerDB.characterCustomBar2Spells[charKey][specID]
   local glowEnabledTable = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID]
   local glowTypeTable = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID]
+  local hrTable = CooldownCursorManagerDB.characterCustomBar2HideRevealThresholds[charKey][specID]
   for i = 1, listSize do
     if glowEnabledTable[i] == nil then
       glowEnabledTable[i] = false
     end
     if type(glowTypeTable[i]) ~= "string" then
       glowTypeTable[i] = "pixel"
+    end
+    if hrTable[i] then
+      hrTable[i] = NormalizeHideRevealThresholdValue(hrTable[i])
     end
   end
   for i = #glowEnabledTable, listSize + 1, -1 do
@@ -3130,13 +3197,16 @@ local function SetCustomBar2Spells(spells, enabled, glowEnabled, glowType)
   for i = #glowTypeTable, listSize + 1, -1 do
     glowTypeTable[i] = nil
   end
+  for i = #hrTable, listSize + 1, -1 do
+    hrTable[i] = nil
+  end
 end
 addonTable.GetCustomBar2Spells = GetCustomBar2Spells
 addonTable.SetCustomBar2Spells = SetCustomBar2Spells
 local function GetCustomBar3Spells()
-  if not CooldownCursorManagerDB then return {}, {}, {}, {} end
+  if not CooldownCursorManagerDB then return {}, {}, {}, {}, {} end
   local charKey = GetCharacterKey()
-  if not charKey then return {}, {}, {}, {} end
+  if not charKey then return {}, {}, {}, {}, {} end
   local specID = GetCurrentSpecID()
   CooldownCursorManagerDB.characterCustomBar3Spells = CooldownCursorManagerDB.characterCustomBar3Spells or {}
   CooldownCursorManagerDB.characterCustomBar3Spells[charKey] = CooldownCursorManagerDB.characterCustomBar3Spells[charKey] or {}
@@ -3150,12 +3220,16 @@ local function GetCustomBar3Spells()
   CooldownCursorManagerDB.characterCustomBar3SpellGlowType = CooldownCursorManagerDB.characterCustomBar3SpellGlowType or {}
   CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds = CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds or {}
+  CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey] = CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID] = CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID] or {}
   return CooldownCursorManagerDB.characterCustomBar3Spells[charKey][specID],
          CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey][specID],
          CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID],
-         CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID]
+         CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID]
 end
-local function SetCustomBar3Spells(spells, enabled, glowEnabled, glowType)
+local function SetCustomBar3Spells(spells, enabled, glowEnabled, glowType, hideRevealThresholds)
   if not CooldownCursorManagerDB then return end
   local charKey = GetCharacterKey()
   if not charKey then return end
@@ -3172,9 +3246,18 @@ local function SetCustomBar3Spells(spells, enabled, glowEnabled, glowType)
   CooldownCursorManagerDB.characterCustomBar3SpellGlowType = CooldownCursorManagerDB.characterCustomBar3SpellGlowType or {}
   CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] = glowType or CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds = CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds or {}
+  CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey] = CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey] or {}
+  if hideRevealThresholds then
+    CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID] = hideRevealThresholds
+  end
+  if type(CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID]) ~= "table" then
+    CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID] = {}
+  end
   local listSize = #CooldownCursorManagerDB.characterCustomBar3Spells[charKey][specID]
   local glowEnabledTable = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID]
   local glowTypeTable = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID]
+  local hrTable = CooldownCursorManagerDB.characterCustomBar3HideRevealThresholds[charKey][specID]
   for i = 1, listSize do
     if glowEnabledTable[i] == nil then
       glowEnabledTable[i] = false
@@ -3182,12 +3265,18 @@ local function SetCustomBar3Spells(spells, enabled, glowEnabled, glowType)
     if type(glowTypeTable[i]) ~= "string" then
       glowTypeTable[i] = "pixel"
     end
+    if hrTable[i] then
+      hrTable[i] = NormalizeHideRevealThresholdValue(hrTable[i])
+    end
   end
   for i = #glowEnabledTable, listSize + 1, -1 do
     glowEnabledTable[i] = nil
   end
   for i = #glowTypeTable, listSize + 1, -1 do
     glowTypeTable[i] = nil
+  end
+  for i = #hrTable, listSize + 1, -1 do
+    hrTable[i] = nil
   end
 end
 addonTable.GetCustomBar3Spells = GetCustomBar3Spells
@@ -3358,7 +3447,7 @@ local function UpdateRadialCircle()
     return
   end
   local iconStrata = profile.iconStrata or "FULLSCREEN"
-  local onQolTab = State.guiIsOpen and addonTable.activeTab and addonTable.activeTab() == 12
+  local onQolTab = State.guiIsOpen and addonTable.activeTab and addonTable.activeTab() == 18
   if onQolTab then
     ringFrame:SetFrameStrata("TOOLTIP")
     ringFrame:SetFrameLevel(9999)
@@ -5548,7 +5637,7 @@ local function CreateCustomBarIcons()
     customBarFrame:Hide()
     return
   end
-  local entries, entriesEnabled, entryGlowEnabled, entryGlowType = GetCustomBarSpells()
+  local entries, entriesEnabled, entryGlowEnabled, entryGlowType, entryHRT = GetCustomBarSpells()
   if #entries == 0 then
     customBarFrame:Hide()
     return
@@ -5589,9 +5678,11 @@ local function CreateCustomBarIcons()
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.entryID = id
+      icon.entryIndex = i
       icon.isItem = id < 0
       icon.actualID = math.abs(id)
       icon.glowType = (entryGlowEnabled[i] == true) and (entryGlowType[i] or profile.customBarSpellGlowDefaultType or "pixel") or "off"
+      icon.hideRevealThreshold = tonumber(entryHRT[i]) or 0
       SetGlowIdentityMethods(icon)
       if icon.isItem then
         local itemIcon = C_Item.GetItemIconByID(icon.actualID)
@@ -5830,8 +5921,16 @@ local function UpdateCustomBar()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
-          shouldShow = false
+        if isChargeSpell and not icon.isItem then
+        elseif isOnCooldown then
+          if not icon.isItem and profile.customBarUseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
+            local remaining = (icon._cdExpectedEnd or 0) - GetTime()
+            if remaining <= 0 or remaining > icon.hideRevealThreshold then
+              shouldShow = false
+            end
+          else
+            shouldShow = false
+          end
         elseif notEnoughResources then
           shouldShow = false
         end
@@ -5851,7 +5950,7 @@ local function UpdateCustomBar()
     return
   end
   local totalIcons = #State.customBar1Icons
-  local direction = profile.customBar2Direction or "horizontal"
+  local direction = profile.customBarDirection or "horizontal"
   local isHorizontal = (direction == "horizontal")
   local numRows, numCols
   if centered then
@@ -6137,7 +6236,7 @@ local function CreateCustomBar2Icons()
     customBar2Frame:Hide()
     return
   end
-  local entries, entriesEnabled, entryGlowEnabled, entryGlowType = GetCustomBar2Spells()
+  local entries, entriesEnabled, entryGlowEnabled, entryGlowType, entryHRT = GetCustomBar2Spells()
   if #entries == 0 then
     customBar2Frame:Hide()
     return
@@ -6178,9 +6277,11 @@ local function CreateCustomBar2Icons()
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.entryID = id
+      icon.entryIndex = i
       icon.isItem = id < 0
       icon.actualID = math.abs(id)
       icon.glowType = (entryGlowEnabled[i] == true) and (entryGlowType[i] or profile.customBar2SpellGlowDefaultType or "pixel") or "off"
+      icon.hideRevealThreshold = tonumber(entryHRT[i]) or 0
       SetGlowIdentityMethods(icon)
       if icon.isItem then
         local itemIcon = C_Item.GetItemIconByID(icon.actualID)
@@ -6419,8 +6520,16 @@ local function UpdateCustomBar2()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
-          shouldShow = false
+        if isChargeSpell and not icon.isItem then
+        elseif isOnCooldown then
+          if not icon.isItem and profile.customBar2UseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
+            local remaining = (icon._cdExpectedEnd or 0) - GetTime()
+            if remaining <= 0 or remaining > icon.hideRevealThreshold then
+              shouldShow = false
+            end
+          else
+            shouldShow = false
+          end
         elseif notEnoughResources then
           shouldShow = false
         end
@@ -6726,7 +6835,7 @@ local function CreateCustomBar3Icons()
     customBar3Frame:Hide()
     return
   end
-  local entries, entriesEnabled, entryGlowEnabled, entryGlowType = GetCustomBar3Spells()
+  local entries, entriesEnabled, entryGlowEnabled, entryGlowType, entryHRT = GetCustomBar3Spells()
   if #entries == 0 then
     customBar3Frame:Hide()
     return
@@ -6767,9 +6876,11 @@ local function CreateCustomBar3Icons()
       icon.Count:Hide()
       icon.stackText = icon.Count
       icon.entryID = id
+      icon.entryIndex = i
       icon.isItem = id < 0
       icon.actualID = math.abs(id)
       icon.glowType = (entryGlowEnabled[i] == true) and (entryGlowType[i] or profile.customBar3SpellGlowDefaultType or "pixel") or "off"
+      icon.hideRevealThreshold = tonumber(entryHRT[i]) or 0
       SetGlowIdentityMethods(icon)
       if icon.isItem then
         local itemIcon = C_Item.GetItemIconByID(icon.actualID)
@@ -7008,8 +7119,16 @@ local function UpdateCustomBar3()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
-          shouldShow = false
+        if isChargeSpell and not icon.isItem then
+        elseif isOnCooldown then
+          if not icon.isItem and profile.customBar3UseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
+            local remaining = (icon._cdExpectedEnd or 0) - GetTime()
+            if remaining <= 0 or remaining > icon.hideRevealThreshold then
+              shouldShow = false
+            end
+          else
+            shouldShow = false
+          end
         elseif notEnoughResources then
           shouldShow = false
         end
@@ -7542,7 +7661,19 @@ addonTable.MainOnUpdate = function(self, elapsed)
   local cursorMoved = math.abs(x - State.lastCursorX) > State.cursorMoveThreshold or math.abs(y - State.lastCursorY) > State.cursorMoveThreshold
   local iconsDirty = State.iconsDirty
   local timeSinceBarUpdate = now - State.lastBarUpdateTime
-  local doExpensiveUpdate = iconsDirty or timeSinceBarUpdate >= 1.0
+  local expensiveInterval = 1.0
+  if profile.cooldownIconMode == "hide" and profile.useCustomHideReveal then
+    local hrThresholds = profile.spellHideRevealThresholds
+    if type(hrThresholds) == "table" then
+      for _, v in ipairs(hrThresholds) do
+        if type(v) == "number" and v > 0 then
+          expensiveInterval = 0.25
+          break
+        end
+      end
+    end
+  end
+  local doExpensiveUpdate = iconsDirty or timeSinceBarUpdate >= expensiveInterval
   if not cursorMoved and not doExpensiveUpdate then
     UpdateRadialCircle()
     return
@@ -8007,12 +8138,12 @@ UpdateSpellIcon = function(icon)
         icon.icon:SetDesaturated(GetChargeSpellDesaturation(activeSpellID) > 0)
       end
     elseif cooldownMode == "hide" then
-      if isUnavailable then
-        HideIconByScale(icon)
-        return
-      end
       icon:SetAlpha(1)
-      icon.icon:SetDesaturated(false)
+      if icon.icon.SetDesaturation then
+        icon.icon:SetDesaturation(GetChargeSpellDesaturation(activeSpellID))
+      else
+        icon.icon:SetDesaturated(GetChargeSpellDesaturation(activeSpellID) > 0)
+      end
     elseif cooldownMode == "desaturate" then
       icon:SetAlpha(1)
       if icon.icon.SetDesaturation then
@@ -8034,8 +8165,22 @@ UpdateSpellIcon = function(icon)
       icon.icon:SetDesaturated(false)
     elseif cooldownMode == "hide" then
       if isOnCooldown then
-        HideIconByScale(icon)
-        return
+        local hrThreshold = 0
+        if profile.useCustomHideReveal and icon.spellIndex then
+          hrThreshold = tonumber(profile.spellHideRevealThresholds[icon.spellIndex]) or 0
+        end
+        if hrThreshold > 0 then
+          local remaining = (icon._cdExpectedEnd or 0) - GetTime()
+          if remaining > 0 and remaining <= hrThreshold then
+            icon.icon:SetDesaturated(false)
+          else
+            HideIconByScale(icon)
+            return
+          end
+        else
+          HideIconByScale(icon)
+          return
+        end
       end
       if notEnoughResources then
         HideIconByScale(icon)

@@ -16,6 +16,8 @@ function api:ExportProfile(profileKey)
   local profileData = CooldownCursorManagerDB.profiles[profileKey]
   if not profileData then return nil end
   local dataCopy = DeepCopy(profileData)
+  dataCopy.trackedSpells = nil
+  dataCopy.spellsEnabled = nil
   local ok, serialized = pcall(C_EncodingUtil.SerializeCBOR, dataCopy)
   if not ok or not serialized then return nil end
   local ok2, compressed = pcall(C_EncodingUtil.CompressString, serialized)

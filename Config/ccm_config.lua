@@ -32,11 +32,13 @@ local function CreateStyledButton(parent, text, w, h)
 end
 addonTable.CreateStyledButton = CreateStyledButton
 local cfg = CreateFrame("Frame", "CCMConfig", UIParent, "BackdropTemplate")
-cfg:SetSize(764, 938)
+cfg:SetSize(710, 630)
 cfg:SetPoint("CENTER")
 cfg:SetMovable(true)
 cfg:EnableMouse(true)
 cfg:SetClampedToScreen(true)
+cfg:SetResizable(true)
+cfg:SetResizeBounds(710, 400, 870, 1200)
 cfg:SetFrameStrata("FULLSCREEN_DIALOG")
 cfg:SetFrameLevel(1000)
 cfg:SetToplevel(true)
@@ -47,6 +49,9 @@ cfg:SetScript("OnShow", function(self)
   self:SetFrameStrata("FULLSCREEN_DIALOG")
   self:SetFrameLevel(1000)
   self:Raise()
+  if CooldownCursorManagerDB and CooldownCursorManagerDB.guiHeight then
+    self:SetHeight(CooldownCursorManagerDB.guiHeight)
+  end
 end)
 cfg:SetScript("OnHide", function()
   if HideActiveDropdownList then HideActiveDropdownList() end
@@ -90,8 +95,8 @@ titleBar:SetPoint("TOPRIGHT", cfg, "TOPRIGHT", -2, -2)
 titleBar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 titleBar:SetBackdropColor(0.15, 0.15, 0.18, 1)
 local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-titleText:SetPoint("LEFT", titleBar, "LEFT", 12, 0)
-titleText:SetText("Cooldown Cursor Manager v6.1.0")
+titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
+titleText:SetText("Cooldown Cursor Manager v6.2.0")
 titleText:SetTextColor(1, 0.82, 0)
 local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
 closeBtn:SetSize(24, 24)
@@ -155,58 +160,10 @@ local impBtn = CreateStyledButton(profileBar, "Import", 50, 22)
 impBtn:SetPoint("LEFT", expBtn, "RIGHT", 4, 0)
 local copyProfileBtn = CreateStyledButton(profileBar, "Copy Profile", 85, 22)
 copyProfileBtn:SetPoint("LEFT", impBtn, "RIGHT", 4, 0)
-local minimapBtn = CreateFrame("CheckButton", nil, profileBar, "BackdropTemplate")
-minimapBtn:SetSize(20, 20)
-minimapBtn:SetPoint("LEFT", copyProfileBtn, "RIGHT", 15, 0)
-minimapBtn:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-minimapBtn:SetBackdropColor(0.08, 0.08, 0.10, 1)
-minimapBtn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-local minimapCheck = minimapBtn:CreateTexture(nil, "ARTWORK")
-minimapCheck:SetSize(12, 12)
-minimapCheck:SetPoint("CENTER")
-minimapCheck:SetColorTexture(1, 0.82, 0, 1)
-minimapCheck:Hide()
-minimapBtn.check = minimapCheck
-minimapBtn:SetChecked(false)
-local function UpdateMinimapCheckState()
-  if minimapBtn:GetChecked() then
-    minimapCheck:Show()
-    minimapBtn:SetBackdropColor(0.15, 0.15, 0.18, 1)
-  else
-    minimapCheck:Hide()
-    minimapBtn:SetBackdropColor(0.08, 0.08, 0.10, 1)
-  end
-end
-minimapBtn:SetScript("OnClick", function()
-  UpdateMinimapCheckState()
-  if minimapBtn.customOnClick then minimapBtn.customOnClick(minimapBtn) end
-end)
-local origMinimapSetChecked = minimapBtn.SetChecked
-minimapBtn.SetChecked = function(self, checked)
-  origMinimapSetChecked(self, checked)
-  UpdateMinimapCheckState()
-end
-minimapBtn:SetScript("OnEnter", function()
-  if not minimapBtn:GetChecked() then
-    minimapBtn:SetBackdropColor(0.12, 0.12, 0.15, 1)
-  end
-  minimapBtn:SetBackdropBorderColor(0.4, 0.4, 0.45, 1)
-end)
-minimapBtn:SetScript("OnLeave", function()
-  if not minimapBtn:GetChecked() then
-    minimapBtn:SetBackdropColor(0.08, 0.08, 0.10, 1)
-  end
-  minimapBtn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-end)
-minimapBtn.label = profileBar:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-minimapBtn.label:SetPoint("LEFT", minimapBtn, "RIGHT", 6, 0)
-minimapBtn.label:SetText("Minimap Icon")
-minimapBtn.label:SetTextColor(0.9, 0.9, 0.9)
-addonTable.minimapCB = minimapBtn
 -- Search field
 local searchBg = CreateFrame("Frame", nil, profileBar, "BackdropTemplate")
 searchBg:SetSize(120, 22)
-searchBg:SetPoint("LEFT", minimapBtn.label, "RIGHT", 5, 0)
+searchBg:SetPoint("LEFT", copyProfileBtn, "RIGHT", 15, 0)
 searchBg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
 searchBg:SetBackdropColor(0.05, 0.05, 0.07, 1)
 searchBg:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
@@ -694,6 +651,12 @@ local function SaveCharacterProfile(profileName)
     local characterKey = playerName .. "-" .. realmName
     CooldownCursorManagerDB.characterProfiles = CooldownCursorManagerDB.characterProfiles or {}
     CooldownCursorManagerDB.characterProfiles[characterKey] = profileName
+    local specID = GetSpecialization()
+    if specID then
+      local specKey = characterKey .. "-" .. specID
+      CooldownCursorManagerDB.specProfiles = CooldownCursorManagerDB.specProfiles or {}
+      CooldownCursorManagerDB.specProfiles[specKey] = profileName
+    end
   end
 end
 local function DeepCopyProfileTable(orig)
@@ -824,6 +787,8 @@ copyProfileBtn:SetScript("OnClick", function()
       return
     end
     CooldownCursorManagerDB.profiles[newName] = DeepCopyProfileTable(CooldownCursorManagerDB.profiles[sourceName])
+    CooldownCursorManagerDB.profiles[newName].trackedSpells = nil
+    CooldownCursorManagerDB.profiles[newName].spellsEnabled = nil
     CooldownCursorManagerDB.profileClasses = CooldownCursorManagerDB.profileClasses or {}
     if popupSharedCB:GetChecked() then
       CooldownCursorManagerDB.profileClasses[newName] = nil
@@ -854,111 +819,212 @@ copyProfileBtn:SetScript("OnClick", function()
   popupEditBox:SetFocus()
   popupEditBox:HighlightText()
 end)
-local tabContainer = CreateFrame("Frame", nil, cfg, "BackdropTemplate")
-tabContainer:SetHeight(30)
-tabContainer:SetPoint("TOPLEFT", profileBar, "BOTTOMLEFT", 0, -1)
-tabContainer:SetPoint("TOPRIGHT", profileBar, "BOTTOMRIGHT", 0, -1)
-tabContainer:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
-tabContainer:SetBackdropColor(0.12, 0.12, 0.14, 1)
+profileBar:Hide()
+local SIDEBAR_WIDTH = 140
+local ACCENT_R, ACCENT_G, ACCENT_B = 1, 0.82, 0
+local sidebar = CreateFrame("Frame", nil, cfg, "BackdropTemplate")
+sidebar:SetWidth(SIDEBAR_WIDTH)
+sidebar:SetPoint("TOPLEFT", titleBar, "BOTTOMLEFT", 2, 0)
+sidebar:SetPoint("BOTTOMLEFT", cfg, "BOTTOMLEFT", 2, 26)
+sidebar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
+sidebar:SetBackdropColor(0.06, 0.06, 0.08, 1)
+local sidebarScroll = CreateFrame("ScrollFrame", "CCMSidebarScroll", sidebar)
+sidebarScroll:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 0, 0)
+sidebarScroll:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", 0, 0)
+sidebarScroll:EnableMouseWheel(true)
+local sidebarChild = CreateFrame("Frame", nil, sidebarScroll)
+sidebarChild:SetWidth(SIDEBAR_WIDTH)
+sidebarChild:SetHeight(900)
+sidebarScroll:SetScrollChild(sidebarChild)
+sidebarScroll:SetScript("OnMouseWheel", function(self, delta)
+  local cur = self:GetVerticalScroll()
+  local max = sidebarChild:GetHeight() - self:GetHeight()
+  if max < 0 then max = 0 end
+  local newVal = cur - (delta * 20)
+  if newVal < 0 then newVal = 0 end
+  if newVal > max then newVal = max end
+  self:SetVerticalScroll(newVal)
+end)
+local sidebarDivider = cfg:CreateTexture(nil, "ARTWORK")
+sidebarDivider:SetWidth(1)
+sidebarDivider:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 0, 0)
+sidebarDivider:SetPoint("BOTTOMLEFT", sidebar, "BOTTOMRIGHT", 0, 0)
+sidebarDivider:SetColorTexture(0.2, 0.2, 0.25, 1)
 local contentContainer = CreateFrame("Frame", nil, cfg, "BackdropTemplate")
-contentContainer:SetPoint("TOPLEFT", tabContainer, "BOTTOMLEFT", 0, 0)
-contentContainer:SetPoint("BOTTOMRIGHT", cfg, "BOTTOMRIGHT", -2, 2)
+contentContainer:SetPoint("TOPLEFT", sidebar, "TOPRIGHT", 1, 0)
+contentContainer:SetPoint("BOTTOMRIGHT", cfg, "BOTTOMRIGHT", -2, 26)
 contentContainer:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 contentContainer:SetBackdropColor(0.10, 0.10, 0.12, 1)
+local footer = CreateFrame("Frame", nil, cfg, "BackdropTemplate")
+footer:SetHeight(24)
+footer:SetPoint("BOTTOMLEFT", cfg, "BOTTOMLEFT", 2, 2)
+footer:SetPoint("BOTTOMRIGHT", cfg, "BOTTOMRIGHT", -2, 2)
+footer:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
+footer:SetBackdropColor(0.08, 0.08, 0.10, 1)
+local footerCredits = footer:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+footerCredits:SetPoint("CENTER", footer, "CENTER", 0, 0)
+footerCredits:SetText("Made by |cff3399ffEdeljay|r, |cffff8800Alevu|r & |cff9933ffDavidgetter|r")
+footerCredits:SetTextColor(0.5, 0.5, 0.5)
+local resizeGrip = CreateFrame("Button", nil, cfg)
+resizeGrip:SetSize(14, 14)
+resizeGrip:SetPoint("BOTTOMRIGHT", cfg, "BOTTOMRIGHT", -4, 4)
+resizeGrip:SetFrameLevel(cfg:GetFrameLevel() + 10)
+local gripColor = {0.4, 0.4, 0.45, 1}
+local gripHighlight = {1, 0.82, 0, 1}
+local gripDots = {}
+local dotSize = 2
+local spacing = 4
+for row = 0, 2 do
+  for col = 0, row do
+    local dot = resizeGrip:CreateTexture(nil, "OVERLAY")
+    dot:SetColorTexture(gripColor[1], gripColor[2], gripColor[3], gripColor[4])
+    dot:SetSize(dotSize, dotSize)
+    dot:SetPoint("BOTTOMRIGHT", resizeGrip, "BOTTOMRIGHT", -(row - col) * spacing, col * spacing)
+    gripDots[#gripDots + 1] = dot
+  end
+end
+resizeGrip:SetScript("OnEnter", function()
+  for _, d in ipairs(gripDots) do d:SetColorTexture(gripHighlight[1], gripHighlight[2], gripHighlight[3], gripHighlight[4]) end
+end)
+resizeGrip:SetScript("OnLeave", function()
+  for _, d in ipairs(gripDots) do d:SetColorTexture(gripColor[1], gripColor[2], gripColor[3], gripColor[4]) end
+end)
+resizeGrip:SetScript("OnMouseDown", function()
+  cfg._resizeWidth = cfg:GetWidth()
+  cfg:StartSizing("BOTTOM")
+end)
+resizeGrip:SetScript("OnMouseUp", function()
+  cfg:StopMovingOrSizing()
+  cfg:SetWidth(cfg._resizeWidth or cfg:GetWidth())
+  local h = math.floor(cfg:GetHeight() + 0.5)
+  if CooldownCursorManagerDB then
+    CooldownCursorManagerDB.guiHeight = h
+  end
+end)
 local tabs, tabFrames, activeTab = {}, {}, nil
-local MAX_TABS = 13
+local MAX_TABS = 19
 local TAB_UF = 11
 local TAB_QOL = 12
 local TAB_TCASTBAR = 13
-local function CreateTab(idx, txt, w)
-  local t = CreateFrame("Button", nil, tabContainer, "BackdropTemplate")
-  t:SetSize(w, 26)
-  t:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
-  local tx = t:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  tx:SetPoint("CENTER")
-  tx:SetText(txt)
-  t.text = tx
-  local function Upd()
-    if activeTab == idx then t:SetBackdropColor(0.10,0.10,0.12,1); tx:SetTextColor(1,0.82,0)
-    else t:SetBackdropColor(0.15,0.15,0.18,1); tx:SetTextColor(0.6,0.6,0.6) end
-  end
-  t:SetScript("OnEnter", function() if activeTab ~= idx then t:SetBackdropColor(0.18,0.18,0.22,1); tx:SetTextColor(0.9,0.9,0.9) end end)
-  t:SetScript("OnLeave", Upd)
-  t:SetScript("OnClick", function()
-    if activeTab ~= idx then
-      if activeTab == 2 and addonTable.StopCursorIconPreview then
-        addonTable.StopCursorIconPreview()
-      end
-      if activeTab == 8 and addonTable.StopCastbarPreview then
-        addonTable.StopCastbarPreview()
-      end
-      if activeTab == 9 and addonTable.StopFocusCastbarPreview then
-        addonTable.StopFocusCastbarPreview()
-      end
-      if activeTab == TAB_TCASTBAR and addonTable.StopTargetCastbarPreview then
-        addonTable.StopTargetCastbarPreview()
-      end
-      if activeTab == 10 and addonTable.StopDebuffPreview then
-        addonTable.StopDebuffPreview()
-      end
-      if activeTab == 1 and addonTable.StopNoTargetAlertPreview then
-        addonTable.StopNoTargetAlertPreview()
-      end
-      if activeTab == TAB_QOL and addonTable.StopCombatStatusPreview then
-        addonTable.StopCombatStatusPreview()
-      end
-      if activeTab == TAB_QOL and addonTable.StopSkyridingPreview then
-        addonTable.StopSkyridingPreview()
-      end
-      if addonTable.ResetAllPreviewHighlights then
-        addonTable.ResetAllPreviewHighlights()
-      end
-      activeTab = idx
-      for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-      if tabFrames[idx] then tabFrames[idx]:Show() end
-      Upd()
-      if idx == 2 and addonTable.ShowCursorIconPreview then
-        addonTable.ShowCursorIconPreview()
-      elseif idx == 8 and addonTable.ShowCastbarPreview then
-        addonTable.ShowCastbarPreview()
-      elseif idx == 9 and addonTable.ShowFocusCastbarPreview then
-        addonTable.ShowFocusCastbarPreview()
-      elseif idx == TAB_TCASTBAR and addonTable.ShowTargetCastbarPreview then
-        addonTable.ShowTargetCastbarPreview()
-      elseif idx == 10 and addonTable.ShowDebuffPreview then
-        addonTable.ShowDebuffPreview()
-      end
-      if idx == 2 and addonTable.RefreshCursorSpellList then addonTable.RefreshCursorSpellList() end
-      if idx == 3 and addonTable.RefreshCB1SpellList then addonTable.RefreshCB1SpellList() end
-      if idx == 4 and addonTable.RefreshCB2SpellList then addonTable.RefreshCB2SpellList() end
-      if idx == 5 and addonTable.RefreshCB3SpellList then addonTable.RefreshCB3SpellList() end
-    end
-    if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-    if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
-    if addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(idx) end
-  end)
-  t.Upd = Upd
-  return t
-end
-tabs[1] = CreateTab(1, "General", 60); tabs[1]:SetPoint("TOPLEFT", tabContainer, "TOPLEFT", 5, -2)
-tabs[2] = CreateTab(2, "Cursor CDM", 75); tabs[2]:SetPoint("LEFT", tabs[1], "RIGHT", 2, 0)
-tabs[3] = CreateTab(3, "CBar 1", 50); tabs[3]:SetPoint("LEFT", tabs[2], "RIGHT", 2, 0)
-tabs[4] = CreateTab(4, "CBar 2", 50); tabs[4]:SetPoint("LEFT", tabs[3], "RIGHT", 2, 0)
-tabs[5] = CreateTab(5, "CBar 3", 50); tabs[5]:SetPoint("LEFT", tabs[4], "RIGHT", 2, 0)
-tabs[6] = CreateTab(6, "Blizz CDM", 70); tabs[6]:SetPoint("LEFT", tabs[5], "RIGHT", 2, 0)
-tabs[7] = CreateTab(7, "PRB", 35); tabs[7]:SetPoint("LEFT", tabs[6], "RIGHT", 2, 0); tabs[7]:Hide()
-tabs[8] = CreateTab(8, "Castbar", 55); tabs[8]:SetPoint("LEFT", tabs[7], "RIGHT", 2, 0); tabs[8]:Hide()
-tabs[TAB_TCASTBAR] = CreateTab(TAB_TCASTBAR, "TCastbar", 62); tabs[TAB_TCASTBAR]:SetPoint("LEFT", tabs[8], "RIGHT", 2, 0); tabs[TAB_TCASTBAR]:Hide()
-tabs[9] = CreateTab(9, "FCastbar", 62); tabs[9]:SetPoint("LEFT", tabs[TAB_TCASTBAR], "RIGHT", 2, 0); tabs[9]:Hide()
-tabs[10] = CreateTab(10, "Debuffs", 55); tabs[10]:SetPoint("LEFT", tabs[9], "RIGHT", 2, 0); tabs[10]:Hide()
-tabs[TAB_UF] = CreateTab(TAB_UF, "UF", 35); tabs[TAB_UF]:SetPoint("LEFT", tabs[10], "RIGHT", 2, 0); tabs[TAB_UF]:Show()
-tabs[TAB_QOL] = CreateTab(TAB_QOL, "QOL", 40); tabs[TAB_QOL]:SetPoint("LEFT", tabs[TAB_UF], "RIGHT", 2, 0)
-for i=1,MAX_TABS do
+local TAB_ACTIONBARS = 14
+local TAB_CHAT = 15
+local TAB_SKYRIDING = 16
+local TAB_FEATURES = 18
+local TAB_COMBAT = 19
+local TAB_PROFILES = 17
+for i = 1, MAX_TABS do
   tabFrames[i] = CreateFrame("Frame", nil, contentContainer)
   tabFrames[i]:SetAllPoints()
   tabFrames[i]:Hide()
 end
-local function UpdateTabVisibility()
+searchBg:SetParent(sidebar)
+searchBg:ClearAllPoints()
+searchBg:SetSize(SIDEBAR_WIDTH - 12, 22)
+searchBg:SetPoint("TOPLEFT", sidebar, "TOPLEFT", 6, -6)
+sidebarScroll:ClearAllPoints()
+sidebarScroll:SetPoint("TOPLEFT", searchBg, "BOTTOMLEFT", -6, -6)
+sidebarScroll:SetPoint("BOTTOMRIGHT", sidebar, "BOTTOMRIGHT", 0, 0)
+profileBar:SetParent(tabFrames[TAB_PROFILES])
+profileBar:ClearAllPoints()
+profileBar:SetPoint("TOPLEFT", tabFrames[TAB_PROFILES], "TOPLEFT", 0, -40)
+profileBar:SetPoint("TOPRIGHT", tabFrames[TAB_PROFILES], "TOPRIGHT", 0, -40)
+profileBar:Show()
+local profHeader = tabFrames[TAB_PROFILES]:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+profHeader:SetPoint("TOPLEFT", tabFrames[TAB_PROFILES], "TOPLEFT", 15, -12)
+profHeader:SetText("Profile Management")
+profHeader:SetTextColor(0.9, 0.9, 0.9)
+local profHeaderLine = tabFrames[TAB_PROFILES]:CreateTexture(nil, "ARTWORK")
+profHeaderLine:SetHeight(1)
+profHeaderLine:SetPoint("TOPLEFT", tabFrames[TAB_PROFILES], "TOPLEFT", 10, -33)
+profHeaderLine:SetPoint("TOPRIGHT", tabFrames[TAB_PROFILES], "TOPRIGHT", -10, -33)
+profHeaderLine:SetColorTexture(0.3, 0.3, 0.35, 0.6)
+local profTab = tabFrames[TAB_PROFILES]
+local function CreateExampleProfileButton(parent, label, role, xOff, yOff, iconColor)
+  local btn = CreateStyledButton(parent, label, 120, 28)
+  btn:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, yOff)
+  btn.role = role
+  local indicator = btn:CreateTexture(nil, "OVERLAY")
+  indicator:SetSize(8, 8)
+  indicator:SetPoint("LEFT", btn, "LEFT", 8, 0)
+  indicator:SetColorTexture(iconColor.r, iconColor.g, iconColor.b, 1)
+  local fs = btn:GetFontString()
+  if fs then fs:SetPoint("CENTER", btn, "CENTER", 4, 0) end
+  return btn
+end
+local exProfHeader = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+exProfHeader:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -90)
+exProfHeader:SetText("Example Profiles")
+exProfHeader:SetTextColor(0.9, 0.9, 0.9)
+local exProfLine = profTab:CreateTexture(nil, "ARTWORK")
+exProfLine:SetHeight(1)
+exProfLine:SetPoint("TOPLEFT", profTab, "TOPLEFT", 10, -111)
+exProfLine:SetPoint("TOPRIGHT", profTab, "TOPRIGHT", -10, -111)
+exProfLine:SetColorTexture(0.3, 0.3, 0.35, 0.6)
+local exampleDesc = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+exampleDesc:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -120)
+exampleDesc:SetText("|cff888888Load a preset profile optimized for your role. This will overwrite your current profile settings.|r")
+addonTable.exampleProfileDPSBtn = CreateExampleProfileButton(profTab, "DPS", "DPS", 15, -145, {r=1, g=0.3, b=0.3})
+addonTable.exampleProfileTankBtn = CreateExampleProfileButton(profTab, "Tank", "Tank", 145, -145, {r=0.3, g=0.5, b=1})
+addonTable.exampleProfileHealerBtn = CreateExampleProfileButton(profTab, "Healer", "Healer", 275, -145, {r=0.3, g=1, b=0.5})
+local exampleNote = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+exampleNote:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -180)
+exampleNote:SetText("|cffFFD100Note:|r After loading, customize the profile to your needs and add spells to the Custom Bars.")
+exampleNote:SetJustifyH("LEFT")
+exampleNote:SetTextColor(0.7, 0.7, 0.7)
+local sidebarButtons = {}
+local expandState = {custombars = true, castbars = true, qol = true}
+local sidebarSep = sidebarChild:CreateTexture(nil, "ARTWORK")
+sidebarSep:SetHeight(1)
+sidebarSep:SetColorTexture(0.2, 0.2, 0.25, 0.6)
+sidebarSep:Hide()
+local function StopAllPreviews()
+  if addonTable.StopCursorIconPreview then addonTable.StopCursorIconPreview() end
+  if addonTable.StopCastbarPreview then addonTable.StopCastbarPreview() end
+  if addonTable.StopFocusCastbarPreview then addonTable.StopFocusCastbarPreview() end
+  if addonTable.StopTargetCastbarPreview then addonTable.StopTargetCastbarPreview() end
+  if addonTable.StopDebuffPreview then addonTable.StopDebuffPreview() end
+  if addonTable.StopNoTargetAlertPreview then addonTable.StopNoTargetAlertPreview() end
+  if addonTable.StopCombatStatusPreview then addonTable.StopCombatStatusPreview() end
+  if addonTable.StopSkyridingPreview then addonTable.StopSkyridingPreview() end
+  if addonTable.ResetAllPreviewHighlights then addonTable.ResetAllPreviewHighlights() end
+end
+local TAB_WIDTHS = {
+  [1] = 710, [2] = 870, [3] = 870, [4] = 870, [5] = 870,
+  [6] = 720, [7] = 710, [8] = 710, [9] = 710, [10] = 710,
+  [TAB_UF] = 800, [TAB_QOL] = 710, [TAB_TCASTBAR] = 710,
+  [TAB_ACTIONBARS] = 710, [TAB_CHAT] = 710, [TAB_SKYRIDING] = 710,
+  [TAB_PROFILES] = 710, [TAB_FEATURES] = 710, [TAB_COMBAT] = 710,
+}
+local function ActivateTab(idx)
+  if activeTab == idx then return end
+  StopAllPreviews()
+  activeTab = idx
+  local w = TAB_WIDTHS[idx] or 680
+  cfg:SetWidth(w)
+  cfg:SetResizeBounds(w, 400, w, 1200)
+  for i = 1, MAX_TABS do
+    if tabFrames[i] then tabFrames[i]:Hide() end
+  end
+  if tabFrames[idx] then tabFrames[idx]:Show() end
+  if idx == 2 and addonTable.ShowCursorIconPreview then addonTable.ShowCursorIconPreview() end
+  if idx == 8 and addonTable.ShowCastbarPreview then addonTable.ShowCastbarPreview() end
+  if idx == 9 and addonTable.ShowFocusCastbarPreview then addonTable.ShowFocusCastbarPreview() end
+  if idx == TAB_TCASTBAR and addonTable.ShowTargetCastbarPreview then addonTable.ShowTargetCastbarPreview() end
+  if idx == 10 and addonTable.ShowDebuffPreview then addonTable.ShowDebuffPreview() end
+  if idx == 2 and addonTable.RefreshCursorSpellList then addonTable.RefreshCursorSpellList() end
+  if idx == 3 and addonTable.RefreshCB1SpellList then addonTable.RefreshCB1SpellList() end
+  if idx == 4 and addonTable.RefreshCB2SpellList then addonTable.RefreshCB2SpellList() end
+  if idx == 5 and addonTable.RefreshCB3SpellList then addonTable.RefreshCB3SpellList() end
+  if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+  if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
+  if addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(idx) end
+  for _, sb in ipairs(sidebarButtons) do
+    if sb.UpdateVisual then sb:UpdateVisual() end
+  end
+end
+local function RebuildSidebar()
+  for _, sb in ipairs(sidebarButtons) do sb:Hide() end
+  wipe(sidebarButtons)
   local profile = GetProfile()
   local barsCount = profile and profile.customBarsCount or 0
   local usePRB = profile and profile.usePersonalResourceBar or false
@@ -967,77 +1033,140 @@ local function UpdateTabVisibility()
   local useTargetCastbar = profile and profile.useTargetCastbar or false
   local useDebuffs = profile and profile.enablePlayerDebuffs or false
   local useUF = profile == nil or profile.enableUnitFrameCustomization ~= false
-  tabs[3]:SetShown(barsCount >= 1)
-  tabs[4]:SetShown(barsCount >= 2)
-  tabs[5]:SetShown(barsCount >= 3)
-  tabs[7]:SetShown(usePRB)
-  tabs[8]:SetShown(useCastbar)
-  tabs[9]:SetShown(useFocusCastbar)
-  tabs[TAB_TCASTBAR]:SetShown(useTargetCastbar)
-  tabs[10]:SetShown(useDebuffs)
-  tabs[TAB_UF]:SetShown(useUF)
-  local lastTab = tabs[2]
-  if barsCount >= 1 then lastTab = tabs[3] end
-  if barsCount >= 2 then lastTab = tabs[4] end
-  if barsCount >= 3 then lastTab = tabs[5] end
-  tabs[6]:ClearAllPoints()
-  tabs[6]:SetPoint("LEFT", lastTab, "RIGHT", 2, 0)
-  tabs[2]:ClearAllPoints()
-  tabs[2]:SetPoint("LEFT", tabs[1], "RIGHT", 2, 0)
-  tabs[7]:ClearAllPoints()
-  tabs[7]:SetPoint("LEFT", tabs[6], "RIGHT", 2, 0)
-  tabs[8]:ClearAllPoints()
-  tabs[8]:SetPoint("LEFT", tabs[7]:IsShown() and tabs[7] or tabs[6], "RIGHT", 2, 0)
-  tabs[TAB_TCASTBAR]:ClearAllPoints()
-  local tcastbarAnchor = tabs[8]:IsShown() and tabs[8] or (tabs[7]:IsShown() and tabs[7] or tabs[6])
-  tabs[TAB_TCASTBAR]:SetPoint("LEFT", tcastbarAnchor, "RIGHT", 2, 0)
-  tabs[9]:ClearAllPoints()
-  local fcastbarAnchor = tabs[TAB_TCASTBAR]:IsShown() and tabs[TAB_TCASTBAR] or tcastbarAnchor
-  tabs[9]:SetPoint("LEFT", fcastbarAnchor, "RIGHT", 2, 0)
-  tabs[10]:ClearAllPoints()
-  local debuffAnchor = tabs[9]:IsShown() and tabs[9] or fcastbarAnchor
-  tabs[10]:SetPoint("LEFT", debuffAnchor, "RIGHT", 2, 0)
-  tabs[TAB_UF]:ClearAllPoints()
-  tabs[TAB_UF]:SetPoint("LEFT", tabs[10]:IsShown() and tabs[10] or debuffAnchor, "RIGHT", 2, 0)
-  tabs[TAB_QOL]:ClearAllPoints()
-  tabs[TAB_QOL]:SetPoint("LEFT", tabs[TAB_UF]:IsShown() and tabs[TAB_UF] or (tabs[10]:IsShown() and tabs[10] or debuffAnchor), "RIGHT", 2, 0)
+  local useCursorCDM = profile and profile.cursorIconsEnabled ~= false
+  local disableBlizzCDM = profile and profile.disableBlizzCDM == true
+  local yOff = -6
+  local BTN_H = 26
+  local SUB_H = 24
+  local function CreateSidebarBtn(tabIdx, label, isSubTab, offState, isExpander, expandKey)
+    local btn = CreateFrame("Button", nil, sidebarChild, "BackdropTemplate")
+    local h = isSubTab and SUB_H or BTN_H
+    btn:SetSize(SIDEBAR_WIDTH, h)
+    btn:SetPoint("TOPLEFT", sidebarChild, "TOPLEFT", 0, yOff)
+    btn:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
+    btn:SetBackdropColor(0.06, 0.06, 0.08, 1)
+    local stripe = btn:CreateTexture(nil, "ARTWORK")
+    stripe:SetSize(3, h)
+    stripe:SetPoint("LEFT", btn, "LEFT", 0, 0)
+    stripe:SetColorTexture(0, 0, 0, 0)
+    btn.stripe = stripe
+    local textX = isSubTab and 20 or 10
+    local tx = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    tx:SetPoint("LEFT", btn, "LEFT", textX, 0)
+    tx:SetText(label)
+    tx:SetTextColor(0.7, 0.7, 0.7)
+    tx:SetJustifyH("LEFT")
+    btn.text = tx
+    btn.tabIdx = tabIdx
+    btn.offState = offState
+    btn.isSubTab = isSubTab
+    local offLabel = nil
+    if offState then
+      offLabel = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      offLabel:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+      offLabel:SetText("(off)")
+      offLabel:SetTextColor(0.85, 0.75, 0.2)
+      offLabel:SetFont("Fonts\\FRIZQT__.TTF", 9)
+      offLabel:Hide()
+    end
+    btn.offLabel = offLabel
+    local arrow = nil
+    if isExpander then
+      arrow = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      arrow:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
+      if expandState[expandKey] then arrow:SetText("v") else arrow:SetText(">") end
+      arrow:SetTextColor(0.5, 0.5, 0.5)
+      arrow:SetFont("Fonts\\FRIZQT__.TTF", 10)
+    end
+    btn.arrow = arrow
+    btn.expandKey = expandKey
+    function btn:UpdateVisual()
+      if self.tabIdx and activeTab == self.tabIdx then
+        self.stripe:SetColorTexture(ACCENT_R, ACCENT_G, ACCENT_B, 1)
+        self.text:SetTextColor(1, 1, 1)
+        self:SetBackdropColor(0.10, 0.10, 0.12, 1)
+      else
+        self.stripe:SetColorTexture(0, 0, 0, 0)
+        if self.offState then
+          self.text:SetTextColor(0.4, 0.4, 0.4)
+        else
+          self.text:SetTextColor(0.7, 0.7, 0.7)
+        end
+        self:SetBackdropColor(0.06, 0.06, 0.08, 1)
+      end
+      if self.offLabel then
+        self.offLabel:SetShown(self.offState == true)
+      end
+    end
+    btn:SetScript("OnEnter", function(self)
+      if activeTab ~= self.tabIdx then
+        self:SetBackdropColor(0.10, 0.12, 0.10, 1)
+        self.text:SetTextColor(ACCENT_R, ACCENT_G, ACCENT_B)
+      end
+    end)
+    btn:SetScript("OnLeave", function(self) self:UpdateVisual() end)
+    btn:SetScript("OnClick", function(self)
+      if self.expandKey then
+        expandState[self.expandKey] = not expandState[self.expandKey]
+        if self.arrow then
+          self.arrow:SetText(expandState[self.expandKey] and "v" or ">")
+        end
+        RebuildSidebar()
+        return
+      end
+      if self.tabIdx then
+        ActivateTab(self.tabIdx)
+      end
+    end)
+    btn:UpdateVisual()
+    sidebarButtons[#sidebarButtons + 1] = btn
+    yOff = yOff - h
+    return btn
+  end
+  CreateSidebarBtn(1, "General")
+  CreateSidebarBtn(2, "Cursor CDM", false, not useCursorCDM)
+  CreateSidebarBtn(nil, "Custom Bars", false, barsCount == 0, true, "custombars")
+  if expandState.custombars then
+    if barsCount >= 1 then CreateSidebarBtn(3, "Bar 1", true) end
+    if barsCount >= 2 then CreateSidebarBtn(4, "Bar 2", true) end
+    if barsCount >= 3 then CreateSidebarBtn(5, "Bar 3", true) end
+  end
+  CreateSidebarBtn(6, "Blizz CDM", false, disableBlizzCDM)
+  CreateSidebarBtn(7, "PRB", false, not usePRB)
+  local anyCastbar = useCastbar or useFocusCastbar or useTargetCastbar
+  CreateSidebarBtn(nil, "Castbars", false, not anyCastbar, true, "castbars")
+  if expandState.castbars then
+    CreateSidebarBtn(8, "Player", true, not useCastbar)
+    CreateSidebarBtn(9, "Focus", true, not useFocusCastbar)
+    CreateSidebarBtn(TAB_TCASTBAR, "Target", true, not useTargetCastbar)
+  end
+  CreateSidebarBtn(10, "Debuffs", false, not useDebuffs)
+  CreateSidebarBtn(TAB_UF, "Unit Frames", false, not useUF and useUF ~= nil)
+  CreateSidebarBtn(nil, "QoL", false, false, true, "qol")
+  if expandState.qol then
+    CreateSidebarBtn(TAB_QOL, "Alerts", true)
+    CreateSidebarBtn(TAB_FEATURES, "Features", true)
+    CreateSidebarBtn(TAB_COMBAT, "Combat", true)
+    CreateSidebarBtn(TAB_ACTIONBARS, "Action Bars", true)
+    CreateSidebarBtn(TAB_CHAT, "Chat", true)
+    CreateSidebarBtn(TAB_SKYRIDING, "Skyriding", true)
+  end
+  yOff = yOff - 10
+  sidebarSep:ClearAllPoints()
+  sidebarSep:SetPoint("TOPLEFT", sidebarChild, "TOPLEFT", 8, yOff)
+  sidebarSep:SetPoint("TOPRIGHT", sidebarChild, "TOPRIGHT", -8, yOff)
+  sidebarSep:Show()
+  yOff = yOff - 6
+  CreateSidebarBtn(TAB_PROFILES, "Profiles")
+  sidebarChild:SetHeight(math.abs(yOff) + 20)
+end
+local function UpdateTabVisibility()
+  RebuildSidebar()
+  local profile = GetProfile()
+  local barsCount = profile and profile.customBarsCount or 0
   if activeTab and activeTab >= 3 and activeTab <= 5 then
     local tabVisible = (activeTab == 3 and barsCount >= 1) or (activeTab == 4 and barsCount >= 2) or (activeTab == 5 and barsCount >= 3)
-    if not tabVisible then
-      activeTab = 1
-      for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-      tabFrames[1]:Show()
-    end
-  end
-  if activeTab == 7 and not usePRB then
-    activeTab = 1
-    for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-    tabFrames[1]:Show()
-  end
-  if activeTab == 8 and not useCastbar then
-    activeTab = 1
-    for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-    tabFrames[1]:Show()
-  end
-  if activeTab == 9 and not useFocusCastbar then
-    activeTab = 1
-    for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-    tabFrames[1]:Show()
-  end
-  if activeTab == TAB_TCASTBAR and not useTargetCastbar then
-    activeTab = 1
-    for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-    tabFrames[1]:Show()
-  end
-  if activeTab == 10 and not useDebuffs then
-    activeTab = 1
-    for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-    tabFrames[1]:Show()
-  end
-  if activeTab == TAB_UF and not useUF then
-    activeTab = 1
-    for i=1,MAX_TABS do if tabFrames[i] then tabFrames[i]:Hide() end; if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
-    tabFrames[1]:Show()
+    if not tabVisible then ActivateTab(1) end
   end
 end
 -- Search logic: highlight tabs containing matching labels
@@ -1114,39 +1243,35 @@ end
 addonTable._searchUpdate = function(query)
   query = strlower(strtrim(query))
   for i = 1, MAX_TABS do
-    if tabs[i] and tabs[i].text then
+    if tabFrames[i] then
       if query == "" then
-        if tabs[i].Upd then tabs[i].Upd() end
-        if tabFrames[i] then ResetFrameHighlights(tabFrames[i]) end
+        ResetFrameHighlights(tabFrames[i])
       else
-        local found = false
-        if tabs[i].text:GetText() and strfind(strlower(tabs[i].text:GetText()), query, 1, true) then
-          found = true
-        end
-        if not found and tabFrames[i] then
-          local labels = CollectFrameLabels(tabFrames[i])
-          for _, lbl in ipairs(labels) do
-            if strfind(lbl, query, 1, true) then
-              found = true
-              break
-            end
-          end
-        end
-        if found then
-          if activeTab == i then
-            tabs[i]:SetBackdropColor(0.10, 0.10, 0.12, 1)
-            tabs[i].text:SetTextColor(0, 1, 0.5)
-            HighlightMatchingInFrame(tabFrames[i], query)
-          else
-            tabs[i]:SetBackdropColor(0.08, 0.18, 0.08, 1)
-            tabs[i].text:SetTextColor(0, 1, 0.5)
-            if tabFrames[i] then ResetFrameHighlights(tabFrames[i]) end
-          end
+        if activeTab == i then
+          HighlightMatchingInFrame(tabFrames[i], query)
         else
-          if tabs[i].Upd then tabs[i].Upd() end
-          if tabFrames[i] then ResetFrameHighlights(tabFrames[i]) end
+          ResetFrameHighlights(tabFrames[i])
         end
       end
+    end
+  end
+  for _, sb in ipairs(sidebarButtons) do
+    if sb.tabIdx and query ~= "" then
+      local found = false
+      if sb.text:GetText() and strfind(strlower(sb.text:GetText()), query, 1, true) then found = true end
+      if not found and tabFrames[sb.tabIdx] then
+        local labels = CollectFrameLabels(tabFrames[sb.tabIdx])
+        for _, lbl in ipairs(labels) do
+          if strfind(lbl, query, 1, true) then found = true; break end
+        end
+      end
+      if found then
+        sb.text:SetTextColor(ACCENT_R, ACCENT_G, ACCENT_B)
+      else
+        sb:UpdateVisual()
+      end
+    elseif query == "" then
+      sb:UpdateVisual()
     end
   end
 end
@@ -1679,26 +1804,24 @@ local function StyledDropdown(p, labelTxt, x, y, w)
 end
 addonTable.ConfigFrame = cfg
 addonTable.tabFrames = tabFrames
-addonTable.tabs = tabs
 addonTable.MAX_TABS = MAX_TABS
 addonTable.TAB_UF = TAB_UF
 addonTable.TAB_QOL = TAB_QOL
+addonTable.TAB_ACTIONBARS = TAB_ACTIONBARS
+addonTable.TAB_CHAT = TAB_CHAT
+addonTable.TAB_SKYRIDING = TAB_SKYRIDING
+addonTable.TAB_FEATURES = TAB_FEATURES
+addonTable.TAB_COMBAT = TAB_COMBAT
+addonTable.TAB_PROFILES = TAB_PROFILES
 addonTable.activeTab = function() return activeTab end
 addonTable.setActiveTab = function(idx) activeTab = idx end
 addonTable.UpdateTabVisibility = UpdateTabVisibility
+addonTable.RebuildSidebar = RebuildSidebar
+addonTable.ActivateTab = ActivateTab
 addonTable.SwitchToTab = function(idx)
   if not cfg:IsShown() then return end
   if idx < 1 or idx > MAX_TABS then return end
-  if tabs[idx] and not tabs[idx]:IsShown() then return end
-  activeTab = idx
-  for i=1,MAX_TABS do
-    if tabFrames[i] then tabFrames[i]:Hide() end
-    if tabs[i] and tabs[i].Upd then tabs[i].Upd() end
-  end
-  if tabFrames[idx] then tabFrames[idx]:Show() end
-  if addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(idx) end
-  if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-  if addonTable.UpdateBLCRTimer then addonTable.UpdateBLCRTimer() end
+  ActivateTab(idx)
 end
 addonTable.Section = Section
 addonTable.Slider = Slider
@@ -1714,7 +1837,7 @@ addonTable.impBtn = impBtn
 addonTable.copyProfileBtn = copyProfileBtn
 activeTab = 1
 tabFrames[1]:Show()
-for i=1,MAX_TABS do if tabs[i] and tabs[i].Upd then tabs[i].Upd() end end
+RebuildSidebar()
 SLASH_CCM1 = "/ccm"
 SlashCmdList["CCM"] = function()
   if InCombatLockdown() then
@@ -1797,15 +1920,12 @@ initFrame:SetScript("OnEvent", function(_, ev, arg)
 end)
 addonTable.RefreshConfigOnShow = function()
   if activeTab == 3 or activeTab == 4 or activeTab == 5 then
-    activeTab = 1
-    for i=1,MAX_TABS do
-      if tabFrames[i] then tabFrames[i]:Hide() end
-      if tabs[i] and tabs[i].Upd then tabs[i].Upd() end
-    end
-    if tabFrames[1] then tabFrames[1]:Show() end
+    ActivateTab(1)
+  else
+    ActivateTab(activeTab)
   end
   if addonTable.UpdateProfileList then addonTable.UpdateProfileList() end
   if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
   if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
-  if activeTab == 2 and addonTable.RefreshCursorSpellList then addonTable.RefreshCursorSpellList() end
+  RebuildSidebar()
 end
