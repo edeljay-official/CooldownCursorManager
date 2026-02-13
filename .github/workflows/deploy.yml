@@ -1,4 +1,4 @@
-name: Deploy to CurseForge & Wago
+name: Deploy to CurseForge
 
 on:
   workflow_dispatch:
@@ -26,4 +26,3 @@ jobs:
         uses: BigWigsMods/packager@v2
         env:
           CF_API_KEY: ${{ secrets.CF_API_KEY }}
-          WAGO_API_KEY: ${{ secrets.WAGO_API_KEY }}
