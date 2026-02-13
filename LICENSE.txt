@@ -54,6 +54,21 @@ The author is explicitly not responsible for:
 - Any issues arising from modifications made by third parties
 
 ================================================================================
+THIRD-PARTY LIBRARIES
+================================================================================
+
+Files in the Libraries/ directory are third-party code and retain their original
+licenses. They are bundled unmodified for convenience:
+
+- LibStub                  Public Domain
+- CallbackHandler-1.0      BSD License (Ace3)
+- LibSharedMedia-3.0        LGPL v2.1
+- LibButtonGlow-1.0         BSD 3-Clause License
+- LibCustomGlow-1.0         MIT License
+
+These libraries may be replaced by the end user with compatible versions.
+
+================================================================================
 THIRD-PARTY NOTICE
 ================================================================================
 
