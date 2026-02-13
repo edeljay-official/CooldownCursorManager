@@ -1,6 +1,6 @@
 # Cooldown Cursor Manager
 
-Version 6.0.0
+Version 6.1.0
 
 Cooldown Cursor Manager is a modular addon for cooldown tracking, bar customization, unit frame styling, and QoL automation.
 
