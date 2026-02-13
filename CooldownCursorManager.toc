@@ -7,8 +7,9 @@
 ## IconTexture: Interface\AddOns\CooldownCursorManager\media\icon.tga
 ## OptionalDeps: Masque, LibSharedMedia-3.0
 ## X-Category: Combat
-## X-Website: https://www.curseforge.com/wow/addons/cooldowncursormanager
+## X-Website: https://github.com/edeljay-official/CooldownCursorManager
 ## X-Curse-Project-ID: 1444617
+## X-Wago-ID: 96d2elGO
 
 # Libraries
 Libraries\Init.xml

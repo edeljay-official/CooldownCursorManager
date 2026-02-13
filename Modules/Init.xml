@@ -8,4 +8,5 @@
 	<Script file="ccm_debuffs.lua"/>
 	<Script file="ccm_chat.lua"/>
 	<Script file="ccm_skyriding.lua"/>
+	<Script file="ccm_wago.lua"/>
 </Ui>
