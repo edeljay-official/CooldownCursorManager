@@ -223,6 +223,8 @@ function addonTable.UpdateCombatTimer()
   local bg = type(profile.combatTimerBgColorG) == "number" and profile.combatTimerBgColorG or 0.12
   local bb = type(profile.combatTimerBgColorB) == "number" and profile.combatTimerBgColorB or 0.12
   local ba = type(profile.combatTimerBgAlpha) == "number" and profile.combatTimerBgAlpha or 0.85
+  local strata = profile.iconStrata or "FULLSCREEN"
+  frame:SetFrameStrata(strata)
   frame:ClearAllPoints()
   frame:SetScale(scale)
   frame:SetPoint("CENTER", UIParent, "CENTER", (centered and 0 or x) / scale, y / scale)
@@ -509,6 +511,8 @@ function addonTable.UpdateCRTimer()
     return
   end
   local scale = type(profile.crTimerScale) == "number" and profile.crTimerScale or 1
+  local strata = profile.iconStrata or "FULLSCREEN"
+  frame:SetFrameStrata(strata)
   frame:ClearAllPoints()
   frame:SetScale(scale)
   local centered = profile.crTimerCentered == true
@@ -1431,7 +1435,7 @@ local function SuppressButtonGlow(btn)
     if not btn._ccmActivationAlertHooked then
       btn._ccmActivationAlertHooked = true
       hooksecurefunc(activationAlert, "Show", function(self)
-        if btn._ccmSkinned and ShouldHideActionBarGlows() then
+        if ShouldHideActionBarGlows() then
           if self.animIn and self.animIn.Stop then self.animIn:Stop() end
           if self.animOut and self.animOut.Stop then self.animOut:Stop() end
           if self.spark and self.spark.SetAlpha then self.spark:SetAlpha(0) end
@@ -1460,7 +1464,7 @@ local function SuppressButtonGlow(btn)
     if not btn._ccmSpellHighlightHooked then
       btn._ccmSpellHighlightHooked = true
       hooksecurefunc(btn.SpellHighlightTexture, "Show", function(self)
-        if btn._ccmSkinned and ShouldHideActionBarGlows() then
+        if ShouldHideActionBarGlows() then
           self:SetAlpha(0)
           self:Hide()
         end
@@ -1472,13 +1476,79 @@ end
 local ccmOverlayGlowHooked = false
 local function EnsureOverlayGlowSuppressedHook()
   if ccmOverlayGlowHooked then return end
-  if not hooksecurefunc or not ActionButton_ShowOverlayGlow then return end
+  if not hooksecurefunc then return end
   ccmOverlayGlowHooked = true
-  hooksecurefunc("ActionButton_ShowOverlayGlow", function(button)
-    if button and button._ccmSkinned and ShouldHideActionBarGlows() then
-      SuppressButtonGlow(button)
+  if ActionButton_ShowOverlayGlow then
+    hooksecurefunc("ActionButton_ShowOverlayGlow", function(button)
+      if button and ShouldHideActionBarGlows() then
+        SuppressButtonGlow(button)
+      end
+    end)
+  end
+  if ActionButton_ShowSpellActivationAlert then
+    hooksecurefunc("ActionButton_ShowSpellActivationAlert", function(button)
+      if button and ShouldHideActionBarGlows() then
+        SuppressButtonGlow(button)
+      end
+    end)
+  end
+  if ActionButton_UpdateSpellActivationAlert then
+    hooksecurefunc("ActionButton_UpdateSpellActivationAlert", function(button)
+      if button and ShouldHideActionBarGlows() then
+        SuppressButtonGlow(button)
+      end
+    end)
+  end
+  if ActionButton_UpdateOverlayGlow then
+    hooksecurefunc("ActionButton_UpdateOverlayGlow", function(button)
+      if button and ShouldHideActionBarGlows() then
+        SuppressButtonGlow(button)
+      end
+    end)
+  end
+  local libButtonGlow = LibStub and LibStub("LibButtonGlow-1.0", true)
+  if libButtonGlow and libButtonGlow.ShowOverlayGlow then
+    hooksecurefunc(libButtonGlow, "ShowOverlayGlow", function(_, button)
+      if button and ShouldHideActionBarGlows() then
+        SuppressButtonGlow(button)
+      end
+    end)
+  end
+end
+
+local function ForEachKnownActionButton(callback)
+  if not callback then return end
+  local prefixes = {
+    { "ActionButton", 12 },
+    { "MultiBarBottomLeftButton", 12 },
+    { "MultiBarBottomRightButton", 12 },
+    { "MultiBarRightButton", 12 },
+    { "MultiBarLeftButton", 12 },
+    { "MultiBar5Button", 12 },
+    { "MultiBar6Button", 12 },
+    { "MultiBar7Button", 12 },
+    { "StanceButton", 12 },
+    { "PetActionButton", 12 },
+    { "PossessButton", 12 },
+    { "OverrideActionBarButton", 12 },
+  }
+  for _, entry in ipairs(prefixes) do
+    local prefix, maxIndex = entry[1], entry[2]
+    for i = 1, maxIndex do
+      local btn = _G[prefix .. i]
+      if btn then
+        callback(btn)
+      end
     end
-  end)
+  end
+end
+
+local function RefreshActionButtonGlowSuppression()
+  if ShouldHideActionBarGlows() then
+    ForEachKnownActionButton(SuppressButtonGlow)
+  else
+    ForEachKnownActionButton(RestoreButtonGlowVisual)
+  end
 end
 
 local function ApplyButtonSkin(btn)
@@ -1845,6 +1915,8 @@ addonTable.SetupHideABBorders = function()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
   local hide = profile.hideActionBarBorders == true
+  EnsureOverlayGlowSuppressedHook()
+  RefreshActionButtonGlowSuppression()
   if not hide then
     if abSkinEverApplied then
       abSkinEverApplied = false
@@ -2695,7 +2767,7 @@ addonTable.TryAutoSellJunk = function()
     for slot = 1, slots do
       local info = C_Container.GetContainerItemInfo(bag, slot)
       if info and info.quality == Enum.ItemQuality.Poor then
-        local _, _, _, _, _, _, _, _, _, _, sellPrice = GetItemInfo(info.itemID)
+        local _, _, _, _, _, _, _, _, _, _, sellPrice = C_Item.GetItemInfo(info.itemID)
         if sellPrice then
           totalPrice = totalPrice + sellPrice * (info.stackCount or 1)
         end
@@ -2807,4 +2879,189 @@ addonTable.SetupQuickRoleSignup = function()
   else
     quickRoleFrame:UnregisterAllEvents()
   end
+end
+
+-- Low Health Warning (hooks Blizzard's LowHealthFrame OnShow/OnHide)
+local lowHealthWarningFrame = CreateFrame("Frame", "CCMLowHealthWarning", UIParent)
+lowHealthWarningFrame:SetSize(300, 60)
+lowHealthWarningFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 200)
+lowHealthWarningFrame:SetFrameStrata("TOOLTIP")
+lowHealthWarningFrame:SetFrameLevel(500)
+lowHealthWarningFrame:Hide()
+lowHealthWarningFrame.text = lowHealthWarningFrame:CreateFontString(nil, "OVERLAY")
+lowHealthWarningFrame.text:SetPoint("CENTER")
+lowHealthWarningFrame.text:SetTextColor(1, 0, 0, 1)
+lowHealthWarningFrame.text:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
+lowHealthWarningFrame.text:SetText("LOW HEALTH")
+addonTable.LowHealthWarningFrame = lowHealthWarningFrame
+
+local lowHealthSoundPlayed = false
+
+local function StartLowHealthWarningFlash()
+  if State.lowHealthWarningFlashActive then return end
+  State.lowHealthWarningFlashActive = true
+  State.lowHealthWarningFlashTime = 0
+  lowHealthWarningFrame:SetScript("OnUpdate", function(self, elapsed)
+    if not State.lowHealthWarningFlashActive then return end
+    State.lowHealthWarningFlashTime = State.lowHealthWarningFlashTime + elapsed
+    local alpha = 0.55 + 0.45 * math.cos(State.lowHealthWarningFlashTime * math.pi * 2)
+    lowHealthWarningFrame.text:SetAlpha(alpha)
+  end)
+end
+
+local function StopLowHealthWarningFlash()
+  State.lowHealthWarningFlashActive = false
+  lowHealthWarningFrame:SetScript("OnUpdate", nil)
+  lowHealthWarningFrame.text:SetAlpha(1)
+end
+
+local function ApplyLowHealthWarningSettings()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  local globalFont, globalOutline
+  if GetGlobalFont then
+    globalFont, globalOutline = GetGlobalFont()
+  end
+  globalFont = globalFont or "Fonts\\FRIZQT__.TTF"
+  globalOutline = globalOutline or "OUTLINE"
+  local fontSize = profile.lowHealthWarningFontSize or 36
+  lowHealthWarningFrame.text:SetFont(globalFont, fontSize, globalOutline)
+  local r = profile.lowHealthWarningColorR or 1
+  local g = profile.lowHealthWarningColorG or 0
+  local b = profile.lowHealthWarningColorB or 0
+  lowHealthWarningFrame.text:SetTextColor(r, g, b, 1)
+  lowHealthWarningFrame.text:SetText(profile.lowHealthWarningText or "LOW HEALTH")
+  local x = profile.lowHealthWarningX or 0
+  local y = profile.lowHealthWarningY or 200
+  lowHealthWarningFrame:ClearAllPoints()
+  lowHealthWarningFrame:SetPoint("CENTER", UIParent, "CENTER", x, y)
+end
+
+local function UpdateLowHealthWarning()
+  if State.lowHealthWarningPreviewMode then return end
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.lowHealthWarningEnabled then
+    lowHealthWarningFrame:Hide()
+    StopLowHealthWarningFlash()
+    return
+  end
+  ApplyLowHealthWarningSettings()
+end
+addonTable.UpdateLowHealthWarning = UpdateLowHealthWarning
+
+local function ShowLowHealthWarningPreview()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  ApplyLowHealthWarningSettings()
+  State.lowHealthWarningPreviewMode = true
+  lowHealthWarningFrame:Show()
+  if profile.lowHealthWarningFlash then
+    StartLowHealthWarningFlash()
+  else
+    StopLowHealthWarningFlash()
+  end
+  local soundName = profile.lowHealthWarningSound or "None"
+  if soundName ~= "None" then
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if LSM then
+      local soundFile = LSM:Fetch("sound", soundName)
+      if soundFile and type(soundFile) == "string" then
+        local channel = profile.audioChannel or "Master"
+        PlaySoundFile(soundFile, channel)
+      end
+    end
+  end
+end
+addonTable.ShowLowHealthWarningPreview = ShowLowHealthWarningPreview
+
+local function StopLowHealthWarningPreview()
+  State.lowHealthWarningPreviewMode = false
+  StopLowHealthWarningFlash()
+  lowHealthWarningFrame:Hide()
+  UpdateLowHealthWarning()
+end
+addonTable.StopLowHealthWarningPreview = StopLowHealthWarningPreview
+
+local function UpdateLowHealthWarningPreviewIfActive()
+  if State.lowHealthWarningPreviewMode then
+    ShowLowHealthWarningPreview()
+  end
+end
+addonTable.UpdateLowHealthWarningPreviewIfActive = UpdateLowHealthWarningPreviewIfActive
+
+local function ShowLowHealthWarning()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.lowHealthWarningEnabled then return end
+  if State.lowHealthWarningPreviewMode then return end
+  ApplyLowHealthWarningSettings()
+  lowHealthWarningFrame:Show()
+  if profile.lowHealthWarningFlash then
+    StartLowHealthWarningFlash()
+  else
+    StopLowHealthWarningFlash()
+  end
+  if not lowHealthSoundPlayed then
+    lowHealthSoundPlayed = true
+    local soundName = profile.lowHealthWarningSound or "None"
+    if soundName ~= "None" then
+      local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+      if LSM then
+        local soundFile = LSM:Fetch("sound", soundName)
+        if soundFile and type(soundFile) == "string" then
+          local channel = profile.audioChannel or "Master"
+          PlaySoundFile(soundFile, channel)
+        end
+      end
+    end
+  end
+end
+
+local function HideLowHealthWarning()
+  if State.lowHealthWarningPreviewMode then return end
+  lowHealthWarningFrame:Hide()
+  StopLowHealthWarningFlash()
+  lowHealthSoundPlayed = false
+end
+
+local function PlayLowHealthTestSound()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  local soundName = profile.lowHealthWarningSound or "None"
+  if soundName ~= "None" then
+    local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+    if LSM then
+      local soundFile = LSM:Fetch("sound", soundName)
+      if soundFile and type(soundFile) == "string" then
+        local channel = profile.audioChannel or "Master"
+        PlaySoundFile(soundFile, channel)
+      end
+    end
+  end
+end
+addonTable.PlayLowHealthTestSound = PlayLowHealthTestSound
+
+local lowHealthHooked = false
+local function HookLowHealthFrame()
+  if lowHealthHooked then return end
+  if not LowHealthFrame then return end
+  lowHealthHooked = true
+  LowHealthFrame:HookScript("OnShow", function()
+    ShowLowHealthWarning()
+  end)
+  LowHealthFrame:HookScript("OnHide", function()
+    HideLowHealthWarning()
+  end)
+end
+HookLowHealthFrame()
+
+if not lowHealthHooked then
+  local lowHealthHookFrame = CreateFrame("Frame")
+  lowHealthHookFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
+  lowHealthHookFrame:RegisterEvent("PLAYER_LOGIN")
+  lowHealthHookFrame:SetScript("OnEvent", function(self)
+    HookLowHealthFrame()
+    if lowHealthHooked then
+      self:UnregisterAllEvents()
+    end
+  end)
 end

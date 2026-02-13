@@ -30,7 +30,6 @@ CCM.UnitName = UnitName
 CCM.GetSpellInfo = C_Spell.GetSpellInfo
 CCM.GetSpellCooldown = C_Spell.GetSpellCooldown
 CCM.GetSpellTexture = C_Spell.GetSpellTexture
-CCM.IsSpellKnown = IsSpellKnown
 CCM.GetSpecialization = GetSpecialization
 CCM.GetSpecializationInfo = GetSpecializationInfo
 CCM.C_UnitAuras = C_UnitAuras

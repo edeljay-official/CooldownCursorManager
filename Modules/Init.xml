@@ -2,6 +2,7 @@
 	<Script file="ccm_uf.lua"/>
 	<Script file="ccm_castbar.lua"/>
 	<Script file="ccm_fcastbar.lua"/>
+	<Script file="ccm_tcastbar.lua"/>
 	<Script file="ccm_prb.lua"/>
 	<Script file="ccm_qol.lua"/>
 	<Script file="ccm_debuffs.lua"/>

@@ -53,6 +53,9 @@ local function RefreshTextureDropdownOptions()
   if addonTable.focusCastbar then
     ApplyTextureOptionsToDropdown(addonTable.focusCastbar.textureDD)
   end
+  if addonTable.targetCastbar then
+    ApplyTextureOptionsToDropdown(addonTable.targetCastbar.textureDD)
+  end
   ApplyTextureOptionsToDropdown(addonTable.ufHealthTextureDD)
   ApplyTextureOptionsToDropdown(addonTable.skyridingTextureDD)
 end
@@ -100,6 +103,31 @@ local function RefreshFontDropdownOptions()
   ApplyFontOptionsToDropdown(addonTable.fontDD)
 end
 addonTable.RefreshFontDropdownOptions = RefreshFontDropdownOptions
+local function BuildSoundOptions()
+  local options = {{text = "None", value = "None"}}
+  local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+  if LSM then
+    local sounds = LSM:List("sound")
+    if sounds then
+      for _, name in ipairs(sounds) do
+        if name ~= "None" then
+          table.insert(options, {text = name, value = name})
+        end
+      end
+    end
+  end
+  return options
+end
+local soundOptions = BuildSoundOptions()
+addonTable.GetSoundOptions = BuildSoundOptions
+local function ApplySoundOptionsToDropdown(dd)
+  if not dd or not dd.SetOptions then return end
+  dd:SetOptions(soundOptions)
+  dd.keepOpenOnSelect = true
+  dd.refreshOptions = function(self)
+    self:SetOptions((addonTable.GetSoundOptions and addonTable.GetSoundOptions()) or soundOptions)
+  end
+end
 do
   local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
   if LSM and LSM.RegisterCallback and not addonTable._ccmLsmStatusbarRegistered then
@@ -109,12 +137,15 @@ do
         RefreshTextureDropdownOptions()
       elseif mediaType == "font" then
         RefreshFontDropdownOptions()
+      elseif mediaType == "sound" then
+        soundOptions = BuildSoundOptions()
+        if addonTable.lowHealthWarningSoundDD then ApplySoundOptionsToDropdown(addonTable.lowHealthWarningSoundDD) end
       end
     end)
   end
 end
 local function SetSmoothScroll(scrollFrame, step)
-  step = step or 20
+  step = step or 30
   scrollFrame:EnableMouseWheel(true)
   scrollFrame:SetScript("OnMouseWheel", function(self, delta)
     local bar = _G[self:GetName() .. "ScrollBar"]
@@ -140,7 +171,7 @@ local function InitTabs()
   generalScrollFrame:SetPoint("TOPLEFT", tab1, "TOPLEFT", 0, 0)
   generalScrollFrame:SetPoint("BOTTOMRIGHT", tab1, "BOTTOMRIGHT", -22, 0)
   local generalScrollChild = CreateFrame("Frame", "CCMGeneralScrollChild", generalScrollFrame)
-  generalScrollChild:SetSize(490, 580)
+  generalScrollChild:SetSize(490, 755)
   generalScrollFrame:SetScrollChild(generalScrollChild)
   local scrollBar = _G["CCMGeneralScrollFrameScrollBar"]
   if scrollBar then
@@ -164,20 +195,28 @@ local function InitTabs()
     {text = "Thick Outline", value = "THICKOUTLINE"},
     {text = "Monochrome", value = "MONOCHROME"},
   })
-  Section(gc, "UI Scale", -60)
-  addonTable.uiScaleDD = StyledDropdown(gc, nil, 15, -85, 150)
+  addonTable.audioChannelDD, addonTable.audioChannelLbl = StyledDropdown(gc, "Audio Channel", 15, -60, 150)
+  addonTable.audioChannelDD:SetOptions({
+    {text = "Master", value = "Master"},
+    {text = "SFX", value = "SFX"},
+    {text = "Music", value = "Music"},
+    {text = "Ambience", value = "Ambience"},
+    {text = "Dialog", value = "Dialog"},
+  })
+  Section(gc, "UI Scale", -110)
+  addonTable.uiScaleDD = StyledDropdown(gc, nil, 15, -135, 150)
   addonTable.uiScaleDD:SetOptions({
     {text = "Disabled", value = "disabled"},
     {text = "1080p (0.71)", value = "1080p"},
     {text = "1440p (0.53)", value = "1440p"},
     {text = "Custom", value = "custom"},
   })
-  addonTable.uiScaleSlider = Slider(gc, "Custom Scale", 200, -78, 0.4, 1.0, 0.71, 0.01)
-  Section(gc, "Custom Bars", -143)
-  addonTable.customBarsCountSlider = Slider(gc, "Number of Custom Bars (0-3)", 15, -169, 0, 3, 0, 1)
-  Section(gc, "Icon Appearance", -246)
-  addonTable.iconBorderSlider = Slider(gc, "Icon Border Size (0-3)", 15, -271, 0, 3, 1, 1)
-  addonTable.strataDD, addonTable.strataLbl = StyledDropdown(gc, "Frame Strata", 280, -271, 120)
+  addonTable.uiScaleSlider = Slider(gc, "Custom Scale", 200, -128, 0.4, 1.0, 0.71, 0.01)
+  Section(gc, "Custom Bars", -193)
+  addonTable.customBarsCountSlider = Slider(gc, "Number of Custom Bars (0-3)", 15, -219, 0, 3, 0, 1)
+  Section(gc, "Icon Appearance", -296)
+  addonTable.iconBorderSlider = Slider(gc, "Icon Border Size (0-3)", 15, -321, 0, 3, 1, 1)
+  addonTable.strataDD, addonTable.strataLbl = StyledDropdown(gc, "Frame Strata", 280, -321, 120)
   addonTable.strataDD:SetOptions({
     {text = "Background", value = "BACKGROUND"},
     {text = "Low", value = "LOW"},
@@ -188,21 +227,20 @@ local function InitTabs()
     {text = "Fullscreen Dialog", value = "FULLSCREEN_DIALOG"},
     {text = "Tooltip", value = "TOOLTIP"},
   })
-  Section(gc, "Personal Resource Bar", -328)
-  addonTable.prbCB = Checkbox(gc, "Use Personal Resource Bar", 15, -353)
-  Section(gc, "Castbar", -383)
-  addonTable.castbarCB = Checkbox(gc, "Use Custom Castbar", 15, -408)
-  addonTable.focusCastbarCB = Checkbox(gc, "Use Custom Focus Castbar", 280, -408)
-  Section(gc, "Player Debuffs", -438)
-  addonTable.playerDebuffsCB = Checkbox(gc, "Enable Player Debuffs Skinning", 15, -463)
-  Section(gc, "Unit Frame Customization", -488)
-  addonTable.unitFrameCustomizationCB = Checkbox(gc, "Enable Unit Frame Customization", 15, -513)
-  Section(gc, "Example Profiles", -548)
+  Section(gc, "Personal Resource Bar", -378)
+  addonTable.prbCB = Checkbox(gc, "Use Personal Resource Bar", 15, -403)
+  Section(gc, "Castbar", -433)
+  addonTable.castbarCB = Checkbox(gc, "Use Custom Castbar", 15, -458)
+  addonTable.focusCastbarCB = Checkbox(gc, "Use Custom Focus Castbar", 280, -458)
+  addonTable.targetCastbarCB = Checkbox(gc, "Use Custom Target Castbar", 15, -483)
+  Section(gc, "Player Debuffs", -513)
+  addonTable.playerDebuffsCB = Checkbox(gc, "Enable Player Debuffs Skinning", 15, -538)
+  Section(gc, "Unit Frame Customization", -563)
+  addonTable.unitFrameCustomizationCB = Checkbox(gc, "Enable Unit Frame Customization", 15, -588)
+  Section(gc, "Example Profiles", -623)
   local exampleDesc = gc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  exampleDesc:SetPoint("TOPLEFT", gc, "TOPLEFT", 15, -578)
+  exampleDesc:SetPoint("TOPLEFT", gc, "TOPLEFT", 15, -643)
   exampleDesc:SetText("|cff888888Load a preset profile optimized for your role. This will overwrite your current profile settings.|r")
-  exampleDesc:SetJustifyH("LEFT")
-  exampleDesc:SetWidth(500)
   local function CreateExampleProfileButton(parent, label, role, xOff, yOff, iconColor)
     local btn = CreateStyledButton(parent, label, 120, 28)
     btn:SetPoint("TOPLEFT", parent, "TOPLEFT", xOff, yOff)
@@ -215,14 +253,13 @@ local function InitTabs()
     if fs then fs:SetPoint("CENTER", btn, "CENTER", 4, 0) end
     return btn
   end
-  addonTable.exampleProfileDPSBtn = CreateExampleProfileButton(gc, "DPS", "DPS", 15, -608, {r=1, g=0.3, b=0.3})
-  addonTable.exampleProfileTankBtn = CreateExampleProfileButton(gc, "Tank", "Tank", 145, -608, {r=0.3, g=0.5, b=1})
-  addonTable.exampleProfileHealerBtn = CreateExampleProfileButton(gc, "Healer", "Healer", 275, -608, {r=0.3, g=1, b=0.5})
+  addonTable.exampleProfileDPSBtn = CreateExampleProfileButton(gc, "DPS", "DPS", 15, -668, {r=1, g=0.3, b=0.3})
+  addonTable.exampleProfileTankBtn = CreateExampleProfileButton(gc, "Tank", "Tank", 145, -668, {r=0.3, g=0.5, b=1})
+  addonTable.exampleProfileHealerBtn = CreateExampleProfileButton(gc, "Healer", "Healer", 275, -668, {r=0.3, g=1, b=0.5})
   local exampleNote = gc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  exampleNote:SetPoint("TOPLEFT", gc, "TOPLEFT", 15, -648)
+  exampleNote:SetPoint("TOPLEFT", gc, "TOPLEFT", 15, -700)
   exampleNote:SetText("|cffFFD100Note:|r After loading, customize the profile to your needs and add spells to the Custom Bars.")
   exampleNote:SetJustifyH("LEFT")
-  exampleNote:SetWidth(500)
   exampleNote:SetTextColor(0.7, 0.7, 0.7)
   local tab2 = tabFrames[2]
   addonTable.cursor = {}
@@ -231,15 +268,24 @@ local function InitTabs()
   cur.enabledCB = Checkbox(tab2, "Enable", 15, -40)
   cur.combatOnlyCB = Checkbox(tab2, "Combat Only", 100, -40)
   cur.gcdCB = Checkbox(tab2, "Show GCD", 230, -40)
-  cur.cooldownModeDD, cur.cooldownModeLbl = StyledDropdown(tab2, "On Cooldown", 350, -32, 110)
+  cur.cooldownModeDD, cur.cooldownModeLbl = StyledDropdown(tab2, "On Cooldown", 350, -40, 110)
   cur.cooldownModeDD:SetOptions({{text = "Show", value = "show"}, {text = "Hide", value = "hide"}, {text = "Desaturate", value = "desaturate"}, {text = "Hide Available", value = "hideAvailable"}})
-  cur.showModeDD, cur.showModeLbl = StyledDropdown(tab2, "Show", 500, -32, 140)
-  cur.showModeDD:SetOptions({{text = "Always", value = "always"}, {text = "Raid", value = "raid"}, {text = "Dungeon", value = "dungeon"}, {text = "Dungeon & Raid", value = "raidanddungeon"}})
+  cur.alwaysShowInCB = Checkbox(tab2, "Always Show in", 500, -40)
+  cur.alwaysShowInDD, cur.alwaysShowInLbl = StyledDropdown(tab2, " ", 500, -50, 140)
+  cur.alwaysShowInDD:SetOptions({{text = "Raid", value = "raid"}, {text = "Dungeon", value = "dungeon"}, {text = "Dungeon & Raid", value = "raidanddungeon"}})
   cur.iconSizeSlider = Slider(tab2, "Icon Size", 15, -80, 10, 80, 23, 1)
   cur.spacingSlider = Slider(tab2, "Spacing", 280, -80, -3, 10, 2, 1)
   cur.offsetXSlider = Slider(tab2, "Cursor Offset X", 15, -135, -100, 100, 10, 1)
   cur.offsetYSlider = Slider(tab2, "Cursor Offset Y", 280, -135, -100, 100, 25, 1)
   cur.cdTextSlider = Slider(tab2, "CD Text Scale", 15, -190, 0, 2.0, 1.0, 0.1)
+  cur.cdGradientSlider = Slider(tab2, "CD Gradient (sec)", 280, -190, 0, 30, 0, 1)
+  cur.cdGradientColorSwatch = CreateFrame("Frame", nil, tab2, "BackdropTemplate")
+  cur.cdGradientColorSwatch:SetSize(20, 20)
+  cur.cdGradientColorSwatch:SetPoint("LEFT", cur.cdGradientSlider.valueTextBg, "RIGHT", 26, 0)
+  cur.cdGradientColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+  cur.cdGradientColorSwatch:SetBackdropColor(1, 0, 0, 1)
+  cur.cdGradientColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+  cur.cdGradientColorSwatch:EnableMouse(true)
   cur.stackTextSlider = Slider(tab2, "Stack Text Scale", 15, -245, 0.5, 2.0, 1.0, 0.1)
   cur.stackXSlider = Slider(tab2, "Stack Offset X", 280, -245, -20, 20, 0, 1)
   cur.stackYSlider = Slider(tab2, "Stack Offset Y", 15, -300, -20, 20, 0, 1)
@@ -254,12 +300,15 @@ local function InitTabs()
   })
   cur.buffOverlayCB = Checkbox(tab2, "Damage Reduction Buff Overlay", 320, -380)
   Section(tab2, "Tracked Spells / Items", -420)
+  cur.useGlowsCB = Checkbox(tab2, "Use Glows", 15, -445)
   cur.spellBg = CreateFrame("Frame", nil, tab2, "BackdropTemplate")
-  cur.spellBg:SetPoint("TOPLEFT", tab2, "TOPLEFT", 15, -455)
+  cur.spellBg:SetPoint("TOPLEFT", tab2, "TOPLEFT", 15, -500)
   cur.spellBg:SetPoint("BOTTOMRIGHT", tab2, "BOTTOMRIGHT", -15, 70)
   cur.spellBg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
   cur.spellBg:SetBackdropColor(0.06, 0.06, 0.08, 1)
   cur.spellBg:SetBackdropBorderColor(0.2, 0.2, 0.25, 1)
+  cur.glowSpeedSlider = Slider(tab2, "Glow Speed", 160, -445, 0.0, 4.0, 0.0, 0.1)
+  cur.glowThicknessSlider = Slider(tab2, "Glow Thickness", 430, -445, 0.1, 4.0, 1.0, 0.1)
   cur.spellScroll = CreateFrame("ScrollFrame", "CCMCursorSpellScroll", cur.spellBg, "UIPanelScrollFrameTemplate")
   cur.spellScroll:SetPoint("TOPLEFT", 4, -4)
   cur.spellScroll:SetPoint("TOPRIGHT", -26, -4)
@@ -323,52 +372,56 @@ local function InitTabs()
   local function CreateCustomBarTab(tabFrame, barNum, yOffset)
     local cb = {}
     Section(tabFrame, "Custom Bar " .. barNum .. " Settings", -12)
-    cb.outOfCombatCB = Checkbox(tabFrame, "Show Out of Combat", 15, -40)
-    cb.gcdCB = Checkbox(tabFrame, "Show GCD", 180, -40)
-    cb.centeredCB = Checkbox(tabFrame, "Centered", 300, -40)
-    cb.cdModeDD, cb.cdModeLbl = StyledDropdown(tabFrame, "On Cooldown", 400, -32, 110)
+    cb.combatOnlyCB = Checkbox(tabFrame, "Combat Only", 15, -40)
+    cb.gcdCB = Checkbox(tabFrame, "Show GCD", 120, -40)
+    cb.centeredCB = Checkbox(tabFrame, "Centered", 220, -40)
+    cb.cdModeDD, cb.cdModeLbl = StyledDropdown(tabFrame, "On Cooldown", 350, -32, 110)
     cb.cdModeDD:SetOptions({{text = "Show", value = "show"}, {text = "Hide", value = "hide"}, {text = "Desaturate", value = "desaturate"}, {text = "Hide Available", value = "hideAvailable"}})
-    cb.showModeDD, cb.showModeLbl = StyledDropdown(tabFrame, "Show", 550, -32, 140)
+    cb.showModeDD, cb.showModeLbl = StyledDropdown(tabFrame, "Show only", 500, -32, 140)
     cb.showModeDD:SetOptions({{text = "Always", value = "always"}, {text = "Raid", value = "raid"}, {text = "Dungeon", value = "dungeon"}, {text = "Dungeon & Raid", value = "raidanddungeon"}})
     cb.iconSizeSlider = Slider(tabFrame, "Icon Size", 15, -80, 10, 80, 30, 1)
     cb.spacingSlider = Slider(tabFrame, "Spacing", 280, -80, -3, 10, 2, 1)
-    cb.xSlider = Slider(tabFrame, "Bar X Offset", 15, -135, -500, 500, 0, 1)
-    cb.ySlider = Slider(tabFrame, "Bar Y Offset", 280, -135, -500, 500, yOffset, 1)
+    cb.xSlider = Slider(tabFrame, "Bar X Offset", 15, -135, -1000, 1000, 0, 1)
+    cb.ySlider = Slider(tabFrame, "Bar Y Offset", 280, -135, -1000, 1000, yOffset, 1)
     cb.cdTextSlider = Slider(tabFrame, "CD Text Scale", 15, -190, 0, 2.0, 1.0, 0.1)
-    cb.stackTextSlider = Slider(tabFrame, "Stack Text Scale", 280, -190, 0.5, 2.0, 1.0, 0.1)
-    cb.stackXSlider = Slider(tabFrame, "Stack Offset X", 15, -245, -20, 20, 0, 1)
-    cb.stackYSlider = Slider(tabFrame, "Stack Offset Y", 280, -245, -20, 20, 0, 1)
-    cb.iconsPerRowSlider = Slider(tabFrame, "Icons Per Row", 15, -300, 1, 20, 20, 1)
-    cb.buffOverlayCB = Checkbox(tabFrame, "Damage Reduction Buff Overlay", 280, -320)
+    cb.cdGradientSlider = Slider(tabFrame, "CD Gradient (sec)", 280, -190, 0, 30, 0, 1)
+    cb.cdGradientColorSwatch = CreateFrame("Frame", nil, tabFrame, "BackdropTemplate")
+    cb.cdGradientColorSwatch:SetSize(20, 20)
+    cb.cdGradientColorSwatch:SetPoint("LEFT", cb.cdGradientSlider.valueTextBg, "RIGHT", 26, 0)
+    cb.cdGradientColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+    cb.cdGradientColorSwatch:SetBackdropColor(1, 0, 0, 1)
+    cb.cdGradientColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    cb.cdGradientColorSwatch:EnableMouse(true)
+    cb.stackTextSlider = Slider(tabFrame, "Stack Text Scale", 15, -245, 0.5, 2.0, 1.0, 0.1)
+    cb.stackXSlider = Slider(tabFrame, "Stack Offset X", 280, -245, -20, 20, 0, 1)
+    cb.stackYSlider = Slider(tabFrame, "Stack Offset Y", 15, -300, -20, 20, 0, 1)
+    cb.iconsPerRowSlider = Slider(tabFrame, "Icons Per Row", 280, -300, 1, 20, 20, 1)
     cb.directionDD, cb.directionLbl = StyledDropdown(tabFrame, "Direction", 15, -360, 100)
     cb.directionDD:SetOptions({{text = "Horizontal", value = "horizontal"}, {text = "Vertical", value = "vertical"}})
     cb.anchorDD, cb.anchorLbl = StyledDropdown(tabFrame, "Anchor", 150, -360, 80)
     cb.anchorDD:SetOptions({{text = "Left", value = "LEFT"}, {text = "Right", value = "RIGHT"}})
     cb.growthDD, cb.growthLbl = StyledDropdown(tabFrame, "Growth", 265, -360, 80)
     cb.growthDD:SetOptions({{text = "Up", value = "UP"}, {text = "Down", value = "DOWN"}})
-    cb.stackAnchorDD, cb.stackAnchorLbl = StyledDropdown(tabFrame, "Stack Anchor", 370, -360, 110)
+    cb.stackAnchorDD, cb.stackAnchorLbl = StyledDropdown(tabFrame, "Stack Anchor", 380, -360, 110)
     cb.stackAnchorDD:SetOptions({
       {text = "TOPLEFT", value = "TOPLEFT"}, {text = "TOP", value = "TOP"}, {text = "TOPRIGHT", value = "TOPRIGHT"},
       {text = "LEFT", value = "LEFT"}, {text = "CENTER", value = "CENTER"}, {text = "RIGHT", value = "RIGHT"},
       {text = "BOTTOMLEFT", value = "BOTTOMLEFT"}, {text = "BOTTOM", value = "BOTTOM"}, {text = "BOTTOMRIGHT", value = "BOTTOMRIGHT"},
     })
-    cb.anchorTargetLbl = tabFrame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    cb.anchorTargetLbl:SetPoint("BOTTOMLEFT", cb.stackAnchorDD, "TOPRIGHT", 10, 2)
-    cb.anchorTargetLbl:SetText("Anchor To")
-    cb.anchorTargetLbl:SetTextColor(0.9, 0.9, 0.9)
-    cb.anchorTargetBox = CreateFrame("EditBox", nil, tabFrame, "BackdropTemplate")
-    cb.anchorTargetBox:SetSize(100, 24)
-    cb.anchorTargetBox:SetPoint("TOPLEFT", cb.stackAnchorDD, "TOPRIGHT", 10, 0)
-    cb.anchorTargetBox:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-    cb.anchorTargetBox:SetBackdropColor(0.12, 0.12, 0.14, 1)
-    cb.anchorTargetBox:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    cb.anchorTargetBox:SetFontObject("GameFontHighlight")
-    cb.anchorTargetBox:SetAutoFocus(false)
-    cb.anchorTargetBox:SetTextInsets(6, 6, 0, 0)
-    cb.anchorTargetBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
-    Section(tabFrame, "Tracked Spells / Items", -420)
-    cb.spellBg = CreateFrame("Frame", nil, tabFrame, "BackdropTemplate")
-    cb.spellBg:SetPoint("TOPLEFT", tabFrame, "TOPLEFT", 15, -455)
+    cb.anchorTargetDD, cb.anchorTargetLbl = StyledDropdown(tabFrame, "Anchor to", 510, -360, 120)
+    cb.anchorToPointDD, cb.anchorToPointLbl = StyledDropdown(tabFrame, "Point", 510, -400, 120)
+    cb.anchorToPointDD:SetOptions({
+      {text = "TOPLEFT", value = "TOPLEFT"}, {text = "TOP", value = "TOP"}, {text = "TOPRIGHT", value = "TOPRIGHT"},
+      {text = "LEFT", value = "LEFT"}, {text = "CENTER", value = "CENTER"}, {text = "RIGHT", value = "RIGHT"},
+      {text = "BOTTOMLEFT", value = "BOTTOMLEFT"}, {text = "BOTTOM", value = "BOTTOM"}, {text = "BOTTOMRIGHT", value = "BOTTOMRIGHT"},
+    })
+    cb.buffOverlayCB = Checkbox(tabFrame, "Damage Reduction Buff Overlay", 15, -440)
+	    Section(tabFrame, "Tracked Spells / Items", -475)
+	    cb.useGlowsCB = Checkbox(tabFrame, "Use Glows", 15, -505)
+	    cb.glowSpeedSlider = Slider(tabFrame, "Glow Speed", 160, -505, 0.0, 4.0, 0.0, 0.1)
+	    cb.glowThicknessSlider = Slider(tabFrame, "Glow Thickness", 430, -505, 0.1, 4.0, 1.0, 0.1)
+	    cb.spellBg = CreateFrame("Frame", nil, tabFrame, "BackdropTemplate")
+	    cb.spellBg:SetPoint("TOPLEFT", tabFrame, "TOPLEFT", 15, -560)
     cb.spellBg:SetPoint("BOTTOMRIGHT", tabFrame, "BOTTOMRIGHT", -15, 70)
     cb.spellBg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
     cb.spellBg:SetBackdropColor(0.06, 0.06, 0.08, 1)
@@ -495,46 +548,52 @@ local function InitTabs()
   sa.utilityCenteredCB = Checkbox(b6, "Center Utility", 385, -360)
   sa.spacingSlider = Slider(b6, "Spacing", 15, -410, -3, 10, 0, 1)
   sa.borderSizeSlider = Slider(b6, "Border Size", 280, -410, 0, 5, 1, 1)
-  Section(b6, "Buff Bar Settings", -460)
-  sa.buffRowsDD, sa.buffRowsLbl = StyledDropdown(b6, "Buff Rows", 15, -490, 120)
+  sa.cdTextScaleSlider = Slider(b6, "CD Text Scale", 280, -465, 0, 2.0, 1.0, 0.1)
+  Section(b6, "Buff Bar Settings", -520)
+  sa.buffRowsDD, sa.buffRowsLbl = StyledDropdown(b6, "Buff Rows", 15, -550, 120)
   sa.buffRowsDD:SetOptions({{text = "1 Row", value = "1"}, {text = "2 Rows", value = "2"}})
-  sa.buffGrowDD, sa.buffGrowLbl = StyledDropdown(b6, "Buff Grow", 150, -490, 120)
+  sa.buffGrowDD, sa.buffGrowLbl = StyledDropdown(b6, "Buff Grow", 150, -550, 120)
   sa.buffGrowDD:SetOptions({{text = "Right", value = "right"}, {text = "Left", value = "left"}})
-  sa.buffRowGrowDD, sa.buffRowGrowLbl = StyledDropdown(b6, "Buff Up/Down", 280, -490, 120)
+  sa.buffRowGrowDD, sa.buffRowGrowLbl = StyledDropdown(b6, "Buff Up/Down", 280, -550, 120)
   sa.buffRowGrowDD:SetOptions({{text = "Down", value = "down"}, {text = "Up", value = "up"}})
-  sa.buffSizeSlider = Slider(b6, "Buff Size", 15, -550, 20, 80, 45, 0.5)
-  sa.buffYSlider = Slider(b6, "Buff Y", 280, -550, -800, 800, 0, 0.5)
-  sa.buffXSlider = Slider(b6, "Buff X", 280, -600, -800, 800, -150, 0.5)
-  sa.buffIconsPerRowSlider = Slider(b6, "Buff Icons/Row", 280, -650, 0, 20, 0, 1)
-  Section(b6, "Essential Bar Settings", -710)
-  sa.essentialRowsDD, sa.essentialRowsLbl = StyledDropdown(b6, "Essential Rows", 15, -740, 120)
+  sa.buffSizeSlider = Slider(b6, "Buff Size", 15, -610, 20, 80, 45, 0.5)
+  sa.buffCdTextSlider = Slider(b6, "Buff CD Text Scale", 15, -660, 0, 4.0, 1.0, 0.1)
+  sa.buffYSlider = Slider(b6, "Buff Y", 280, -610, -800, 800, 0, 0.5)
+  sa.buffXSlider = Slider(b6, "Buff X", 280, -660, -800, 800, -150, 0.5)
+  sa.buffIconsPerRowSlider = Slider(b6, "Buff Icons/Row", 280, -710, 0, 20, 0, 1)
+  Section(b6, "Essential Bar Settings", -770)
+  sa.essentialRowsDD, sa.essentialRowsLbl = StyledDropdown(b6, "Essential Rows", 15, -800, 120)
   sa.essentialRowsDD:SetOptions({{text = "1 Row", value = "1"}, {text = "2 Rows", value = "2"}})
-  sa.essentialGrowDD, sa.essentialGrowLbl = StyledDropdown(b6, "Essential Grow", 150, -740, 120)
+  sa.essentialGrowDD, sa.essentialGrowLbl = StyledDropdown(b6, "Essential Grow", 150, -800, 120)
   sa.essentialGrowDD:SetOptions({{text = "Right", value = "right"}, {text = "Left", value = "left"}})
-  sa.essentialRowGrowDD, sa.essentialRowGrowLbl = StyledDropdown(b6, "Essential Up/Down", 280, -740, 120)
+  sa.essentialRowGrowDD, sa.essentialRowGrowLbl = StyledDropdown(b6, "Essential Up/Down", 280, -800, 120)
   sa.essentialRowGrowDD:SetOptions({{text = "Down", value = "down"}, {text = "Up", value = "up"}})
-  sa.essentialSizeSlider = Slider(b6, "Essential Size", 15, -800, 20, 80, 45, 0.5)
-  sa.essentialYSlider = Slider(b6, "Essential Y", 280, -800, -800, 800, 50, 0.5)
-  sa.essentialSecondRowSizeSlider = Slider(b6, "Essential Row 2 Size", 15, -850, 20, 80, 45, 0.5)
-  sa.essentialXSlider = Slider(b6, "Essential X", 280, -850, -800, 800, 0, 0.5)
-  sa.essentialIconsPerRowSlider = Slider(b6, "Essential Icons/Row", 280, -900, 0, 20, 0, 1)
-  local utilitySectionLbl = Section(b6, "Utility Bar Settings", -960)
+  sa.essentialSizeSlider = Slider(b6, "Essential Size", 15, -860, 20, 80, 45, 0.5)
+  sa.essentialYSlider = Slider(b6, "Essential Y", 280, -860, -800, 800, 50, 0.5)
+  sa.essentialSecondRowSizeSlider = Slider(b6, "Essential Row 2 Size", 15, -910, 20, 80, 45, 0.5)
+  sa.essentialCdTextSlider = Slider(b6, "Essential CD Text Scale", 15, -960, 0, 4.0, 1.0, 0.1)
+  sa.essentialXSlider = Slider(b6, "Essential X", 280, -910, -800, 800, 0, 0.5)
+  sa.essentialIconsPerRowSlider = Slider(b6, "Essential Icons/Row", 280, -960, 0, 20, 0, 1)
+  local utilitySectionLbl = Section(b6, "Utility Bar Settings", -1020)
   local utilitySectionLine = b6:CreateTexture(nil, "OVERLAY")
   utilitySectionLine:SetHeight(2)
-  utilitySectionLine:SetPoint("TOPLEFT", b6, "TOPLEFT", 150, -960)
-  utilitySectionLine:SetPoint("TOPRIGHT", b6, "TOPRIGHT", -15, -960)
+  utilitySectionLine:SetPoint("TOPLEFT", b6, "TOPLEFT", 150, -1020)
+  utilitySectionLine:SetPoint("TOPRIGHT", b6, "TOPRIGHT", -15, -1020)
   utilitySectionLine:SetColorTexture(0.4, 0.4, 0.45, 1)
-  sa.utilityRowsDD, sa.utilityRowsLbl = StyledDropdown(b6, "Utility Rows", 15, -990, 120)
+  utilitySectionLine:SetSnapToPixelGrid(true)
+  utilitySectionLine:SetTexelSnappingBias(0)
+  sa.utilityRowsDD, sa.utilityRowsLbl = StyledDropdown(b6, "Utility Rows", 15, -1050, 120)
   sa.utilityRowsDD:SetOptions({{text = "1 Row", value = "1"}, {text = "2 Rows", value = "2"}})
-  sa.utilityGrowDD, sa.utilityGrowLbl = StyledDropdown(b6, "Utility Grow", 150, -990, 120)
+  sa.utilityGrowDD, sa.utilityGrowLbl = StyledDropdown(b6, "Utility Grow", 150, -1050, 120)
   sa.utilityGrowDD:SetOptions({{text = "Right", value = "right"}, {text = "Left", value = "left"}})
-  sa.utilityRowGrowDD, sa.utilityRowGrowLbl = StyledDropdown(b6, "Utility Up/Down", 280, -990, 120)
+  sa.utilityRowGrowDD, sa.utilityRowGrowLbl = StyledDropdown(b6, "Utility Up/Down", 280, -1050, 120)
   sa.utilityRowGrowDD:SetOptions({{text = "Down", value = "down"}, {text = "Up", value = "up"}})
-  sa.utilityAutoWidthDD, sa.utilityAutoWidthLbl = StyledDropdown(b6, "Utility Auto Width", 410, -990, 120)
-  sa.utilitySizeSlider = Slider(b6, "Utility Size", 15, -1050, 20, 80, 45, 0.5)
-  sa.utilityYSlider = Slider(b6, "Utility Y", 280, -1050, -800, 800, -50, 0.5)
-  sa.utilityXSlider = Slider(b6, "Utility X", 280, -1100, -800, 800, 150, 0.5)
-  sa.utilityIconsPerRowSlider = Slider(b6, "Utility Icons/Row", 280, -1150, 0, 20, 0, 1)
+  sa.utilityAutoWidthDD, sa.utilityAutoWidthLbl = StyledDropdown(b6, "Utility Auto Width", 410, -1050, 120)
+  sa.utilitySizeSlider = Slider(b6, "Utility Size", 15, -1110, 20, 80, 45, 0.5)
+  sa.utilityCdTextSlider = Slider(b6, "Utility CD Text Scale", 15, -1160, 0, 4.0, 1.0, 0.1)
+  sa.utilityYSlider = Slider(b6, "Utility Y", 280, -1110, -800, 800, -50, 0.5)
+  sa.utilityXSlider = Slider(b6, "Utility X", 280, -1160, -800, 800, 150, 0.5)
+  sa.utilityIconsPerRowSlider = Slider(b6, "Utility Icons/Row", 280, -1210, 0, 20, 0, 1)
   sa.utilityAutoWidthDD:SetOptions({
     {text = "Off", value = "off"},
     {text = "Essential Bar", value = "essential"},
@@ -542,7 +601,7 @@ local function InitTabs()
     {text = "CBar 2", value = "cbar2"},
     {text = "CBar 3", value = "cbar3"},
   })
-  blizzScrollChild:SetHeight(1320)
+  blizzScrollChild:SetHeight(1380)
   local tab7 = tabFrames[7]
   if tab7 then
     local prbScrollFrame = CreateFrame("ScrollFrame", "CCMPRBScrollFrame", tab7, "UIPanelScrollFrameTemplate")
@@ -578,6 +637,8 @@ local function InitTabs()
       ln:SetPoint("LEFT", l, "RIGHT", 8, 0)
       ln:SetPoint("RIGHT", pc, "RIGHT", -15, 0)
       ln:SetColorTexture(0.3, 0.3, 0.35, 1)
+      ln:SetSnapToPixelGrid(true)
+      ln:SetTexelSnappingBias(0)
       y = y - 25
       return l, ln
     end
@@ -626,17 +687,22 @@ local function InitTabs()
     ApplyTextureOptionsToDropdown(prb.healthTextureDD)
     prb.healthTextDD, prb.healthTextLbl = StyledDropdown(pc, "Text", 170, y, 105)
     prb.healthTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
-    prb.showAbsorbCB = Checkbox(pc, "Show Absorb", 295, y - 18)
-    y = y - 54
-    prb.healAbsorbCB = Checkbox(pc, "Heal Absorb", COL1, y)
-    prb.healPredCB = Checkbox(pc, "Heal Prediction", 170, y)
-    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", 295, y)
-    prb.overAbsorbBarCB = Checkbox(pc, "Overabsorb", 420, y)
-    y = y - 25
-    prb.healthColorBtn, prb.healthColorSwatch = ColorBtn("Bar Color", COL1, y - 22, 0, 0.8, 0)
-    prb.healthTextColorBtn, prb.healthTextColorSwatch = ColorBtn("Text Color", COL1 + 110, y - 22, 1, 1, 1)
-    prb.useClassColorCB = Checkbox(pc, "Use Class Color", COL1 + 220, y - 22)
     y = y - 50
+    prb.healthColorBtn, prb.healthColorSwatch = ColorBtn("Bar Color", COL1, y, 0, 1, 0)
+    prb.healthTextColorBtn, prb.healthTextColorSwatch = ColorBtn("Text Color", 170, y, 1, 1, 1)
+    prb.useClassColorCB = Checkbox(pc, "Use Class Color", 295, y)
+    y = y - 40
+    prb.showAbsorbCB = Checkbox(pc, "Show Absorb", COL1, y)
+    prb.healAbsorbCB = Checkbox(pc, "Heal Absorb", 150, y)
+    prb.healPredCB = Checkbox(pc, "Heal Prediction", 295, y)
+    y = y - 26
+    prb.absorbStripesCB = Checkbox(pc, "Absorb Stripes", COL1, y)
+    prb.overAbsorbBarCB = Checkbox(pc, "Overabsorb", 150, y)
+    y = y - 40
+    prb.lowHealthColorCB = Checkbox(pc, "Low Health Color", COL1, y - 8)
+    prb.lowHealthColorBtn, prb.lowHealthColorSwatch = ColorBtn("Color", 160, y - 8, 1, 0, 0)
+    prb.lowHealthThresholdSlider = Slider(pc, "Threshold %", COL2 + 6, y, 10, 80, 50, 5)
+    y = y - 55
     prb.healthElements = {
       prb.healthHeader, prb.healthLine,
       prb.healthHeightSlider, prb.healthHeightSlider.label, prb.healthHeightSlider.valueText, prb.healthHeightSlider.valueTextBg, prb.healthHeightSlider.upBtn, prb.healthHeightSlider.downBtn,
@@ -652,6 +718,8 @@ local function InitTabs()
       prb.healthTextYSlider, prb.healthTextYSlider.label, prb.healthTextYSlider.valueText, prb.healthTextYSlider.valueTextBg, prb.healthTextYSlider.upBtn, prb.healthTextYSlider.downBtn,
       prb.healthColorBtn, prb.healthColorSwatch, prb.healthTextColorBtn, prb.healthTextColorSwatch,
       prb.useClassColorCB, prb.useClassColorCB.label,
+      prb.lowHealthColorCB, prb.lowHealthColorCB.label, prb.lowHealthColorBtn, prb.lowHealthColorSwatch,
+      prb.lowHealthThresholdSlider, prb.lowHealthThresholdSlider.label, prb.lowHealthThresholdSlider.valueText, prb.lowHealthThresholdSlider.valueTextBg, prb.lowHealthThresholdSlider.upBtn, prb.lowHealthThresholdSlider.downBtn,
     }
     prb.powerHeader, prb.powerLine = PRBSection("Power Bar")
     prb.powerHeightSlider = Slider(pc, "Height", COL1, y, 3, 30, 8, 1)
@@ -662,14 +730,17 @@ local function InitTabs()
     y = y - 50
     prb.powerTextureDD, prb.powerTextureLbl = StyledDropdown(pc, "Texture", COL1, y, 140)
     ApplyTextureOptionsToDropdown(prb.powerTextureDD)
-    y = y - 50
-    prb.powerTextDD, prb.powerTextLbl = StyledDropdown(pc, "Text", COL2 + 6, y - 4, 100)
+    prb.powerTextDD, prb.powerTextLbl = StyledDropdown(pc, "Text", 170, y, 105)
     prb.powerTextDD:SetOptions({{text = "Hidden", value = "hidden"}, {text = "Percent", value = "percent"}, {text = "Percent #", value = "percentnumber"}, {text = "Value", value = "value"}, {text = "Both", value = "both"}})
-    prb.powerColorBtn, prb.powerColorSwatch = ColorBtn("Bar Color", COL1, y - 22, 0, 0.5, 1)
-    prb.powerTextColorBtn, prb.powerTextColorSwatch = ColorBtn("Text Color", COL1 + 110, y - 22, 1, 1, 1)
     y = y - 50
-    prb.usePowerTypeColorCB = Checkbox(pc, "Use Power Type Color", COL1, y)
-    y = y - 35
+    prb.powerColorBtn, prb.powerColorSwatch = ColorBtn("Bar Color", COL1, y, 0, 0.5, 1)
+    prb.powerTextColorBtn, prb.powerTextColorSwatch = ColorBtn("Text Color", 170, y, 1, 1, 1)
+    prb.usePowerTypeColorCB = Checkbox(pc, "Use Power Type Color", COL2 + 6, y)
+    y = y - 40
+    prb.lowPowerColorCB = Checkbox(pc, "Low Power Color", COL1, y - 8)
+    prb.lowPowerColorBtn, prb.lowPowerColorSwatch = ColorBtn("Color", 160, y - 8, 1, 0.5, 0)
+    prb.lowPowerThresholdSlider = Slider(pc, "Threshold %", COL2 + 6, y, 10, 80, 30, 5)
+    y = y - 55
     prb.powerElements = {
       prb.powerHeader, prb.powerLine,
       prb.powerHeightSlider, prb.powerHeightSlider.label, prb.powerHeightSlider.valueText, prb.powerHeightSlider.valueTextBg, prb.powerHeightSlider.upBtn, prb.powerHeightSlider.downBtn,
@@ -680,6 +751,8 @@ local function InitTabs()
       prb.powerColorBtn, prb.powerColorSwatch, prb.powerTextColorBtn, prb.powerTextColorSwatch,
       prb.powerTextDD, prb.powerTextLbl,
       prb.usePowerTypeColorCB, prb.usePowerTypeColorCB.label,
+      prb.lowPowerColorCB, prb.lowPowerColorCB.label, prb.lowPowerColorBtn, prb.lowPowerColorSwatch,
+      prb.lowPowerThresholdSlider, prb.lowPowerThresholdSlider.label, prb.lowPowerThresholdSlider.valueText, prb.lowPowerThresholdSlider.valueTextBg, prb.lowPowerThresholdSlider.upBtn, prb.lowPowerThresholdSlider.downBtn,
     }
     local _, playerClass = UnitClass("player")
     local names = {PALADIN = "Holy Power", ROGUE = "Combo Points", DRUID = "Combo Points", WARLOCK = "Soul Shards", MONK = "Chi", MAGE = "Arcane Charges", EVOKER = "Essence", DEATHKNIGHT = "Runes", PRIEST = "Insanity"}
@@ -834,6 +907,8 @@ local function InitTabs()
       ln:SetPoint("LEFT", l, "RIGHT", 8, 0)
       ln:SetPoint("RIGHT", cc, "RIGHT", -15, 0)
       ln:SetColorTexture(0.3, 0.3, 0.35, 1)
+      ln:SetSnapToPixelGrid(true)
+      ln:SetTexelSnappingBias(0)
       y = y - 25
       return l, ln
     end
@@ -937,6 +1012,8 @@ local function InitTabs()
       ln:SetPoint("LEFT", l, "RIGHT", 8, 0)
       ln:SetPoint("RIGHT", cc, "RIGHT", -15, 0)
       ln:SetColorTexture(0.3, 0.3, 0.35, 1)
+      ln:SetSnapToPixelGrid(true)
+      ln:SetTexelSnappingBias(0)
       y = y - 25
       return l, ln
     end
@@ -1002,6 +1079,108 @@ local function InitTabs()
       end)
     end)
   end
+  local tab13 = tabFrames[13]
+  if tab13 then
+    local targetCastbarScrollFrame = CreateFrame("ScrollFrame", "CCMTargetCastbarScrollFrame", tab13, "UIPanelScrollFrameTemplate")
+    targetCastbarScrollFrame:SetPoint("TOPLEFT", tab13, "TOPLEFT", 0, 0)
+    targetCastbarScrollFrame:SetPoint("BOTTOMRIGHT", tab13, "BOTTOMRIGHT", -22, 0)
+    local targetCastbarScrollChild = CreateFrame("Frame", "CCMTargetCastbarScrollChild", targetCastbarScrollFrame)
+    targetCastbarScrollChild:SetSize(490, 800)
+    targetCastbarScrollFrame:SetScrollChild(targetCastbarScrollChild)
+    local scrollBarTC = _G["CCMTargetCastbarScrollFrameScrollBar"]
+    if scrollBarTC then
+      scrollBarTC:SetPoint("TOPLEFT", targetCastbarScrollFrame, "TOPRIGHT", 6, -16)
+      scrollBarTC:SetPoint("BOTTOMLEFT", targetCastbarScrollFrame, "BOTTOMRIGHT", 6, 16)
+      local thumbTC = scrollBarTC:GetThumbTexture()
+      if thumbTC then thumbTC:SetColorTexture(0.4, 0.4, 0.45, 0.8); thumbTC:SetSize(8, 40) end
+      local upTC = _G["CCMTargetCastbarScrollFrameScrollBarScrollUpButton"]
+      local downTC = _G["CCMTargetCastbarScrollFrameScrollBarScrollDownButton"]
+      if upTC then upTC:SetAlpha(0); upTC:EnableMouse(false) end
+      if downTC then downTC:SetAlpha(0); downTC:EnableMouse(false) end
+    end
+    SetSmoothScroll(targetCastbarScrollFrame)
+    addonTable.targetCastbar = {}
+    local tcbar = addonTable.targetCastbar
+    local tcc = targetCastbarScrollChild
+    local COL1, COL2 = 15, 270
+    local y = -5
+    local function TCastbarSection(txt)
+      local l = tcc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      l:SetPoint("TOPLEFT", tcc, "TOPLEFT", 15, y)
+      l:SetText(txt)
+      l:SetTextColor(1, 0.82, 0)
+      local ln = tcc:CreateTexture(nil, "ARTWORK")
+      ln:SetHeight(1)
+      ln:SetPoint("LEFT", l, "RIGHT", 8, 0)
+      ln:SetPoint("RIGHT", tcc, "RIGHT", -15, 0)
+      ln:SetColorTexture(0.3, 0.3, 0.35, 1)
+      ln:SetSnapToPixelGrid(true)
+      ln:SetTexelSnappingBias(0)
+      y = y - 25
+      return l, ln
+    end
+    local function TCColorBtn(label, x, yPos, r, g, b)
+      local btn = CreateStyledButton(tcc, label, 70, 22)
+      btn:SetPoint("TOPLEFT", tcc, "TOPLEFT", x, yPos)
+      local swatch = CreateFrame("Frame", nil, tcc, "BackdropTemplate")
+      swatch:SetSize(22, 22)
+      swatch:SetPoint("LEFT", btn, "RIGHT", 4, 0)
+      swatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+      swatch:SetBackdropColor(r, g, b, 1)
+      swatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+      return btn, swatch
+    end
+    TCastbarSection("General")
+    tcbar.centeredCB = Checkbox(tcc, "Center Horizontally", COL1, y)
+    y = y - 30
+    tcbar.widthSlider = Slider(tcc, "Bar Width", COL1, y, 50, 500, 250, 1)
+    y = y - 50
+    tcbar.heightSlider = Slider(tcc, "Bar Height", COL1, y, 5, 50, 20, 1)
+    y = y - 50
+    tcbar.xSlider = Slider(tcc, "X Offset", COL1, y, -1000, 1000, 0, 1)
+    tcbar.ySlider = Slider(tcc, "Y Offset", COL2 + 6, y, -1000, 1000, -250, 0.5)
+    y = y - 50
+    tcbar.bgAlphaSlider = Slider(tcc, "BG Alpha %", COL1, y, 0, 100, 70, 1)
+    tcbar.borderSlider = Slider(tcc, "Border Size", COL2 + 6, y, 0, 5, 1, 1)
+    y = y - 50
+    tcbar.textureDD, tcbar.textureLbl = StyledDropdown(tcc, "Texture", COL1, y, 140)
+    ApplyTextureOptionsToDropdown(tcbar.textureDD)
+    tcbar.bgColorBtn, tcbar.bgColorSwatch = TCColorBtn("BG Color", COL2 + 6, y - 17, 0.1, 0.1, 0.1)
+    y = y - 55
+    TCastbarSection("Bar Color")
+    tcbar.showIconCB = Checkbox(tcc, "Show Spell Icon", COL2 + 6, y)
+    y = y - 30
+    tcbar.barColorBtn, tcbar.barColorSwatch = TCColorBtn("Bar Color", COL1, y, 1, 0.7, 0)
+    tcbar.textColorBtn, tcbar.textColorSwatch = TCColorBtn("Text Color", COL1 + 110, y, 1, 1, 1)
+    y = y - 55
+    TCastbarSection("Text Display")
+    tcbar.showSpellNameCB = Checkbox(tcc, "Show Spell Name", COL1, y)
+    tcbar.showTimeCB = Checkbox(tcc, "Show Cast Time", COL2 + 6, y)
+    y = y - 30
+    tcbar.spellNameScaleSlider = Slider(tcc, "Name Scale", COL1, y, 0.5, 2, 1, 0.1)
+    tcbar.timeScaleSlider = Slider(tcc, "Time Scale", COL2 + 6, y, 0.5, 2, 1, 0.1)
+    y = y - 50
+    tcbar.spellNameXSlider = Slider(tcc, "Name X Offset", COL1, y, -100, 100, 0, 1)
+    tcbar.spellNameYSlider = Slider(tcc, "Name Y Offset", COL2 + 6, y, -50, 50, 0, 1)
+    y = y - 50
+    tcbar.timeXSlider = Slider(tcc, "Time X Offset", COL1, y, -100, 100, 0, 1)
+    tcbar.timeYSlider = Slider(tcc, "Time Y Offset", COL2 + 6, y, -50, 50, 0, 1)
+    y = y - 50
+    tcbar.timePrecisionDD, tcbar.timePrecisionLbl = StyledDropdown(tcc, "Time Precision", COL1, y, 100)
+    tcbar.timePrecisionDD:SetOptions({{text = "0 Decimals", value = "0"}, {text = "1 Decimal", value = "1"}, {text = "2 Decimals", value = "2"}})
+    tcbar.timeDirectionDD, tcbar.timeDirectionLbl = StyledDropdown(tcc, "Time Direction", COL2 + 6, y, 130)
+    tcbar.timeDirectionDD:SetOptions({{text = "Remaining", value = "remaining"}, {text = "Elapsed", value = "elapsed"}})
+    y = y - 55
+    TCastbarSection("Channel Options")
+    tcbar.showTicksCB = Checkbox(tcc, "Show Channel Ticks", COL1, y)
+    y = y - 35
+    targetCastbarScrollChild:SetHeight(math.abs(y) + 30)
+    tab13:SetScript("OnShow", function()
+      C_Timer.After(0.05, function()
+        if addonTable.LoadTargetCastbarValues then addonTable.LoadTargetCastbarValues() end
+      end)
+    end)
+  end
   local tab10 = tabFrames[10]
   if tab10 then
     local debuffsScrollFrame = CreateFrame("ScrollFrame", "CCMDebuffsScrollFrame", tab10, "UIPanelScrollFrameTemplate")
@@ -1049,7 +1228,7 @@ local function InitTabs()
     ufScrollFrame:SetPoint("TOPLEFT", tab11, "TOPLEFT", 0, 0)
     ufScrollFrame:SetPoint("BOTTOMRIGHT", tab11, "BOTTOMRIGHT", -22, 0)
     local ufScrollChild = CreateFrame("Frame", "CCMUFScrollChild", ufScrollFrame)
-    ufScrollChild:SetSize(490, 1300)
+    ufScrollChild:SetSize(490, 1325)
     ufScrollFrame:SetScrollChild(ufScrollChild)
     local ufScrollBar = _G["CCMUFScrollFrameScrollBar"]
     if ufScrollBar then
@@ -1073,15 +1252,16 @@ local function InitTabs()
     addonTable.hideEliteTextureCB = Checkbox(uc, "Hide Elite Texture", 280, -87)
     addonTable.ufDisableCombatTextCB = Checkbox(uc, "Disable Player Combat Text", 15, -112)
     addonTable.ufUseCustomNameColorCB = Checkbox(uc, "Use Custom Name Color", 280, -112)
+    addonTable.ufHideGroupIndicatorCB = Checkbox(uc, "Hide Group Indicator", 15, -137)
     addonTable.ufBorderColorBtn = CreateStyledButton(uc, "Border Color", 100, 22)
-    addonTable.ufBorderColorBtn:SetPoint("TOPLEFT", uc, "TOPLEFT", 15, -147)
+    addonTable.ufBorderColorBtn:SetPoint("TOPLEFT", uc, "TOPLEFT", 15, -172)
     addonTable.ufBorderColorSwatch = CreateFrame("Frame", nil, uc, "BackdropTemplate")
     addonTable.ufBorderColorSwatch:SetSize(22, 22)
     addonTable.ufBorderColorSwatch:SetPoint("LEFT", addonTable.ufBorderColorBtn, "RIGHT", 4, 0)
     addonTable.ufBorderColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
     addonTable.ufBorderColorSwatch:SetBackdropColor(0, 0, 0, 1)
     addonTable.ufBorderColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    addonTable.ufHealthTextureDD = StyledDropdown(uc, nil, 280, -147, 115)
+    addonTable.ufHealthTextureDD = StyledDropdown(uc, nil, 280, -172, 115)
     ApplyTextureOptionsToDropdown(addonTable.ufHealthTextureDD)
     addonTable.ufHealthTextureDD:SetEnabled(true)
     addonTable.ufHealthTextureLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
@@ -1090,6 +1270,7 @@ local function InitTabs()
     addonTable.ufHealthTextureLbl:SetTextColor(0.9, 0.9, 0.9)
     addonTable.ufNameColorBtn = CreateStyledButton(uc, "Name Color", 90, 22)
     addonTable.ufNameColorBtn:SetPoint("LEFT", addonTable.ufHealthTextureDD, "RIGHT", 10, 0)
+
     addonTable.ufNameColorSwatch = CreateFrame("Frame", nil, uc, "BackdropTemplate")
     addonTable.ufNameColorSwatch:SetSize(22, 22)
     addonTable.ufNameColorSwatch:SetPoint("LEFT", addonTable.ufNameColorBtn, "RIGHT", 4, 0)
@@ -1097,13 +1278,13 @@ local function InitTabs()
     addonTable.ufNameColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.ufNameColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
 
-    Section(uc, "Use Bigger Healthbars", -190)
-    addonTable.ufBigHBPlayerCB = Checkbox(uc, "Player", 15, -215)
-    addonTable.ufBigHBTargetCB = Checkbox(uc, "Target", 90, -215)
-    addonTable.ufBigHBFocusCB = Checkbox(uc, "Focus", 165, -215)
-    addonTable.ufBigHBHideRealmCB = Checkbox(uc, "Hide Realm", 240, -215)
+    Section(uc, "Use Bigger Healthbars", -215)
+    addonTable.ufBigHBPlayerCB = Checkbox(uc, "Player", 15, -240)
+    addonTable.ufBigHBTargetCB = Checkbox(uc, "Target", 90, -240)
+    addonTable.ufBigHBFocusCB = Checkbox(uc, "Focus", 165, -240)
+    addonTable.ufBigHBHideRealmCB = Checkbox(uc, "Hide Realm", 240, -240)
 
-    local UF_BIG_SECTION_START_Y = -242
+    local UF_BIG_SECTION_START_Y = -267
     local UF_BIG_SECTION_STEP_Y = 320
     local UF_BIG_COL1_X = 15
     local UF_BIG_COL2_X = 175
@@ -1216,7 +1397,7 @@ local function InitTabs()
     qolScrollFrame:SetPoint("TOPLEFT", tab12, "TOPLEFT", 0, 0)
     qolScrollFrame:SetPoint("BOTTOMRIGHT", tab12, "BOTTOMRIGHT", -22, 0)
     local qolScrollChild = CreateFrame("Frame", "CCMQOLScrollChild", qolScrollFrame)
-    qolScrollChild:SetSize(490, 3040)
+    qolScrollChild:SetSize(490, 3446)
     qolScrollFrame:SetScrollChild(qolScrollChild)
     local scrollBar10 = _G["CCMQOLScrollFrameScrollBar"]
     if scrollBar10 then
@@ -1232,7 +1413,7 @@ local function InitTabs()
     SetSmoothScroll(qolScrollFrame)
     local qcTop = qolScrollChild
     local qc = CreateFrame("Frame", nil, qolScrollChild)
-    qc:SetSize(490, 3130)
+    qc:SetSize(490, 3206)
     qc:SetPoint("TOPLEFT", qolScrollChild, "TOPLEFT", 0, -170)
     Section(qc, "Self Highlight", -12)
     addonTable.selfHighlightCB = Checkbox(qc, "Enable Self Highlight", 15, -37)
@@ -1257,22 +1438,22 @@ local function InitTabs()
     addonTable.selfHighlightColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
     addonTable.selfHighlightColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.selfHighlightColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    Section(qc, "No Target Alert", -234)
-    addonTable.noTargetAlertCB = Checkbox(qc, "Enable No Target Alert", 15, -259)
-    addonTable.noTargetAlertFlashCB = Checkbox(qc, "Flash Text", 220, -259)
+    Section(qc, "No Target Alert", -229)
+    addonTable.noTargetAlertCB = Checkbox(qc, "Enable No Target Alert", 15, -254)
+    addonTable.noTargetAlertFlashCB = Checkbox(qc, "Flash Text", 220, -254)
     addonTable.noTargetAlertFlashCB:SetEnabled(false)
     addonTable.noTargetAlertPreviewOnBtn = CreateStyledButton(qc, "Show Preview", 90, 22)
-    addonTable.noTargetAlertPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 320, -259)
+    addonTable.noTargetAlertPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 320, -254)
     addonTable.noTargetAlertPreviewOffBtn = CreateStyledButton(qc, "Hide Preview", 90, 22)
     addonTable.noTargetAlertPreviewOffBtn:SetPoint("LEFT", addonTable.noTargetAlertPreviewOnBtn, "RIGHT", 5, 0)
-    addonTable.noTargetAlertXSlider = Slider(qc, "X Offset", 15, -299, -500, 500, 0, 1)
+    addonTable.noTargetAlertXSlider = Slider(qc, "X Offset", 15, -294, -500, 500, 0, 1)
     addonTable.noTargetAlertXSlider:SetEnabled(false)
-    addonTable.noTargetAlertYSlider = Slider(qc, "Y Offset", 280, -299, -500, 500, 100, 1)
+    addonTable.noTargetAlertYSlider = Slider(qc, "Y Offset", 280, -294, -500, 500, 100, 1)
     addonTable.noTargetAlertYSlider:SetEnabled(false)
-    addonTable.noTargetAlertFontSizeSlider = Slider(qc, "Font Size", 15, -354, 12, 72, 36, 1)
+    addonTable.noTargetAlertFontSizeSlider = Slider(qc, "Font Size", 15, -349, 12, 72, 36, 1)
     addonTable.noTargetAlertFontSizeSlider:SetEnabled(false)
     addonTable.noTargetAlertColorBtn = CreateStyledButton(qc, "Color", 60, 22)
-    addonTable.noTargetAlertColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 280, -364)
+    addonTable.noTargetAlertColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 280, -349)
     addonTable.noTargetAlertColorBtn:SetEnabled(false)
     addonTable.noTargetAlertColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
     addonTable.noTargetAlertColorSwatch:SetSize(22, 22)
@@ -1280,9 +1461,89 @@ local function InitTabs()
     addonTable.noTargetAlertColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
     addonTable.noTargetAlertColorSwatch:SetBackdropColor(1, 0, 0, 1)
     addonTable.noTargetAlertColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    Section(qc, "Action Bar Enhancement", -409)
+    Section(qc, "Low Health Warning", -421)
+    addonTable.lowHealthWarningCB = Checkbox(qc, "Enable Low Health Warning", 15, -446)
+    addonTable.lowHealthWarningFlashCB = Checkbox(qc, "Flash Text", 220, -446)
+    addonTable.lowHealthWarningFlashCB:SetEnabled(false)
+    addonTable.lowHealthWarningPreviewOnBtn = CreateStyledButton(qc, "Show Preview", 90, 22)
+    addonTable.lowHealthWarningPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 320, -446)
+    addonTable.lowHealthWarningPreviewOffBtn = CreateStyledButton(qc, "Hide Preview", 90, 22)
+    addonTable.lowHealthWarningPreviewOffBtn:SetPoint("LEFT", addonTable.lowHealthWarningPreviewOnBtn, "RIGHT", 5, 0)
+    addonTable.lowHealthWarningTextBox = CreateFrame("EditBox", nil, qc, "InputBoxTemplate")
+    addonTable.lowHealthWarningTextBox:SetSize(200, 22)
+    addonTable.lowHealthWarningTextBox:SetPoint("TOPLEFT", qc, "TOPLEFT", 55, -486)
+    addonTable.lowHealthWarningTextBox:SetAutoFocus(false)
+    addonTable.lowHealthWarningTextBox:SetMaxLetters(30)
+    addonTable.lowHealthWarningTextBox:SetText("LOW HEALTH")
+    addonTable.lowHealthWarningTextBox:SetEnabled(false)
+    local lhwTextLbl = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    lhwTextLbl:SetPoint("RIGHT", addonTable.lowHealthWarningTextBox, "LEFT", -4, 0)
+    lhwTextLbl:SetText("Text:")
+    addonTable.lowHealthWarningFontSizeSlider = Slider(qc, "Font Size", 280, -486, 12, 72, 36, 1)
+    addonTable.lowHealthWarningFontSizeSlider:SetEnabled(false)
+    addonTable.lowHealthWarningXSlider = Slider(qc, "X Offset", 15, -541, -500, 500, 0, 1)
+    addonTable.lowHealthWarningXSlider:SetEnabled(false)
+    addonTable.lowHealthWarningYSlider = Slider(qc, "Y Offset", 280, -541, -500, 500, 200, 1)
+    addonTable.lowHealthWarningYSlider:SetEnabled(false)
+    addonTable.lowHealthWarningSoundDD, addonTable.lowHealthWarningSoundLbl = StyledDropdown(qc, "Sound", 15, -596, 180)
+    ApplySoundOptionsToDropdown(addonTable.lowHealthWarningSoundDD)
+    addonTable.lowHealthWarningSoundDD:SetValue("None")
+    addonTable.lowHealthWarningSoundDD:SetEnabled(false)
+    addonTable.lowHealthWarningSoundDD.onButtonRendered = function(btn, opt, _)
+      if not opt then
+        if btn._playBtn then btn._playBtn:Hide() end
+        return
+      end
+      if not btn._playBtn then
+        local pb = CreateFrame("Button", nil, btn)
+        pb:SetSize(20, 20)
+        pb:SetPoint("RIGHT", btn, "RIGHT", -2, 0)
+        pb.tex = pb:CreateTexture(nil, "ARTWORK")
+        pb.tex:SetSize(14, 14)
+        pb.tex:SetPoint("CENTER")
+        pb.tex:SetTexture("Interface\\Buttons\\UI-SpellbookIcon-NextPage-Up")
+        pb.tex:SetVertexColor(0.9, 0.9, 0.9, 0.85)
+        pb:SetScript("OnEnter", function(self)
+          self.tex:SetVertexColor(1, 0.82, 0, 1)
+          local onEnter = btn:GetScript("OnEnter")
+          if onEnter then onEnter(btn) end
+        end)
+        pb:SetScript("OnLeave", function(self)
+          self.tex:SetVertexColor(0.9, 0.9, 0.9, 0.85)
+          local onLeave = btn:GetScript("OnLeave")
+          if onLeave then onLeave(btn) end
+        end)
+        btn._playBtn = pb
+      end
+      if opt.value == "None" then
+        btn._playBtn:Hide()
+      else
+        btn._playBtn:Show()
+        btn._playBtn:SetScript("OnClick", function()
+          local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
+          if LSM then
+            local soundFile = LSM:Fetch("sound", opt.value)
+            if soundFile and type(soundFile) == "string" then
+              local profile = addonTable.GetProfile and addonTable.GetProfile()
+              local channel = (profile and profile.audioChannel) or "Master"
+              PlaySoundFile(soundFile, channel)
+            end
+          end
+        end)
+      end
+    end
+    addonTable.lowHealthWarningColorBtn = CreateStyledButton(qc, "Color", 60, 22)
+    addonTable.lowHealthWarningColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 280, -596)
+    addonTable.lowHealthWarningColorBtn:SetEnabled(false)
+    addonTable.lowHealthWarningColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
+    addonTable.lowHealthWarningColorSwatch:SetSize(22, 22)
+    addonTable.lowHealthWarningColorSwatch:SetPoint("LEFT", addonTable.lowHealthWarningColorBtn, "RIGHT", 4, 0)
+    addonTable.lowHealthWarningColorSwatch:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+    addonTable.lowHealthWarningColorSwatch:SetBackdropColor(1, 0, 0, 1)
+    addonTable.lowHealthWarningColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+    Section(qc, "Action Bar Enhancement", -658)
     local abNote = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    abNote:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -432)
+    abNote:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -681)
     abNote:SetText("|cff888888Note: Action Bars have to be set in Edit Mode to Always Visible.|r")
     local AB_LABEL_X, AB_DD_X, AB_DD_W = 15, 280, 205
     local AB_ROW_H = 30
@@ -1311,7 +1572,7 @@ local function InitTabs()
       dd:SetValue("off")
       addonTable[rowKey .. "ModeDD"] = dd
     end
-    local abRowY = -454
+    local abRowY = -703
     addonTable.actionBarGlobalModeLabel = qc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     addonTable.actionBarGlobalModeLabel:SetPoint("TOPLEFT", qc, "TOPLEFT", AB_LABEL_X, abRowY - 4)
     addonTable.actionBarGlobalModeLabel:SetText("All Bars")
@@ -1328,12 +1589,12 @@ local function InitTabs()
     CreateABModeRow("stanceBar", "Stance Bar", abRowY)
     abRowY = abRowY - AB_ROW_H
     CreateABModeRow("petBar", "Pet Bar", abRowY)
-    addonTable.fadeMicroMenuCB = Checkbox(qc, "Fade Micro Menu", 15, -794)
-    addonTable.hideABGlowsCB = Checkbox(qc, "Hide Glows", AB_DD_X, -794)
-    addonTable.fadeObjectiveTrackerCB = Checkbox(qc, "Fade Objective Tracker", 15, -819)
-    addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", AB_DD_X, -819)
-    addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", 15, -844)
-    addonTable.abSkinSpacingSlider = Slider(qc, "Skinning Spacing", AB_DD_X, -862, 0, 10, 2, 1)
+    addonTable.fadeMicroMenuCB = Checkbox(qc, "Fade Micro Menu", 15, -1043)
+    addonTable.hideABGlowsCB = Checkbox(qc, "Hide Glows", AB_DD_X, -1043)
+    addonTable.fadeObjectiveTrackerCB = Checkbox(qc, "Fade Objective Tracker", 15, -1068)
+    addonTable.hideABBordersCB = Checkbox(qc, "Action Bar Skinning", AB_DD_X, -1068)
+    addonTable.fadeBagBarCB = Checkbox(qc, "Fade Bag Bar", 15, -1093)
+    addonTable.abSkinSpacingSlider = Slider(qc, "Skinning Spacing", AB_DD_X, -1111, 0, 10, 2, 1)
     Section(qcTop, "Radial Circle", -12)
     addonTable.radialCB = Checkbox(qcTop, "Enable Radial Circle", 15, -37)
     addonTable.radialCombatCB = Checkbox(qcTop, "Combat Only", 200, -37)
@@ -1405,42 +1666,42 @@ local function InitTabs()
     end)
     local qcAfterAB = CreateFrame("Frame", nil, qc)
     qcAfterAB:SetSize(490, 3140)
-    qcAfterAB:SetPoint("TOPLEFT", qc, "TOPLEFT", 0, 70)
+    qcAfterAB:SetPoint("TOPLEFT", qc, "TOPLEFT", 0, -90)
     qc = qcAfterAB
-    Section(qc, "Useful Features", -1003)
-    addonTable.autoRepairCB = Checkbox(qc, "Auto Repair (Guild > Gold)", 15, -1028)
-    addonTable.showTooltipIDsCB = Checkbox(qc, "Show Spell/Item IDs in Tooltip", 280, -1028)
-    addonTable.compactMinimapIconsCB = Checkbox(qc, "Compact Minimap Icons", 15, -1053)
-    addonTable.enhancedTooltipCB = Checkbox(qc, "Enhanced Tooltip", 280, -1053)
-    addonTable.autoQuestCB = Checkbox(qc, "Auto Quest Accept/Turn-in", 15, -1078)
-    addonTable.autoSellJunkCB = Checkbox(qc, "Auto Sell Junk", 280, -1078)
-    addonTable.autoQuestExcludeDailyCB = Checkbox(qc, "Exclude Daily", 35, -1103)
-    addonTable.autoFillDeleteCB = Checkbox(qc, "Auto-fill DELETE", 280, -1103)
-    addonTable.autoQuestExcludeWeeklyCB = Checkbox(qc, "Exclude Weekly", 35, -1128)
-    addonTable.quickRoleSignupCB = Checkbox(qc, "Quick Role Signup", 280, -1128)
-    addonTable.autoQuestExcludeTrivialCB = Checkbox(qc, "Exclude Trivial", 35, -1153)
-    addonTable.autoQuestExcludeCompletedCB = Checkbox(qc, "Exclude Completed", 35, -1178)
-    addonTable.autoQuestRewardDD, addonTable.autoQuestRewardLbl = StyledDropdown(qc, "Multi-Reward", 280, -1168, 150)
+    Section(qc, "Useful Features", -1109)
+    addonTable.autoRepairCB = Checkbox(qc, "Auto Repair (Guild > Gold)", 15, -1134)
+    addonTable.showTooltipIDsCB = Checkbox(qc, "Show Spell/Item IDs in Tooltip", 280, -1134)
+    addonTable.compactMinimapIconsCB = Checkbox(qc, "Compact Minimap Icons", 15, -1159)
+    addonTable.enhancedTooltipCB = Checkbox(qc, "Enhanced Tooltip", 280, -1159)
+    addonTable.autoQuestCB = Checkbox(qc, "Auto Quest Accept/Turn-in", 15, -1184)
+    addonTable.autoSellJunkCB = Checkbox(qc, "Auto Sell Junk", 280, -1184)
+    addonTable.autoQuestExcludeDailyCB = Checkbox(qc, "Exclude Daily", 35, -1209)
+    addonTable.autoFillDeleteCB = Checkbox(qc, "Auto-fill DELETE", 280, -1209)
+    addonTable.autoQuestExcludeWeeklyCB = Checkbox(qc, "Exclude Weekly", 35, -1234)
+    addonTable.quickRoleSignupCB = Checkbox(qc, "Quick Role Signup", 280, -1234)
+    addonTable.autoQuestExcludeTrivialCB = Checkbox(qc, "Exclude Trivial", 35, -1259)
+    addonTable.autoQuestExcludeCompletedCB = Checkbox(qc, "Exclude Completed", 35, -1284)
+    addonTable.autoQuestRewardDD, addonTable.autoQuestRewardLbl = StyledDropdown(qc, "Multi-Reward", 280, -1274, 150)
     addonTable.autoQuestRewardDD:SetOptions({{text = "Skip (Manual)", value = "skip"}, {text = "Best Gold Value", value = "gold"}})
-    Section(qc, "Combat Timer", -1233)
-    addonTable.combatTimerCB = Checkbox(qc, "Enable Combat Timer", 15, -1258)
-    addonTable.combatTimerStyleDD, addonTable.combatTimerStyleLbl = StyledDropdown(qc, "Timer Style", 15, -1293, 170)
+    Section(qc, "Combat Timer", -1342)
+    addonTable.combatTimerCB = Checkbox(qc, "Enable Combat Timer", 15, -1367)
+    addonTable.combatTimerStyleDD, addonTable.combatTimerStyleLbl = StyledDropdown(qc, "Timer Style", 15, -1402, 170)
     addonTable.combatTimerStyleDD:SetOptions({
       {text = "Boxed", value = "boxed"},
       {text = "Minimal", value = "minimal"},
     })
-    addonTable.combatTimerModeDD, addonTable.combatTimerModeLbl = StyledDropdown(qc, "Timer Visibility", 280, -1293, 170)
+    addonTable.combatTimerModeDD, addonTable.combatTimerModeLbl = StyledDropdown(qc, "Timer Visibility", 280, -1402, 170)
     addonTable.combatTimerModeDD:SetOptions({
       {text = "Show Always", value = "always"},
       {text = "Only In Combat", value = "combat"},
     })
-    addonTable.combatTimerXSlider = Slider(qc, "X Offset", 15, -1340, -1500, 1500, 0, 1)
-    addonTable.combatTimerYSlider = Slider(qc, "Y Offset", 280, -1340, -1500, 1500, 200, 1)
-    addonTable.combatTimerScaleSlider = Slider(qc, "Scale", 15, -1400, 0.2, 2.0, 1.0, 0.05)
-    addonTable.combatTimerCenteredCB = Checkbox(qc, "Center X", 280, -1415)
+    addonTable.combatTimerXSlider = Slider(qc, "X Offset", 15, -1449, -1500, 1500, 0, 1)
+    addonTable.combatTimerYSlider = Slider(qc, "Y Offset", 280, -1449, -1500, 1500, 200, 1)
+    addonTable.combatTimerScaleSlider = Slider(qc, "Scale", 15, -1509, 0.2, 2.0, 1.0, 0.05)
+    addonTable.combatTimerCenteredCB = Checkbox(qc, "Center X", 280, -1524)
     local ctbd = {bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1}
     addonTable.combatTimerTextColorBtn = CreateStyledButton(qc, "Text Color", 80, 22)
-    addonTable.combatTimerTextColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -1455)
+    addonTable.combatTimerTextColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -1564)
     addonTable.combatTimerTextColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
     addonTable.combatTimerTextColorSwatch:SetSize(22, 22)
     addonTable.combatTimerTextColorSwatch:SetPoint("LEFT", addonTable.combatTimerTextColorBtn, "RIGHT", 4, 0)
@@ -1448,47 +1709,47 @@ local function InitTabs()
     addonTable.combatTimerTextColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.combatTimerTextColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     addonTable.combatTimerBgColorBtn = CreateStyledButton(qc, "Background", 80, 22)
-    addonTable.combatTimerBgColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 250, -1455)
+    addonTable.combatTimerBgColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 250, -1564)
     addonTable.combatTimerBgColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
     addonTable.combatTimerBgColorSwatch:SetSize(22, 22)
     addonTable.combatTimerBgColorSwatch:SetPoint("LEFT", addonTable.combatTimerBgColorBtn, "RIGHT", 4, 0)
     addonTable.combatTimerBgColorSwatch:SetBackdrop(ctbd)
     addonTable.combatTimerBgColorSwatch:SetBackdropColor(0.12, 0.12, 0.12, 1)
     addonTable.combatTimerBgColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    Section(qc, "Timer for CR", -1535)
-    addonTable.crTimerCB = Checkbox(qc, "Enable Timer for CR", 15, -1560)
-    addonTable.crTimerModeDD, addonTable.crTimerModeLbl = StyledDropdown(qc, "Visibility", 15, -1595, 170)
+    Section(qc, "Timer for CR", -1626)
+    addonTable.crTimerCB = Checkbox(qc, "Enable Timer for CR", 15, -1651)
+    addonTable.crTimerModeDD, addonTable.crTimerModeLbl = StyledDropdown(qc, "Visibility", 15, -1686, 170)
     addonTable.crTimerModeDD:SetOptions({
       {text = "Show Always", value = "always"},
       {text = "Only In Combat", value = "combat"},
     })
-    addonTable.crTimerLayoutDD, addonTable.crTimerLayoutLbl = StyledDropdown(qc, "Layout", 280, -1595, 170)
+    addonTable.crTimerLayoutDD, addonTable.crTimerLayoutLbl = StyledDropdown(qc, "Layout", 280, -1686, 170)
     addonTable.crTimerLayoutDD:SetOptions({
       {text = "Vertical", value = "vertical"},
       {text = "Horizontal", value = "horizontal"},
     })
-    addonTable.crTimerDisplayDD, addonTable.crTimerDisplayLbl = StyledDropdown(qc, "Display", 15, -1635, 170)
+    addonTable.crTimerDisplayDD, addonTable.crTimerDisplayLbl = StyledDropdown(qc, "Display", 15, -1726, 170)
     addonTable.crTimerDisplayDD:SetOptions({
       {text = "Charges + Timer", value = "timer"},
       {text = "Charges Only", value = "count"},
     })
-    addonTable.crTimerXSlider = Slider(qc, "X Offset", 15, -1680, -1500, 1500, 0, 1)
-    addonTable.crTimerYSlider = Slider(qc, "Y Offset", 280, -1680, -1500, 1500, 150, 1)
-    addonTable.crTimerScaleSlider = Slider(qc, "Scale", 15, -1740, 0.2, 2.0, 1.0, 0.05)
-    addonTable.crTimerCenteredCB = Checkbox(qc, "Center X", 280, -1755)
-    Section(qc, "Combat Status", -1855)
-    addonTable.combatStatusCB = Checkbox(qc, "Enable Combat Status", 15, -1880)
+    addonTable.crTimerXSlider = Slider(qc, "X Offset", 15, -1771, -1500, 1500, 0, 1)
+    addonTable.crTimerYSlider = Slider(qc, "Y Offset", 280, -1771, -1500, 1500, 150, 1)
+    addonTable.crTimerScaleSlider = Slider(qc, "Scale", 15, -1831, 0.2, 2.0, 1.0, 0.05)
+    addonTable.crTimerCenteredCB = Checkbox(qc, "Center X", 280, -1846)
+    Section(qc, "Combat Status", -1906)
+    addonTable.combatStatusCB = Checkbox(qc, "Enable Combat Status", 15, -1931)
     addonTable.combatStatusPreviewOnBtn = CreateStyledButton(qc, "Show Preview", 90, 22)
-    addonTable.combatStatusPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 250, -1880)
+    addonTable.combatStatusPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 250, -1931)
     addonTable.combatStatusPreviewOffBtn = CreateStyledButton(qc, "Hide Preview", 90, 22)
     addonTable.combatStatusPreviewOffBtn:SetPoint("LEFT", addonTable.combatStatusPreviewOnBtn, "RIGHT", 5, 0)
-    addonTable.combatStatusXSlider = Slider(qc, "X Offset", 15, -1915, -1500, 1500, 0, 1)
-    addonTable.combatStatusYSlider = Slider(qc, "Y Offset", 280, -1915, -1500, 1500, 280, 1)
-    addonTable.combatStatusScaleSlider = Slider(qc, "Scale", 15, -1975, 0.6, 2.0, 1.0, 0.05)
-    addonTable.combatStatusCenteredCB = Checkbox(qc, "Center X", 280, -1990)
+    addonTable.combatStatusXSlider = Slider(qc, "X Offset", 15, -1966, -1500, 1500, 0, 1)
+    addonTable.combatStatusYSlider = Slider(qc, "Y Offset", 280, -1966, -1500, 1500, 280, 1)
+    addonTable.combatStatusScaleSlider = Slider(qc, "Scale", 15, -2026, 0.6, 2.0, 1.0, 0.05)
+    addonTable.combatStatusCenteredCB = Checkbox(qc, "Center X", 280, -2041)
     local csbd = {bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1}
     addonTable.combatStatusEnterColorBtn = CreateStyledButton(qc, "Enter Color", 90, 22)
-    addonTable.combatStatusEnterColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -2030)
+    addonTable.combatStatusEnterColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -2081)
     addonTable.combatStatusEnterColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
     addonTable.combatStatusEnterColorSwatch:SetSize(22, 22)
     addonTable.combatStatusEnterColorSwatch:SetPoint("LEFT", addonTable.combatStatusEnterColorBtn, "RIGHT", 4, 0)
@@ -1496,42 +1757,42 @@ local function InitTabs()
     addonTable.combatStatusEnterColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.combatStatusEnterColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
     addonTable.combatStatusLeaveColorBtn = CreateStyledButton(qc, "Leave Color", 90, 22)
-    addonTable.combatStatusLeaveColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 250, -2030)
+    addonTable.combatStatusLeaveColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 250, -2081)
     addonTable.combatStatusLeaveColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
     addonTable.combatStatusLeaveColorSwatch:SetSize(22, 22)
     addonTable.combatStatusLeaveColorSwatch:SetPoint("LEFT", addonTable.combatStatusLeaveColorBtn, "RIGHT", 4, 0)
     addonTable.combatStatusLeaveColorSwatch:SetBackdrop(csbd)
     addonTable.combatStatusLeaveColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.combatStatusLeaveColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    Section(qc, "Character Panel Enhancement", -2110)
-    addonTable.betterItemLevelCB = Checkbox(qc, "Better Item Level (2 Decimals)", 15, -2135)
-    addonTable.showEquipDetailsCB = Checkbox(qc, "Show Equipment Details (sockets / icon ilvl / enhancements)", 280, -2135)
-    Section(qc, "Chat Enhancement", -2215)
+    Section(qc, "Character Panel Enhancement", -2143)
+    addonTable.betterItemLevelCB = Checkbox(qc, "Better Item Level (2 Decimals)", 15, -2168)
+    addonTable.showEquipDetailsCB = Checkbox(qc, "Show Equipment Details (sockets / icon ilvl / enhancements)", 280, -2168)
+    Section(qc, "Chat Enhancement", -2228)
 
-    addonTable.chatClassColorCB = Checkbox(qc, "Class-Colored Names", 15, -2240)
-    addonTable.chatUrlDetectionCB = Checkbox(qc, "Clickable URLs", 250, -2240)
-    addonTable.chatHideButtonsCB = Checkbox(qc, "Hide Chat Buttons", 15, -2265)
-    addonTable.chatTabFlashCB = Checkbox(qc, "Disable Tab Flash", 250, -2265)
+    addonTable.chatClassColorCB = Checkbox(qc, "Class-Colored Names", 15, -2253)
+    addonTable.chatUrlDetectionCB = Checkbox(qc, "Clickable URLs", 250, -2253)
+    addonTable.chatHideButtonsCB = Checkbox(qc, "Hide Chat Buttons", 15, -2278)
+    addonTable.chatTabFlashCB = Checkbox(qc, "Disable Tab Flash", 250, -2278)
 
-    addonTable.chatEditBoxStyledCB = Checkbox(qc, "Style Edit Box", 15, -2300)
-    addonTable.chatEditBoxDD, addonTable.chatEditBoxLbl = StyledDropdown(qc, "Edit Box Position", 250, -2290, 150)
+    addonTable.chatEditBoxStyledCB = Checkbox(qc, "Style Edit Box", 15, -2313)
+    addonTable.chatEditBoxDD, addonTable.chatEditBoxLbl = StyledDropdown(qc, "Edit Box Position", 250, -2303, 150)
     addonTable.chatEditBoxDD:SetOptions({{text = "Bottom", value = "bottom"}, {text = "Top", value = "top"}})
 
-    addonTable.chatTimestampsCB = Checkbox(qc, "Timestamps", 15, -2340)
-    addonTable.chatTimestampFormatDD, addonTable.chatTimestampFormatLbl = StyledDropdown(qc, "Format", 250, -2330, 150)
+    addonTable.chatTimestampsCB = Checkbox(qc, "Timestamps", 15, -2363)
+    addonTable.chatTimestampFormatDD, addonTable.chatTimestampFormatLbl = StyledDropdown(qc, "Format", 250, -2353, 150)
     addonTable.chatTimestampFormatDD:SetOptions({{text = "HH:MM", value = "HH:MM"}, {text = "HH:MM:SS", value = "HH:MM:SS"}, {text = "12h AM/PM", value = "12h"}})
 
-    addonTable.chatCopyButtonCB = Checkbox(qc, "Copy Chat Button", 15, -2380)
-    addonTable.chatCopyButtonCornerDD, addonTable.chatCopyButtonCornerLbl = StyledDropdown(qc, "Corner", 250, -2370, 150)
+    addonTable.chatCopyButtonCB = Checkbox(qc, "Copy Chat Button", 15, -2423)
+    addonTable.chatCopyButtonCornerDD, addonTable.chatCopyButtonCornerLbl = StyledDropdown(qc, "Corner", 250, -2413, 150)
     addonTable.chatCopyButtonCornerDD:SetOptions({{text = "Top Left", value = "TOPLEFT"}, {text = "Top Right", value = "TOPRIGHT"}, {text = "Bottom Left", value = "BOTTOMLEFT"}, {text = "Bottom Right", value = "BOTTOMRIGHT"}})
 
-    addonTable.chatHideTabsDD, addonTable.chatHideTabsLbl = StyledDropdown(qc, "Chat Tabs", 250, -2410, 150)
+    addonTable.chatHideTabsDD, addonTable.chatHideTabsLbl = StyledDropdown(qc, "Chat Tabs", 250, -2463, 150)
     addonTable.chatHideTabsDD:SetOptions({{text = "Show", value = "off"}, {text = "Hide", value = "hide"}, {text = "Mouseover", value = "mouseover"}})
 
-    addonTable.chatBackgroundCB = Checkbox(qc, "Custom Chat Background", 15, -2455)
-    addonTable.chatBgAlphaSlider = Slider(qc, "Background Opacity", 15, -2485, 0, 100, 40, 5)
+    addonTable.chatBackgroundCB = Checkbox(qc, "Custom Chat Background", 15, -2508)
+    addonTable.chatBgAlphaSlider = Slider(qc, "Background Opacity", 15, -2538, 0, 100, 40, 5)
     addonTable.chatBgColorBtn = CreateStyledButton(qc, "BG Color", 65, 22)
-    addonTable.chatBgColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 280, -2500)
+    addonTable.chatBgColorBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 280, -2553)
     addonTable.chatBgColorSwatch = CreateFrame("Frame", nil, qc, "BackdropTemplate")
     addonTable.chatBgColorSwatch:SetSize(22, 22)
     addonTable.chatBgColorSwatch:SetPoint("LEFT", addonTable.chatBgColorBtn, "RIGHT", 4, 0)
@@ -1539,23 +1800,21 @@ local function InitTabs()
     addonTable.chatBgColorSwatch:SetBackdropColor(0, 0, 0, 1)
     addonTable.chatBgColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
 
-    addonTable.chatFadeToggleCB = Checkbox(qc, "Custom Chat Fading", 15, -2540)
-    addonTable.chatFadeDelaySlider = Slider(qc, "Fade Delay (sec)", 15, -2570, 5, 120, 20, 5)
+    addonTable.chatFadeToggleCB = Checkbox(qc, "Custom Chat Fading", 15, -2593)
+    addonTable.chatFadeDelaySlider = Slider(qc, "Fade Delay (sec)", 15, -2623, 5, 120, 20, 5)
 
-    Section(qc, "Skyriding Enhancement", -2690)
+    Section(qc, "Skyriding Enhancement", -2711)
 
-    addonTable.skyridingEnabledCB = Checkbox(qc, "Enable Skyriding UI", 15, -2715)
-    addonTable.skyridingHideCDMCB = Checkbox(qc, "Hide CDM / Bars", 200, -2715)
+    addonTable.skyridingEnabledCB = Checkbox(qc, "Enable Skyriding UI", 15, -2741)
+    addonTable.skyridingHideCDMCB = Checkbox(qc, "Hide CDM / Bars", 250, -2741)
 
-    addonTable.skyridingVigorBarCB = Checkbox(qc, "Skyriding Bar", 15, -2755)
-    addonTable.skyridingSpeedDisplayCB = Checkbox(qc, "Speed Display", 200, -2755)
-    addonTable.skyridingCooldownsCB = Checkbox(qc, "Ability Cooldowns", 400, -2755)
+    addonTable.skyridingVigorBarCB = Checkbox(qc, "Skyriding Bar", 15, -2771)
+    addonTable.skyridingCenteredCB = Checkbox(qc, "Center", 250, -2771)
 
-    addonTable.skyridingSpeedBarCB = Checkbox(qc, "Speed Bar", 15, -2780)
-    addonTable.skyridingCenteredCB = Checkbox(qc, "Center", 200, -2780)
+    addonTable.skyridingCooldownsCB = Checkbox(qc, "Ability Cooldowns", 15, -2801)
 
-    addonTable.skyridingScreenFxCB = Checkbox(qc, "Screen Effects", 15, -2805)
-    addonTable.skyridingSpeedFxCB = Checkbox(qc, "Speed Effects", 200, -2805)
+    addonTable.skyridingSpeedFxCB = Checkbox(qc, "Speed Effects", 15, -2831)
+    addonTable.skyridingScreenFxCB = Checkbox(qc, "Screen Effects", 15, -2861)
 
     local cbd = {bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1}
     local function ColorPicker(name, x, y, dr, dg, db)
@@ -1570,24 +1829,21 @@ local function InitTabs()
       return btn, sw
     end
 
-    addonTable.skyridingVigorColorBtn, addonTable.skyridingVigorColorSwatch = ColorPicker("Vigor", 15, -2844, 0.2, 0.8, 0.2)
-    addonTable.skyridingSpeedColorBtn, addonTable.skyridingSpeedColorSwatch = ColorPicker("Speed", 130, -2844, 0.3, 0.6, 1.0)
-    addonTable.skyridingSurgeColorBtn, addonTable.skyridingSurgeColorSwatch = ColorPicker("Surge", 245, -2844, 0.85, 0.65, 0.1)
-    addonTable.skyridingWindColorBtn, addonTable.skyridingWindColorSwatch = ColorPicker("Wind", 360, -2844, 0.2, 0.8, 0.2)
+    addonTable.skyridingVigorColorBtn, addonTable.skyridingVigorColorSwatch = ColorPicker("Vigor", 15, -2901, 0.2, 0.8, 0.2)
+    addonTable.skyridingSurgeColorBtn, addonTable.skyridingSurgeColorSwatch = ColorPicker("Surge", 130, -2901, 0.85, 0.65, 0.1)
+    addonTable.skyridingRechargeColorBtn, addonTable.skyridingRechargeColorSwatch = ColorPicker("Recharge", 245, -2901, 0.85, 0.65, 0.1)
+    addonTable.skyridingWindColorBtn, addonTable.skyridingWindColorSwatch = ColorPicker("Wind", 360, -2901, 0.2, 0.8, 0.2)
 
-    addonTable.skyridingEmptyColorBtn, addonTable.skyridingEmptyColorSwatch = ColorPicker("BG", 15, -2880, 0.15, 0.15, 0.15)
-    addonTable.skyridingRechargeColorBtn, addonTable.skyridingRechargeColorSwatch = ColorPicker("Recharge", 130, -2880, 0.85, 0.65, 0.1)
+    addonTable.skyridingEmptyColorBtn, addonTable.skyridingEmptyColorSwatch = ColorPicker("BG", 15, -2937, 0.15, 0.15, 0.15)
 
-    addonTable.skyridingTextureDD, addonTable.skyridingTextureLbl = StyledDropdown(qc, "Texture", 15, -2920, 140)
-    addonTable.skyridingSpeedUnitDD, addonTable.skyridingSpeedUnitLbl = StyledDropdown(qc, "Speed Unit", 310, -2920, 130)
-    addonTable.skyridingSpeedUnitDD:SetOptions({{text = "Percent", value = "percent"}, {text = "Yards/s", value = "yds"}})
+    addonTable.skyridingTextureDD, addonTable.skyridingTextureLbl = StyledDropdown(qc, "Texture", 15, -2977, 140)
     ApplyTextureOptionsToDropdown(addonTable.skyridingTextureDD)
 
-    addonTable.skyridingScaleSlider = Slider(qc, "Scale", 15, -2980, 50, 200, 100, 5)
-    addonTable.skyridingXSlider = Slider(qc, "X Position", 15, -3040, -800, 800, 0, 5)
-    addonTable.skyridingYSlider = Slider(qc, "Y Position", 280, -3040, -800, 800, -200, 5)
+    addonTable.skyridingScaleSlider = Slider(qc, "Scale", 15, -3037, 50, 200, 100, 5)
+    addonTable.skyridingXSlider = Slider(qc, "X Position", 15, -3097, -800, 800, 0, 5)
+    addonTable.skyridingYSlider = Slider(qc, "Y Position", 280, -3097, -800, 800, -200, 5)
     addonTable.skyridingPreviewOnBtn = CreateStyledButton(qc, "Show Preview", 90, 22)
-    addonTable.skyridingPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -3100)
+    addonTable.skyridingPreviewOnBtn:SetPoint("TOPLEFT", qc, "TOPLEFT", 15, -3157)
     addonTable.skyridingPreviewOffBtn = CreateStyledButton(qc, "Hide Preview", 90, 22)
     addonTable.skyridingPreviewOffBtn:SetPoint("LEFT", addonTable.skyridingPreviewOnBtn, "RIGHT", 5, 0)
   end

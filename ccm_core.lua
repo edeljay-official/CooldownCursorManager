@@ -1,4 +1,4 @@
-﻿--------------------------------------------------------------------------------
+--------------------------------------------------------------------------------
 -- CooldownCursorManager - ccm_core.lua
 -- Main addon logic: cooldown tracking, icon management, UI updates
 -- Author: Edeljay
@@ -72,6 +72,7 @@ local State = {
   standaloneEssentialOriginals = {},
   standaloneUtilityOriginals = {},
   standaloneNeedsSkinning = true,
+  standaloneDirty = true,
   fadeInProgress = {},
   blizzBarPreviewFrames = {},
   blizzBarDragOverlays = {},
@@ -120,6 +121,13 @@ local State = {
   focusCastbarPreviewMode = false,
   focusCastbarLayoutKey = nil,
   focusCastbarTickKey = nil,
+  targetCastbarActive = false,
+  targetCastbarTicker = nil,
+  targetCastbarDragging = false,
+  targetCastbarPreviewMode = false,
+  targetCastbarLayoutKey = nil,
+  targetCastbarTickKey = nil,
+  targetCastbarTickCache = nil,
   collapsingStarStacks = nil,
   combatStatusMessageToken = 0,
   combatStatusPreviewMode = false,
@@ -205,6 +213,10 @@ local function InitCurves()
     CCM_Curves.Desaturation:SetType(Enum.LuaCurveType.Step)
     CCM_Curves.Desaturation:AddPoint(0.0, 0)
     CCM_Curves.Desaturation:AddPoint(0.001, 1)
+    CCM_Curves.CdGradR = nil
+    CCM_Curves.CdGradG = nil
+    CCM_Curves.CdGradB = nil
+    CCM_Curves.CdGradKey = nil
   end
 end
 local function GetChargeSpellDesaturation(spellID)
@@ -235,7 +247,7 @@ local function ResolveBuffDurations()
   if not overrides then return end
   for auraID, talents in pairs(overrides) do
     for _, entry in ipairs(talents) do
-      if IsPlayerSpell(entry[1]) then
+      if C_SpellBook.IsSpellKnown(entry[1]) then
         BuffDurationCache[auraID] = (BuffDurationCache[auraID] or 0) + entry[2]
       end
     end
@@ -342,6 +354,7 @@ local function ScanSpellBookCharges()
     end
   end
 end
+addonTable.ChargeSpellCache = ChargeSpellCache
 local function GetSafeCurrentCharges(charges, spellID, cooldownFrame, originalSpellID)
   if not State.playerClassToken then
     State.playerClassToken = select(2, UnitClass("player"))
@@ -517,6 +530,20 @@ local function GetSafeCurrentCharges(charges, spellID, cooldownFrame, originalSp
   end
   return nil
 end
+local function GetSpellUsabilityState(spellID)
+  local usableInfo, insufficientPower = C_Spell.IsSpellUsable(spellID)
+  if usableInfo == nil then
+    return true, false, false
+  end
+  return usableInfo == true, insufficientPower == true, true
+end
+local function ToPublicNumber(v)
+  if v == nil then return nil end
+  if issecretvalue and issecretvalue(v) then return nil end
+  local ok, n = pcall(tonumber, v)
+  if ok and type(n) == "number" then return n end
+  return nil
+end
 local CCM = CreateFrame("Frame")
 addonTable.Frame = CCM
 local defaults = {
@@ -545,6 +572,10 @@ local defaults = {
       iconSpacing = 0,
       stackTextScale = 1.0,
       cdTextScale = 1.0,
+      cdTextGradientThreshold = 0,
+      cdTextGradientR = 1.0,
+      cdTextGradientG = 0.0,
+      cdTextGradientB = 0.0,
       iconsPerRow = 10,
       numColumns = 1,
       cooldownIconMode = "show",
@@ -560,6 +591,10 @@ local defaults = {
       cursorCombatOnly = false,
       cursorShowGCD = false,
       glowWhenReady = false,
+      useSpellGlows = false,
+      spellGlowDefaultType = "pixel",
+      spellGlowSpeed = 0.0,
+      spellGlowThickness = 2.0,
       customBarEnabled = true,
       customBarOutOfCombat = true,
       customBarShowGCD = true,
@@ -575,10 +610,17 @@ local defaults = {
       customBarDirection = "horizontal",
       customBarAnchorPoint = "LEFT",
       customBarAnchorFrame = "UIParent",
+      customBarAnchorToPoint = "CENTER",
       customBarGrowth = "UP",
       customBarStackTextPosition = "BOTTOMRIGHT",
       customBarStackTextOffsetX = 0,
       customBarStackTextOffsetY = 0,
+      customBarCdGradientThreshold = 0,
+      customBarCdGradientR = 1.0,
+      customBarCdGradientG = 0.0,
+      customBarCdGradientB = 0.0,
+      customBarUseSpellGlows = false,
+      customBarSpellGlowDefaultType = "pixel",
       customBar2Enabled = true,
       customBar2OutOfCombat = true,
       customBar2ShowGCD = true,
@@ -594,10 +636,17 @@ local defaults = {
       customBar2Direction = "horizontal",
       customBar2AnchorPoint = "LEFT",
       customBar2AnchorFrame = "UIParent",
+      customBar2AnchorToPoint = "CENTER",
       customBar2Growth = "UP",
       customBar2StackTextPosition = "BOTTOMRIGHT",
       customBar2StackTextOffsetX = 0,
       customBar2StackTextOffsetY = 0,
+      customBar2CdGradientThreshold = 0,
+      customBar2CdGradientR = 1.0,
+      customBar2CdGradientG = 0.0,
+      customBar2CdGradientB = 0.0,
+      customBar2UseSpellGlows = false,
+      customBar2SpellGlowDefaultType = "pixel",
       customBar3Enabled = true,
       customBar3OutOfCombat = true,
       customBar3ShowGCD = true,
@@ -613,10 +662,17 @@ local defaults = {
       customBar3Direction = "horizontal",
       customBar3AnchorPoint = "LEFT",
       customBar3AnchorFrame = "UIParent",
+      customBar3AnchorToPoint = "CENTER",
       customBar3Growth = "UP",
       customBar3StackTextPosition = "BOTTOMRIGHT",
       customBar3StackTextOffsetX = 0,
       customBar3StackTextOffsetY = 0,
+      customBar3CdGradientThreshold = 0,
+      customBar3CdGradientR = 1.0,
+      customBar3CdGradientG = 0.0,
+      customBar3CdGradientB = 0.0,
+      customBar3UseSpellGlows = false,
+      customBar3SpellGlowDefaultType = "pixel",
       blizzardBarSkinning = true,
       disableBlizzCDM = false,
       buffBarIconSizeOffset = -10,
@@ -627,6 +683,10 @@ local defaults = {
       standaloneSkinEssential = false,
       standaloneSkinUtility = false,
       standaloneIconBorderSize = 1,
+      standaloneCdTextScale = 1.0,
+      standaloneBuffCdTextScale = 1.0,
+      standaloneEssentialCdTextScale = 1.0,
+      standaloneUtilityCdTextScale = 1.0,
       standaloneCentered = false,
       standaloneBuffCentered = false,
       standaloneEssentialCentered = false,
@@ -709,6 +769,7 @@ local defaults = {
       ufCustomBorderColorB = 0,
       ufDisableGlows = false,
       ufDisableCombatText = false,
+      ufHideGroupIndicator = false,
       disableTargetBuffs = false,
       hideEliteTexture = false,
       cdFont = "lsm:Friz Quadrata TT",
@@ -738,7 +799,7 @@ local defaults = {
       prbManaTextY = 0,
       prbUseClassColor = true,
       prbHealthColorR = 0,
-      prbHealthColorG = 0.8,
+      prbHealthColorG = 1,
       prbHealthColorB = 0,
       prbHealthTextColorR = 1,
       prbHealthTextColorG = 1,
@@ -830,6 +891,37 @@ local defaults = {
       focusCastbarTextColorG = 1,
       focusCastbarTextColorB = 1,
       focusCastbarShowTicks = true,
+      useTargetCastbar = false,
+      targetCastbarWidth = 250,
+      targetCastbarHeight = 20,
+      targetCastbarX = 0,
+      targetCastbarY = -250,
+      targetCastbarCentered = true,
+      targetCastbarShowIcon = true,
+      targetCastbarIconSize = 24,
+      targetCastbarTexture = "solid",
+      targetCastbarColorR = 1,
+      targetCastbarColorG = 0.7,
+      targetCastbarColorB = 0,
+      targetCastbarBgAlpha = 70,
+      targetCastbarBgColorR = 0.1,
+      targetCastbarBgColorG = 0.1,
+      targetCastbarBgColorB = 0.1,
+      targetCastbarBorderSize = 1,
+      targetCastbarShowTime = true,
+      targetCastbarTimeScale = 1.0,
+      targetCastbarTimeXOffset = 0,
+      targetCastbarTimeYOffset = 0,
+      targetCastbarTimePrecision = "1",
+      targetCastbarTimeDirection = "remaining",
+      targetCastbarShowSpellName = true,
+      targetCastbarSpellNameScale = 1.0,
+      targetCastbarSpellNameXOffset = 0,
+      targetCastbarSpellNameYOffset = 0,
+      targetCastbarTextColorR = 1,
+      targetCastbarTextColorG = 1,
+      targetCastbarTextColorB = 1,
+      targetCastbarShowTicks = true,
       selfHighlightShape = "off",
       selfHighlightCombatOnly = false,
       selfHighlightSize = 20,
@@ -863,12 +955,20 @@ local defaults = {
   characterCustomBarSpells = {},
   characterCustomBar2Spells = {},
   characterCustomBar3Spells = {},
+  characterCustomBarSpellGlowEnabled = {},
+  characterCustomBar2SpellGlowEnabled = {},
+  characterCustomBar3SpellGlowEnabled = {},
+  characterCustomBarSpellGlowType = {},
+  characterCustomBar2SpellGlowType = {},
+  characterCustomBar3SpellGlowType = {},
   minimap = {
     hide = true,
     minimapPos = 220,
   }
 }
 local Masque = LibStub and LibStub("Masque", true)
+local LibButtonGlow = LibStub("LibButtonGlow-1.0")
+local LibCustomGlow = LibStub("LibCustomGlow-1.0")
 local MasqueGroups = {}
 addonTable.MasqueGroups = MasqueGroups
 local function InitMasque()
@@ -1046,8 +1146,8 @@ function addonTable.ScheduleCompactMinimapAutoHide()
       addonTable.SetCompactMinimapPanelVisible(false)
       return
     end
-    local overButton = MouseIsOver and MouseIsOver(minimapButton)
-    local overPanel = MouseIsOver and MouseIsOver(compactMinimapPanel)
+    local overButton = minimapButton:IsMouseOver()
+    local overPanel = compactMinimapPanel:IsMouseOver()
     if not overButton and not overPanel then
       addonTable.SetCompactMinimapPanelVisible(false)
     end
@@ -1185,6 +1285,7 @@ minimapButton:SetScript("OnClick", function(self, button)
       else
         if addonTable.SetGUIOpen then addonTable.SetGUIOpen(true) end
         addonTable.ConfigFrame:Show()
+        if addonTable.RefreshConfigOnShow then addonTable.RefreshConfigOnShow() end
       end
     end
   elseif button == "RightButton" then
@@ -1257,8 +1358,8 @@ addonTable.SetupTooltipIDHooks = function()
     return true
   end
   local function AddItemLines(tt, itemIDOrLink)
-    if not GetItemInfoInstant then return false end
-    local itemID = GetItemInfoInstant(itemIDOrLink)
+    if not C_Item.GetItemInfoInstant then return false end
+    local itemID = C_Item.GetItemInfoInstant(itemIDOrLink)
     local iid = SafeToNumber(itemID)
     if not iid then return false end
     tt:AddLine(string.format("|cff888888ItemID:|r %d", iid), 0.75, 0.75, 0.75)
@@ -1583,6 +1684,20 @@ local function IsOnlyGCD(startTime, duration)
   end
   return false
 end
+local function GetFramePointCoords(frame, point)
+  local l, b, w, h = frame:GetRect()
+  if not (l and b and w and h) then return frame:GetCenter() end
+  local p = point and point:upper() or "CENTER"
+  if p == "TOPLEFT" then return l, b + h
+  elseif p == "TOP" then return l + w / 2, b + h
+  elseif p == "TOPRIGHT" then return l + w, b + h
+  elseif p == "LEFT" then return l, b + h / 2
+  elseif p == "RIGHT" then return l + w, b + h / 2
+  elseif p == "BOTTOMLEFT" then return l, b
+  elseif p == "BOTTOM" then return l + w / 2, b
+  elseif p == "BOTTOMRIGHT" then return l + w, b
+  else return l + w / 2, b + h / 2 end
+end
 local customBarFrame = CreateFrame("Frame", "CCMCustomBar", UIParent, "BackdropTemplate")
 customBarFrame:SetSize(200, 50)
 customBarFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
@@ -1606,17 +1721,26 @@ end)
 customBarFrame:SetScript("OnDragStop", function(self)
   if not State.cb1Dragging then return end
   self:StopMovingOrSizing()
-  local centerX, centerY = UIParent:GetCenter()
-  local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
+    local resolve = addonTable.ResolveCustomBarAnchorFrame
+    local anchorFrame = resolve and resolve(profile.customBarAnchorFrame) or UIParent
+    local anchorToPoint = profile.customBarAnchorToPoint or "CENTER"
+    local selfScale = self:GetEffectiveScale()
+    local anchorScale = anchorFrame:GetEffectiveScale()
+    local aX, aY = GetFramePointCoords(anchorFrame, anchorToPoint)
+    local frameX, frameY = self:GetCenter()
+    local newX = math.floor((frameX * selfScale - aX * anchorScale) / selfScale + 0.5)
+    local newY = math.floor((frameY * selfScale - aY * anchorScale) / selfScale + 0.5)
     profile.customBarX = newX
     profile.customBarY = newY
     if addonTable.UpdateCustomBarSliders then addonTable.UpdateCustomBarSliders(1, newX, newY) end
+    State.cb1Dragging = false
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", anchorFrame, anchorToPoint, newX, newY)
+  else
+    State.cb1Dragging = false
   end
-  State.cb1Dragging = false
 end)
 customBarFrame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.cb1Dragging then
@@ -1648,17 +1772,26 @@ end)
 customBar2Frame:SetScript("OnDragStop", function(self)
   if not State.cb2Dragging then return end
   self:StopMovingOrSizing()
-  local centerX, centerY = UIParent:GetCenter()
-  local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
+    local resolve = addonTable.ResolveCustomBarAnchorFrame
+    local anchorFrame = resolve and resolve(profile.customBar2AnchorFrame) or UIParent
+    local anchorToPoint = profile.customBar2AnchorToPoint or "CENTER"
+    local selfScale = self:GetEffectiveScale()
+    local anchorScale = anchorFrame:GetEffectiveScale()
+    local aX, aY = GetFramePointCoords(anchorFrame, anchorToPoint)
+    local frameX, frameY = self:GetCenter()
+    local newX = math.floor((frameX * selfScale - aX * anchorScale) / selfScale + 0.5)
+    local newY = math.floor((frameY * selfScale - aY * anchorScale) / selfScale + 0.5)
     profile.customBar2X = newX
     profile.customBar2Y = newY
     if addonTable.UpdateCustomBarSliders then addonTable.UpdateCustomBarSliders(2, newX, newY) end
+    State.cb2Dragging = false
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", anchorFrame, anchorToPoint, newX, newY)
+  else
+    State.cb2Dragging = false
   end
-  State.cb2Dragging = false
 end)
 customBar2Frame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.cb2Dragging then
@@ -1690,17 +1823,26 @@ end)
 customBar3Frame:SetScript("OnDragStop", function(self)
   if not State.cb3Dragging then return end
   self:StopMovingOrSizing()
-  local centerX, centerY = UIParent:GetCenter()
-  local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
+    local resolve = addonTable.ResolveCustomBarAnchorFrame
+    local anchorFrame = resolve and resolve(profile.customBar3AnchorFrame) or UIParent
+    local anchorToPoint = profile.customBar3AnchorToPoint or "CENTER"
+    local selfScale = self:GetEffectiveScale()
+    local anchorScale = anchorFrame:GetEffectiveScale()
+    local aX, aY = GetFramePointCoords(anchorFrame, anchorToPoint)
+    local frameX, frameY = self:GetCenter()
+    local newX = math.floor((frameX * selfScale - aX * anchorScale) / selfScale + 0.5)
+    local newY = math.floor((frameY * selfScale - aY * anchorScale) / selfScale + 0.5)
     profile.customBar3X = newX
     profile.customBar3Y = newY
     if addonTable.UpdateCustomBarSliders then addonTable.UpdateCustomBarSliders(3, newX, newY) end
+    State.cb3Dragging = false
+    self:ClearAllPoints()
+    self:SetPoint("CENTER", anchorFrame, anchorToPoint, newX, newY)
+  else
+    State.cb3Dragging = false
   end
-  State.cb3Dragging = false
 end)
 customBar3Frame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.cb3Dragging then
@@ -1709,6 +1851,12 @@ customBar3Frame:SetScript("OnMouseUp", function(self, button)
     end
   end
 end)
+addonTable.UpdateCustomBarSliders = function(barIndex, x, y)
+  local cbTbl = barIndex == 1 and addonTable.cb1 or barIndex == 2 and addonTable.cb2 or addonTable.cb3
+  if not cbTbl then return end
+  if cbTbl.xSlider then cbTbl.xSlider:SetValue(x); cbTbl.xSlider.valueText:SetText(math.floor(x)) end
+  if cbTbl.ySlider then cbTbl.ySlider:SetValue(y); cbTbl.ySlider.valueText:SetText(math.floor(y)) end
+end
 local function GetClassColor()
   local _, class = UnitClass("player")
   local colors = RAID_CLASS_COLORS[class]
@@ -2048,6 +2196,8 @@ local function ShowBlizzBarDragOverlays(showHighlight)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
   if not State.guiIsOpen then return end
+  local currentTab = addonTable.activeTab and addonTable.activeTab()
+  if currentTab ~= 6 then HideBlizzBarDragOverlays(); return end
   HideBlizzBarPreviews()
   local function showOverlay(barType, bar, defaultY, defaultX)
     local overlay = State.blizzBarDragOverlays[barType]
@@ -2378,14 +2528,107 @@ end
 addonTable.HighlightCustomBar = HighlightCustomBar
 addonTable.GetDefaults = function() return defaults end
 addonTable.GetIcons = function() return State.cursorIcons end
+local READY_GLOW_KEY = "CCMReady"
+local function NormalizeGlowType(glowType)
+  local value = type(glowType) == "string" and string.lower(glowType) or ""
+  if value == "blizzard" or value == "pixel" or value == "autocast" or value == "proc" then
+    return value
+  end
+  return "pixel"
+end
+local function StopReadyGlow(icon)
+  if not icon or not icon._ccmReadyGlowStyle then return end
+  local style = icon._ccmReadyGlowStyle
+  if style == "blizzard" then
+    LibButtonGlow.HideOverlayGlow(icon)
+  elseif style == "pixel" then
+    LibCustomGlow.PixelGlow_Stop(icon, READY_GLOW_KEY)
+  elseif style == "autocast" then
+    LibCustomGlow.AutoCastGlow_Stop(icon, READY_GLOW_KEY)
+  elseif style == "proc" then
+    LibCustomGlow.ProcGlow_Stop(icon, READY_GLOW_KEY)
+  end
+  icon._ccmReadyGlowStyle = nil
+  icon._ccmReadyGlowSpeed = nil
+  icon._ccmReadyGlowThickness = nil
+end
+local function StartReadyGlow(icon, glowType)
+  if not icon then return end
+  if icon._ccmHiddenByScale then return end
+  local iconScale = icon.GetScale and icon:GetScale() or 1
+  if type(iconScale) == "number" and iconScale < 0.1 then return end
+  local iconAlpha = icon.GetAlpha and icon:GetAlpha() or 1
+  if type(iconAlpha) == "number" and iconAlpha <= 0 then return end
+  local style = NormalizeGlowType(glowType)
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local speed = profile and tonumber(profile.spellGlowSpeed) or 0
+  local thickness = profile and tonumber(profile.spellGlowThickness) or 2
+  if type(speed) ~= "number" then speed = 0 end
+  if type(thickness) ~= "number" then thickness = 2 end
+  if speed < 0.0 then speed = 0.0 end
+  if speed > 4.0 then speed = 4.0 end
+  if thickness < 0.1 then thickness = 0.1 end
+  if thickness > 4.0 then thickness = 4.0 end
+  local effectiveSpeed = 0.15 + (speed * 0.9625)
+  if effectiveSpeed < 0.15 then effectiveSpeed = 0.15 end
+  if effectiveSpeed > 4.0 then effectiveSpeed = 4.0 end
+  local speedKey = tonumber(string.format("%.1f", speed)) or speed
+  local thicknessKey = tonumber(string.format("%.1f", thickness)) or thickness
+  if icon._ccmReadyGlowStyle == style and icon._ccmReadyGlowSpeed == speedKey and icon._ccmReadyGlowThickness == thicknessKey then
+    return
+  end
+  StopReadyGlow(icon)
+  if style == "blizzard" then
+    LibButtonGlow.ShowOverlayGlow(icon)
+  elseif style == "pixel" then
+    local alpha = 0.2 + (thickness * 0.35)
+    if alpha > 1 then alpha = 1 end
+    local color = {1, 0.82, 0, alpha}
+    local lines = math.max(4, math.floor(5 + thickness * 2 + 0.5))
+    local frequency = 0.45 + effectiveSpeed * 0.75
+    local lineThickness = 0.1 + thickness * 1.1
+    LibCustomGlow.PixelGlow_Start(icon, color, lines, frequency, nil, lineThickness, 0, 0, false, READY_GLOW_KEY, 8)
+  elseif style == "autocast" then
+    local alpha = 0.2 + (thickness * 0.35)
+    if alpha > 1 then alpha = 1 end
+    local color = {1, 0.82, 0, alpha}
+    local frequency = 0.45 + effectiveSpeed * 0.75
+    local scale = 0.1 + thickness * 1.1
+    LibCustomGlow.AutoCastGlow_Start(icon, color, 4, frequency, scale, 0, 0, READY_GLOW_KEY, 8)
+  elseif style == "proc" then
+    local duration = 1.3 - (effectiveSpeed * 0.35)
+    if duration < 0.5 then duration = 0.5 end
+    local spread = (thickness - 1.0) * 2.2
+    if spread < 0 then spread = 0 end
+    LibCustomGlow.ProcGlow_Start(icon, { key = READY_GLOW_KEY, duration = duration, startAnim = false, frameLevel = 8, xOffset = spread, yOffset = spread })
+  end
+  icon._ccmReadyGlowStyle = style
+  icon._ccmReadyGlowSpeed = speedKey
+  icon._ccmReadyGlowThickness = thicknessKey
+end
+local function SetGlowIdentityMethods(icon)
+  if not icon then return end
+  if icon.GetSpellId == nil then
+    icon.GetSpellId = function(self)
+      if self.isItem then return nil end
+      return self.actualID or self.spellID
+    end
+  end
+end
 local function HideIconByScale(icon)
+  StopReadyGlow(icon)
   icon._ccmHiddenByScale = true
   icon:SetScale(0.0001)
   icon:SetAlpha(0)
   icon:Show()
 end
 local function EnsureIconRestored(icon)
-  if icon._ccmHiddenByScale then icon._ccmHiddenByScale = false end
+  if icon._ccmHiddenByScale then
+    icon._ccmHiddenByScale = false
+    icon._ccmReadyGlowStyle = nil
+    icon._ccmReadyGlowSpeed = nil
+    icon._ccmReadyGlowThickness = nil
+  end
   icon:Show()
   icon:SetScale(1)
   icon:SetAlpha(1)
@@ -2528,6 +2771,24 @@ local function ApplyDefaults()
   end
   if not CooldownCursorManagerDB.characterCustomBarSpellsEnabled then
     CooldownCursorManagerDB.characterCustomBarSpellsEnabled = {}
+  end
+  if not CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled then
+    CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled = {}
+  end
+  if not CooldownCursorManagerDB.characterCustomBarSpellGlowType then
+    CooldownCursorManagerDB.characterCustomBarSpellGlowType = {}
+  end
+  if not CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled then
+    CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled = {}
+  end
+  if not CooldownCursorManagerDB.characterCustomBar2SpellGlowType then
+    CooldownCursorManagerDB.characterCustomBar2SpellGlowType = {}
+  end
+  if not CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled then
+    CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled = {}
+  end
+  if not CooldownCursorManagerDB.characterCustomBar3SpellGlowType then
+    CooldownCursorManagerDB.characterCustomBar3SpellGlowType = {}
   end
 end
 local function MigrateOldCustomBarData()
@@ -2709,16 +2970,35 @@ end
 addonTable.HasClassPowerAvailable = HasClassPowerAvailable
 local function GetSpellList()
   local profile = addonTable.GetProfile()
-  if not profile then return {}, {} end
+  if not profile then return {}, {}, {}, {} end
   if not profile.trackedSpells then profile.trackedSpells = {} end
   if not profile.spellsEnabled then profile.spellsEnabled = {} end
-  return profile.trackedSpells, profile.spellsEnabled
+  if not profile.spellGlowEnabled then profile.spellGlowEnabled = {} end
+  if not profile.spellGlowType then profile.spellGlowType = {} end
+  return profile.trackedSpells, profile.spellsEnabled, profile.spellGlowEnabled, profile.spellGlowType
 end
-local function SetSpellList(spells, enabled)
+local function SetSpellList(spells, enabled, glowEnabled, glowType)
   local profile = addonTable.GetProfile()
   if not profile then return end
   profile.trackedSpells = spells or {}
   profile.spellsEnabled = enabled or {}
+  profile.spellGlowEnabled = glowEnabled or profile.spellGlowEnabled or {}
+  profile.spellGlowType = glowType or profile.spellGlowType or {}
+  local listSize = #profile.trackedSpells
+  for i = 1, listSize do
+    if profile.spellGlowEnabled[i] == nil then
+      profile.spellGlowEnabled[i] = false
+    end
+    if type(profile.spellGlowType[i]) ~= "string" then
+      profile.spellGlowType[i] = profile.spellGlowDefaultType or "pixel"
+    end
+  end
+  for i = #profile.spellGlowEnabled, listSize + 1, -1 do
+    profile.spellGlowEnabled[i] = nil
+  end
+  for i = #profile.spellGlowType, listSize + 1, -1 do
+    profile.spellGlowType[i] = nil
+  end
 end
 addonTable.GetSpellList = GetSpellList
 addonTable.SetSpellList = SetSpellList
@@ -2734,9 +3014,9 @@ local function GetCurrentSpecID()
   return GetSpecialization() or 1
 end
 local function GetCustomBarSpells()
-  if not CooldownCursorManagerDB then return {}, {} end
+  if not CooldownCursorManagerDB then return {}, {}, {}, {} end
   local charKey = GetCharacterKey()
-  if not charKey then return {}, {} end
+  if not charKey then return {}, {}, {}, {} end
   local specID = GetCurrentSpecID()
   CooldownCursorManagerDB.characterCustomBarSpells = CooldownCursorManagerDB.characterCustomBarSpells or {}
   CooldownCursorManagerDB.characterCustomBarSpells[charKey] = CooldownCursorManagerDB.characterCustomBarSpells[charKey] or {}
@@ -2744,9 +3024,18 @@ local function GetCustomBarSpells()
   CooldownCursorManagerDB.characterCustomBarSpellsEnabled = CooldownCursorManagerDB.characterCustomBarSpellsEnabled or {}
   CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey] = CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey] or {}
   CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey][specID] = CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey][specID] or {}
-  return CooldownCursorManagerDB.characterCustomBarSpells[charKey][specID], CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey][specID]
+  CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey] = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID] = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowType = CooldownCursorManagerDB.characterCustomBarSpellGlowType or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] or {}
+  return CooldownCursorManagerDB.characterCustomBarSpells[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID]
 end
-local function SetCustomBarSpells(spells, enabled)
+local function SetCustomBarSpells(spells, enabled, glowEnabled, glowType)
   if not CooldownCursorManagerDB then return end
   local charKey = GetCharacterKey()
   if not charKey then return end
@@ -2757,15 +3046,38 @@ local function SetCustomBarSpells(spells, enabled)
   CooldownCursorManagerDB.characterCustomBarSpellsEnabled = CooldownCursorManagerDB.characterCustomBarSpellsEnabled or {}
   CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey] = CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey] or {}
   CooldownCursorManagerDB.characterCustomBarSpellsEnabled[charKey][specID] = enabled or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey] = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID] = glowEnabled or CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowType = CooldownCursorManagerDB.characterCustomBarSpellGlowType or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] = glowType or CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID] or {}
+  local listSize = #CooldownCursorManagerDB.characterCustomBarSpells[charKey][specID]
+  local glowEnabledTable = CooldownCursorManagerDB.characterCustomBarSpellGlowEnabled[charKey][specID]
+  local glowTypeTable = CooldownCursorManagerDB.characterCustomBarSpellGlowType[charKey][specID]
+  for i = 1, listSize do
+    if glowEnabledTable[i] == nil then
+      glowEnabledTable[i] = false
+    end
+    if type(glowTypeTable[i]) ~= "string" then
+      glowTypeTable[i] = "pixel"
+    end
+  end
+  for i = #glowEnabledTable, listSize + 1, -1 do
+    glowEnabledTable[i] = nil
+  end
+  for i = #glowTypeTable, listSize + 1, -1 do
+    glowTypeTable[i] = nil
+  end
 end
 addonTable.GetCharacterKey = GetCharacterKey
 addonTable.GetCurrentSpecID = GetCurrentSpecID
 addonTable.GetCustomBarSpells = GetCustomBarSpells
 addonTable.SetCustomBarSpells = SetCustomBarSpells
 local function GetCustomBar2Spells()
-  if not CooldownCursorManagerDB then return {}, {} end
+  if not CooldownCursorManagerDB then return {}, {}, {}, {} end
   local charKey = GetCharacterKey()
-  if not charKey then return {}, {} end
+  if not charKey then return {}, {}, {}, {} end
   local specID = GetCurrentSpecID()
   CooldownCursorManagerDB.characterCustomBar2Spells = CooldownCursorManagerDB.characterCustomBar2Spells or {}
   CooldownCursorManagerDB.characterCustomBar2Spells[charKey] = CooldownCursorManagerDB.characterCustomBar2Spells[charKey] or {}
@@ -2773,9 +3085,18 @@ local function GetCustomBar2Spells()
   CooldownCursorManagerDB.characterCustomBar2SpellsEnabled = CooldownCursorManagerDB.characterCustomBar2SpellsEnabled or {}
   CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey][specID] = CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey][specID] or {}
-  return CooldownCursorManagerDB.characterCustomBar2Spells[charKey][specID], CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey][specID]
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID] = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowType = CooldownCursorManagerDB.characterCustomBar2SpellGlowType or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] or {}
+  return CooldownCursorManagerDB.characterCustomBar2Spells[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID]
 end
-local function SetCustomBar2Spells(spells, enabled)
+local function SetCustomBar2Spells(spells, enabled, glowEnabled, glowType)
   if not CooldownCursorManagerDB then return end
   local charKey = GetCharacterKey()
   if not charKey then return end
@@ -2786,13 +3107,36 @@ local function SetCustomBar2Spells(spells, enabled)
   CooldownCursorManagerDB.characterCustomBar2SpellsEnabled = CooldownCursorManagerDB.characterCustomBar2SpellsEnabled or {}
   CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar2SpellsEnabled[charKey][specID] = enabled or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID] = glowEnabled or CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowType = CooldownCursorManagerDB.characterCustomBar2SpellGlowType or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] = glowType or CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID] or {}
+  local listSize = #CooldownCursorManagerDB.characterCustomBar2Spells[charKey][specID]
+  local glowEnabledTable = CooldownCursorManagerDB.characterCustomBar2SpellGlowEnabled[charKey][specID]
+  local glowTypeTable = CooldownCursorManagerDB.characterCustomBar2SpellGlowType[charKey][specID]
+  for i = 1, listSize do
+    if glowEnabledTable[i] == nil then
+      glowEnabledTable[i] = false
+    end
+    if type(glowTypeTable[i]) ~= "string" then
+      glowTypeTable[i] = "pixel"
+    end
+  end
+  for i = #glowEnabledTable, listSize + 1, -1 do
+    glowEnabledTable[i] = nil
+  end
+  for i = #glowTypeTable, listSize + 1, -1 do
+    glowTypeTable[i] = nil
+  end
 end
 addonTable.GetCustomBar2Spells = GetCustomBar2Spells
 addonTable.SetCustomBar2Spells = SetCustomBar2Spells
 local function GetCustomBar3Spells()
-  if not CooldownCursorManagerDB then return {}, {} end
+  if not CooldownCursorManagerDB then return {}, {}, {}, {} end
   local charKey = GetCharacterKey()
-  if not charKey then return {}, {} end
+  if not charKey then return {}, {}, {}, {} end
   local specID = GetCurrentSpecID()
   CooldownCursorManagerDB.characterCustomBar3Spells = CooldownCursorManagerDB.characterCustomBar3Spells or {}
   CooldownCursorManagerDB.characterCustomBar3Spells[charKey] = CooldownCursorManagerDB.characterCustomBar3Spells[charKey] or {}
@@ -2800,9 +3144,18 @@ local function GetCustomBar3Spells()
   CooldownCursorManagerDB.characterCustomBar3SpellsEnabled = CooldownCursorManagerDB.characterCustomBar3SpellsEnabled or {}
   CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey][specID] = CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey][specID] or {}
-  return CooldownCursorManagerDB.characterCustomBar3Spells[charKey][specID], CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey][specID]
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID] = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowType = CooldownCursorManagerDB.characterCustomBar3SpellGlowType or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] or {}
+  return CooldownCursorManagerDB.characterCustomBar3Spells[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID],
+         CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID]
 end
-local function SetCustomBar3Spells(spells, enabled)
+local function SetCustomBar3Spells(spells, enabled, glowEnabled, glowType)
   if not CooldownCursorManagerDB then return end
   local charKey = GetCharacterKey()
   if not charKey then return end
@@ -2813,20 +3166,43 @@ local function SetCustomBar3Spells(spells, enabled)
   CooldownCursorManagerDB.characterCustomBar3SpellsEnabled = CooldownCursorManagerDB.characterCustomBar3SpellsEnabled or {}
   CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey] or {}
   CooldownCursorManagerDB.characterCustomBar3SpellsEnabled[charKey][specID] = enabled or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID] = glowEnabled or CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID] or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowType = CooldownCursorManagerDB.characterCustomBar3SpellGlowType or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey] or {}
+  CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] = glowType or CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID] or {}
+  local listSize = #CooldownCursorManagerDB.characterCustomBar3Spells[charKey][specID]
+  local glowEnabledTable = CooldownCursorManagerDB.characterCustomBar3SpellGlowEnabled[charKey][specID]
+  local glowTypeTable = CooldownCursorManagerDB.characterCustomBar3SpellGlowType[charKey][specID]
+  for i = 1, listSize do
+    if glowEnabledTable[i] == nil then
+      glowEnabledTable[i] = false
+    end
+    if type(glowTypeTable[i]) ~= "string" then
+      glowTypeTable[i] = "pixel"
+    end
+  end
+  for i = #glowEnabledTable, listSize + 1, -1 do
+    glowEnabledTable[i] = nil
+  end
+  for i = #glowTypeTable, listSize + 1, -1 do
+    glowTypeTable[i] = nil
+  end
 end
 addonTable.GetCustomBar3Spells = GetCustomBar3Spells
 addonTable.SetCustomBar3Spells = SetCustomBar3Spells
 local function IsSpellKnownByPlayer(spellID)
   if not spellID then return false end
-  if IsSpellKnown(spellID) then return true end
-  if IsPlayerSpell(spellID) then return true end
-  if IsSpellKnown(spellID, true) then return true end
+  if C_SpellBook.IsSpellInSpellBook(spellID) then return true end
+  if C_SpellBook.IsSpellKnown(spellID) then return true end
+  if C_SpellBook.IsSpellInSpellBook(spellID, Enum.SpellBookSpellBank.Player, true) then return true end
   return false
 end
 addonTable.IsSpellKnownByPlayer = IsSpellKnownByPlayer
 local function IsTrackedEntryAvailable(isItem, originalID, activeID)
   if isItem then
-    local count = GetItemCount(originalID, true, true)
+    local count = C_Item.GetItemCount(originalID, true, true)
     if not count or count <= 0 then
       return false
     end
@@ -2935,6 +3311,8 @@ ringFrame:SetSize(120, 120)
 ringFrame:SetFrameStrata("FULLSCREEN")
 ringFrame:SetFrameLevel(200)
 ringFrame:Hide()
+if ringFrame.SetSnapToPixelGrid then ringFrame:SetSnapToPixelGrid(false) end
+if ringFrame.SetTexelSnappingBias then ringFrame:SetTexelSnappingBias(0) end
 addonTable.ringFrame = ringFrame
 local ringTexture = ringFrame:CreateTexture(nil, "ARTWORK")
 ringTexture:SetAllPoints()
@@ -2959,15 +3337,19 @@ local function GetRingTexturePath(thickness, radius)
   if t > 5 then t = 5 end
   return "Interface\\AddOns\\CooldownCursorManager\\media\\Ring_32_T" .. t .. ".png"
 end
-ringFrame:SetScript("OnUpdate", function(self)
+local ringOnUpdateFunc = function(self)
+  if not self:IsShown() then return end
   local now = GetTime()
   if now - State.lastScaleUpdate > 0.5 then
     State.cachedUIScale = UIParent:GetEffectiveScale()
     State.lastScaleUpdate = now
   end
   local x, y = GetCursorPosition()
+  self:ClearAllPoints()
   self:SetPoint("CENTER", UIParent, "BOTTOMLEFT", x / State.cachedUIScale, y / State.cachedUIScale)
-end)
+end
+State.ringOnUpdateFunc = ringOnUpdateFunc
+ringFrame:SetScript("OnUpdate", ringOnUpdateFunc)
 local function UpdateRadialCircle()
   local profile = addonTable.GetProfile()
   if not profile or not profile.showRadialCircle then
@@ -3147,6 +3529,84 @@ local function RestoreBuffBarPosition()
     end
   end
   State.buffBarActive = false
+end
+-- Build / cache 3 numeric curves (R, G, B) for CD text gradient
+local function BuildCdGradientCurves(threshold, tR, tG, tB)
+  local key = string.format("%.1f_%.3f_%.3f_%.3f", threshold, tR, tG, tB)
+  if CCM_Curves.CdGradKey == key then return end
+  if not C_CurveUtil or not C_CurveUtil.CreateCurve then return end
+  local rCurve = C_CurveUtil.CreateCurve()
+  rCurve:SetType(Enum.LuaCurveType.Linear)
+  rCurve:AddPoint(0, tR)
+  rCurve:AddPoint(threshold, 1)
+  rCurve:AddPoint(86400, 1)
+  CCM_Curves.CdGradR = rCurve
+
+  local gCurve = C_CurveUtil.CreateCurve()
+  gCurve:SetType(Enum.LuaCurveType.Linear)
+  gCurve:AddPoint(0, tG)
+  gCurve:AddPoint(threshold, 1)
+  gCurve:AddPoint(86400, 1)
+  CCM_Curves.CdGradG = gCurve
+
+  local bCurve = C_CurveUtil.CreateCurve()
+  bCurve:SetType(Enum.LuaCurveType.Linear)
+  bCurve:AddPoint(0, tB)
+  bCurve:AddPoint(threshold, 1)
+  bCurve:AddPoint(86400, 1)
+  CCM_Curves.CdGradB = bCurve
+
+  CCM_Curves.CdGradKey = key
+end
+local function ApplyCdTextGradient(cooldownFrame, threshold, tR, tG, tB, spellID)
+  if threshold <= 0 then return end
+  BuildCdGradientCurves(threshold, tR, tG, tB)
+  local r, g, b = 1, 1, 1
+  local usedCurve = false
+  if spellID and CCM_Curves.CdGradR and C_Spell and C_Spell.GetSpellCooldownDuration then
+    if ChargeSpellCache[spellID] then
+    else
+      local okD, duration = pcall(C_Spell.GetSpellCooldownDuration, spellID)
+      if okD and duration and duration.EvaluateRemainingDuration then
+        local okR, vR = pcall(duration.EvaluateRemainingDuration, duration, CCM_Curves.CdGradR)
+        local okG, vG = pcall(duration.EvaluateRemainingDuration, duration, CCM_Curves.CdGradG)
+        local okB, vB = pcall(duration.EvaluateRemainingDuration, duration, CCM_Curves.CdGradB)
+        if okR and okG and okB and vR and vG and vB then
+          r, g, b = vR, vG, vB
+          usedCurve = true
+        end
+      end
+    end
+  end
+  if not usedCurve then
+    local ok2, fr, fg, fb = pcall(function()
+      local startMs, durationMs = cooldownFrame:GetCooldownTimes()
+      if not startMs or not durationMs or durationMs <= 0 or startMs <= 0 then
+        return 1, 1, 1
+      end
+      local remaining = (startMs + durationMs) / 1000 - GetTime()
+      if remaining > 0 and remaining <= threshold then
+        local t = 1 - (remaining / threshold)
+        return 1 + (tR - 1) * t, 1 + (tG - 1) * t, 1 + (tB - 1) * t
+      end
+      return 1, 1, 1
+    end)
+    if ok2 and fr then r, g, b = fr, fg, fb end
+  end
+  for i = 1, select("#", cooldownFrame:GetRegions()) do
+    local region = select(i, cooldownFrame:GetRegions())
+    if region and region.GetObjectType and region:GetObjectType() == "FontString" then
+      region:SetTextColor(r, g, b, 1)
+    end
+  end
+end
+local function ResetCdTextGradient(cooldownFrame)
+  for i = 1, select("#", cooldownFrame:GetRegions()) do
+    local region = select(i, cooldownFrame:GetRegions())
+    if region and region.GetObjectType and region:GetObjectType() == "FontString" then
+      region:SetTextColor(1, 1, 1, 1)
+    end
+  end
 end
 local _buffBarBackdrop = {
   bgFile = "Interface\\Buttons\\WHITE8x8",
@@ -4245,7 +4705,7 @@ addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRo
   end
   return totalWidth, totalHeight
 end
-local function SkinStandaloneBarIcon(icon, profile)
+local function SkinStandaloneBarIcon(icon, profile, barType)
   if not icon or not icon:IsShown() or icon:GetWidth() <= 5 then return end
   PatchCooldownViewerIconChargeMethods(icon)
   SanitizeCooldownViewerChargeState(icon)
@@ -4404,7 +4864,16 @@ local function SkinStandaloneBarIcon(icon, profile)
   end
   do
     local iconChildCount = addonTable.CollectChildren(icon, State.tmpIconChildren)
-    local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
+    local cdTextScale
+    if barType == "buff" then
+      cdTextScale = type(profile.standaloneBuffCdTextScale) == "number" and profile.standaloneBuffCdTextScale or (type(profile.standaloneCdTextScale) == "number" and profile.standaloneCdTextScale or 1.0)
+    elseif barType == "essential" then
+      cdTextScale = type(profile.standaloneEssentialCdTextScale) == "number" and profile.standaloneEssentialCdTextScale or (type(profile.standaloneCdTextScale) == "number" and profile.standaloneCdTextScale or 1.0)
+    elseif barType == "utility" then
+      cdTextScale = type(profile.standaloneUtilityCdTextScale) == "number" and profile.standaloneUtilityCdTextScale or (type(profile.standaloneCdTextScale) == "number" and profile.standaloneCdTextScale or 1.0)
+    else
+      cdTextScale = type(profile.standaloneCdTextScale) == "number" and profile.standaloneCdTextScale or 1.0
+    end
     local globalFont, globalOutline = GetGlobalFont()
     for c = 1, iconChildCount do
       local child = State.tmpIconChildren[c]
@@ -4451,20 +4920,20 @@ local function SkinStandaloneBarIcon(icon, profile)
     end
   end
 end
+local function IsValidStandaloneIcon(icon)
+  if not icon or not icon:IsShown() or icon:GetWidth() <= 5 then return false end
+  local tex = icon.Icon or icon.icon
+  if not tex then return false end
+  local hasTex = tex.GetTexture and tex:GetTexture()
+  local hasAtlas = tex.GetAtlas and tex:GetAtlas()
+  return hasTex ~= nil or hasAtlas ~= nil
+end
+local function CompareByLayoutIndex(a, b)
+  return (a.layoutIndex or 0) < (b.layoutIndex or 0)
+end
 local function UpdateStandaloneBlizzardBars()
-  if PatchAllCooldownViewerChargeMethods then
-    PatchAllCooldownViewerChargeMethods()
-  end
   local profile = addonTable.GetProfile()
   if not profile then return end
-  local function IsValidStandaloneIcon(icon)
-    if not icon or not icon:IsShown() or icon:GetWidth() <= 5 then return false end
-    local tex = icon.Icon or icon.icon
-    if not tex then return false end
-    local hasTex = tex.GetTexture and tex:GetTexture()
-    local hasAtlas = tex.GetAtlas and tex:GetAtlas()
-    return hasTex ~= nil or hasAtlas ~= nil
-  end
   if profile.disableBlizzCDM == true then
     if not InCombatLockdown() then
       if State.standaloneBuffOriginals.saved and BuffIconCooldownViewer then
@@ -4510,6 +4979,9 @@ local function UpdateStandaloneBlizzardBars()
   if not needsSkinning and not guiOpen and not anyCentered and State.standaloneSkinActive then
     return
   end
+  if not State.standaloneDirty and not needsSkinning and not guiOpen then
+    return
+  end
   local doSkinning = profile.blizzardBarSkinning ~= false
   local spacing = type(profile.standaloneSpacing) == "number" and profile.standaloneSpacing or 0
   local buffY = type(profile.standaloneBuffY) == "number" and profile.standaloneBuffY or 0
@@ -4551,22 +5023,16 @@ local function UpdateStandaloneBlizzardBars()
       local childCount = addonTable.CollectChildren(buffs, State.tmpChildren)
       for i = 1, childCount do
         local icon = State.tmpChildren[i]
-        PatchCooldownViewerIconChargeMethods(icon)
         if IsValidStandaloneIcon(icon) then
-          SanitizeCooldownViewerChargeState(icon)
           if doSkinning and buffEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
-            SkinStandaloneBarIcon(icon, profile)
+            SkinStandaloneBarIcon(icon, profile, "buff")
           end
           icon:SetSize(buffSize, buffSize)
           table.insert(visibleIcons, icon)
         end
       end
       if #visibleIcons > 1 then
-        table.sort(visibleIcons, function(a, b)
-          local idxA = a.layoutIndex or 0
-          local idxB = b.layoutIndex or 0
-          return idxA < idxB
-        end)
+        table.sort(visibleIcons, CompareByLayoutIndex)
       end
       if #visibleIcons > 0 then
         local iconSize = buffSize
@@ -4658,21 +5124,15 @@ local function UpdateStandaloneBlizzardBars()
       local childCount = addonTable.CollectChildren(main, State.tmpChildren)
       for i = 1, childCount do
         local icon = State.tmpChildren[i]
-        PatchCooldownViewerIconChargeMethods(icon)
         if IsValidStandaloneIcon(icon) then
-          SanitizeCooldownViewerChargeState(icon)
           if doSkinning and essentialEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
-            SkinStandaloneBarIcon(icon, profile)
+            SkinStandaloneBarIcon(icon, profile, "essential")
           end
           table.insert(visibleIcons, icon)
         end
       end
       if #visibleIcons > 1 then
-        table.sort(visibleIcons, function(a, b)
-          local idxA = a.layoutIndex or 0
-          local idxB = b.layoutIndex or 0
-          return idxA < idxB
-        end)
+        table.sort(visibleIcons, CompareByLayoutIndex)
       end
       if #visibleIcons > 0 then
         local iconSpacing = spacing
@@ -4784,22 +5244,16 @@ local function UpdateStandaloneBlizzardBars()
       local childCount = addonTable.CollectChildren(utility, State.tmpChildren)
       for i = 1, childCount do
         local icon = State.tmpChildren[i]
-        PatchCooldownViewerIconChargeMethods(icon)
         if IsValidStandaloneIcon(icon) then
-          SanitizeCooldownViewerChargeState(icon)
           if doSkinning and utilityEnabled and (needsSkinning or not icon.ccmStandaloneSkinned) then
-            SkinStandaloneBarIcon(icon, profile)
+            SkinStandaloneBarIcon(icon, profile, "utility")
           end
           icon:SetSize(utilitySize, utilitySize)
           table.insert(visibleIcons, icon)
         end
       end
       if #visibleIcons > 1 then
-        table.sort(visibleIcons, function(a, b)
-          local idxA = a.layoutIndex or 0
-          local idxB = b.layoutIndex or 0
-          return idxA < idxB
-        end)
+        table.sort(visibleIcons, CompareByLayoutIndex)
       end
       if #visibleIcons > 0 then
         local iconSize = utilitySize
@@ -4924,19 +5378,19 @@ local function UpdateStandaloneBlizzardBars()
   if needsSkinning then
     State.standaloneNeedsSkinning = false
   end
+  State.standaloneDirty = false
 end
 addonTable.UpdateStandaloneBlizzardBars = UpdateStandaloneBlizzardBars
 if CooldownViewerSettings and CooldownViewerSettings.RefreshLayout then
   hooksecurefunc(CooldownViewerSettings, "RefreshLayout", function()
-    if PatchAllCooldownViewerChargeMethods then
-      PatchAllCooldownViewerChargeMethods()
-    end
     State.standaloneNeedsSkinning = true
+    State.standaloneDirty = true
     State.standaloneFastUntil = GetTime() + 0.6
     State.lastStandaloneTick = 0
     UpdateStandaloneBlizzardBars()
     C_Timer.After(0, function()
       State.standaloneNeedsSkinning = true
+      State.standaloneDirty = true
       UpdateStandaloneBlizzardBars()
     end)
   end)
@@ -4946,6 +5400,7 @@ for _, viewerName in ipairs({"EssentialCooldownViewer", "UtilityCooldownViewer",
   if viewer and viewer.RefreshLayout then
     hooksecurefunc(viewer, "RefreshLayout", function()
       State.standaloneNeedsSkinning = true
+      State.standaloneDirty = true
       UpdateStandaloneBlizzardBars()
     end)
   end
@@ -4953,10 +5408,21 @@ end
 do
   local centerFrame = CreateFrame("Frame")
   centerFrame.elapsed = 0
+  centerFrame.periodicElapsed = 0
   centerFrame:Hide()
+  centerFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
+  centerFrame:SetScript("OnEvent", function()
+    State.standaloneDirty = true
+  end)
   centerFrame:SetScript("OnUpdate", function(self, elapsed)
     self.elapsed = self.elapsed + elapsed
-    if self.elapsed < 0.016 then return end
+    self.periodicElapsed = self.periodicElapsed + elapsed
+    if self.periodicElapsed >= 2 then
+      self.periodicElapsed = 0
+      State.standaloneDirty = true
+    end
+    local threshold = (State.standaloneFastUntil and GetTime() < State.standaloneFastUntil) and 0.03 or 0.2
+    if self.elapsed < threshold then return end
     self.elapsed = 0
     UpdateStandaloneBlizzardBars()
   end)
@@ -4990,9 +5456,18 @@ if C_Timer and C_Timer.After then
   end)
 end
 if C_Timer and C_Timer.NewTicker and not State.cooldownViewerChargePatchTicker then
-  State.cooldownViewerChargePatchTicker = C_Timer.NewTicker(1, function()
+  State.cooldownViewerChargePatchTicker = C_Timer.NewTicker(1, function(ticker)
     if PatchAllCooldownViewerChargeMethods then
       PatchAllCooldownViewerChargeMethods()
+    end
+    if ticker._ccmTicks then
+      ticker._ccmTicks = ticker._ccmTicks + 1
+    else
+      ticker._ccmTicks = 1
+    end
+    if ticker._ccmTicks >= 10 then
+      ticker:Cancel()
+      State.cooldownViewerChargePatchTicker = nil
     end
   end)
 end
@@ -5009,6 +5484,12 @@ local function ClearCustomBarIcons()
   wipe(State.customBar1Icons)
 end
 local function ResolveCustomBarAnchorFrame(anchorName)
+  local function HasObjectTypeMethod(obj)
+    local ok, method = pcall(function()
+      return obj and obj.GetObjectType
+    end)
+    return ok and type(method) == "function"
+  end
   local raw = type(anchorName) == "string" and anchorName or ""
   local trimmed = raw:gsub("^%s+", ""):gsub("%s+$", "")
   if trimmed == "" then return UIParent, "UIParent" end
@@ -5018,22 +5499,45 @@ local function ResolveCustomBarAnchorFrame(anchorName)
   local cache = State.customBarAnchorCache
   local cached = cache[normalized]
   if cached ~= nil then
+    if cached == false then
+      return UIParent, "UIParent"
+    end
     return cached, (cached.GetName and cached:GetName()) or trimmed
   end
   local frame = _G[trimmed]
-  if not (frame and frame.GetObjectType) then
+  if not HasObjectTypeMethod(frame) then
     for name, obj in pairs(_G) do
-      if type(name) == "string" and obj and obj.GetObjectType and name:lower():gsub("_", "") == normalized then
+      if type(name) == "string" and name:lower():gsub("_", "") == normalized and HasObjectTypeMethod(obj) then
         frame = obj
         break
       end
     end
   end
-  if frame and frame.GetObjectType then
+  if HasObjectTypeMethod(frame) then
     cache[normalized] = frame
     return frame, (frame.GetName and frame:GetName()) or trimmed
   end
+  cache[normalized] = false
   return UIParent, "UIParent"
+end
+addonTable.ResolveCustomBarAnchorFrame = ResolveCustomBarAnchorFrame
+addonTable.GetAnchorFrameOptions = function(excludeBarNum)
+  local opts = {{text = "UIParent", value = "UIParent"}}
+  local candidates = {
+    {name = "PlayerFrame", text = "PlayerFrame"},
+    {name = "TargetFrame", text = "TargetFrame"},
+    {name = "FocusFrame", text = "FocusFrame"},
+    {name = "CCMPersonalResourceBar", text = "PRB", excludeBar = 0},
+    {name = "CCMCustomBar", text = "CBar 1", excludeBar = 1},
+    {name = "CCMCustomBar2", text = "CBar 2", excludeBar = 2},
+    {name = "CCMCustomBar3", text = "CBar 3", excludeBar = 3},
+  }
+  for _, c in ipairs(candidates) do
+    if c.excludeBar ~= excludeBarNum and _G[c.name] then
+      opts[#opts + 1] = {text = c.text, value = c.name}
+    end
+  end
+  return opts
 end
 local function CreateCustomBarIcons()
   if State.customBar1Moving then return end
@@ -5044,7 +5548,7 @@ local function CreateCustomBarIcons()
     customBarFrame:Hide()
     return
   end
-  local entries, entriesEnabled = GetCustomBarSpells()
+  local entries, entriesEnabled, entryGlowEnabled, entryGlowType = GetCustomBarSpells()
   if #entries == 0 then
     customBarFrame:Hide()
     return
@@ -5087,8 +5591,10 @@ local function CreateCustomBarIcons()
       icon.entryID = id
       icon.isItem = id < 0
       icon.actualID = math.abs(id)
+      icon.glowType = (entryGlowEnabled[i] == true) and (entryGlowType[i] or profile.customBarSpellGlowDefaultType or "pixel") or "off"
+      SetGlowIdentityMethods(icon)
       if icon.isItem then
-        local itemIcon = GetItemIcon(icon.actualID) or C_Item.GetItemIconByID(icon.actualID)
+        local itemIcon = C_Item.GetItemIconByID(icon.actualID)
         icon.Icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
       else
         local spellInfo = C_Spell.GetSpellInfo(icon.actualID)
@@ -5104,12 +5610,13 @@ local function CreateCustomBarIcons()
   local x = type(profile.customBarX) == "number" and profile.customBarX or 0
   local y = type(profile.customBarY) == "number" and profile.customBarY or -200
   local anchorFrame, _ = ResolveCustomBarAnchorFrame(profile.customBarAnchorFrame)
+  local anchorToPoint = profile.customBarAnchorToPoint or "CENTER"
   if centered then
     x = 0 + x
   end
   if not State.cb1Dragging then
     customBarFrame:ClearAllPoints()
-    customBarFrame:SetPoint("CENTER", anchorFrame, "CENTER", x, y)
+    customBarFrame:SetPoint("CENTER", anchorFrame, anchorToPoint, x, y)
   end
   customBarFrame:Show()
   if Masque and profile.enableMasque and MasqueGroups.CustomBar then
@@ -5123,8 +5630,9 @@ local function UpdateCustomBar()
     customBarFrame:Hide()
     return
   end
+  local onMyTab = State.guiIsOpen and addonTable.activeTab and addonTable.activeTab() == 3
   if not IsShowModeActive(profile.customBarShowMode, true) then
-    if not customBarFrame.highlightVisible then
+    if not customBarFrame.highlightVisible and not onMyTab then
       customBarFrame:Hide()
       return
     end
@@ -5136,7 +5644,7 @@ local function UpdateCustomBar()
     end
   end
   if #State.customBar1Icons == 0 then
-    if not customBarFrame.highlightVisible then
+    if not customBarFrame.highlightVisible and not onMyTab then
       customBarFrame:Hide()
     end
     return
@@ -5168,20 +5676,17 @@ local function UpdateCustomBar()
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
-        iconTexture = GetItemIcon(actualID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(actualID))
+        iconTexture = C_Item.GetItemIconByID(actualID)
         if not iconTexture then
-          local _, _, _, _, _, _, _, _, _, infoIcon = GetItemInfo(actualID)
+          local _, _, _, _, _, _, _, _, _, infoIcon = C_Item.GetItemInfo(actualID)
           iconTexture = infoIcon
         end
         if iconTexture then
           icon.cachedItemIcon = iconTexture
         end
       end
-      itemCount = GetItemCount(actualID, false, true)
-      if itemCount == 0 then
-        itemCount = C_Item.GetItemCount(actualID, false, true)
-      end
-      cdStart, cdDuration = GetItemCooldown(actualID)
+      itemCount = C_Item.GetItemCount(actualID, false, true)
+      cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
         if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
@@ -5292,13 +5797,17 @@ local function UpdateCustomBar()
         end
       end
     end
-    local notEnoughResources = false
+    local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
-      local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
-      if usableInfo ~= nil then
-        notEnoughResources = (insufficientPower == true)
-      end
+      isUsable, notEnoughResources, hasUsability = GetSpellUsabilityState(activeSpellID)
       if notEnoughResources and isOnCooldown then
+        notEnoughResources = false
+      end
+      if isChargeSpell then
+        if hasUsability == false then
+          isUsable = false
+        end
+        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
@@ -5308,6 +5817,7 @@ local function UpdateCustomBar()
         itemCount = itemCount,
         isOnCooldown = isOnCooldown,
         isChargeSpell = isChargeSpell,
+        isUsable = isUsable,
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
         chargesData = chargesData,
@@ -5316,7 +5826,7 @@ local function UpdateCustomBar()
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell and not buffOverlayActive and not isOverride then
+    if not onMyTab and not buffOverlayActive and not isOverride then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -5337,7 +5847,9 @@ local function UpdateCustomBar()
   end
   local visibleCount = #visibleIcons
   if visibleCount == 0 then
-    customBarFrame:Hide()
+    if not onMyTab then
+      customBarFrame:Hide()
+    end
     return
   end
   local totalIcons = #State.customBar1Icons
@@ -5482,6 +5994,8 @@ local function UpdateCustomBar()
       end
     end
     local shouldDesaturate = false
+    local isUsable = icon._tempData and icon._tempData.isUsable
+    if isUsable == nil then isUsable = true end
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
     local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
     local isOverride = icon._tempData and icon._tempData.isOverride
@@ -5543,7 +6057,25 @@ local function UpdateCustomBar()
     if not (isChargeSpell and not isItem) then
       icon.icon:SetDesaturated(shouldDesaturate)
     end
+    local useSpellGlows = profile.customBarUseSpellGlows == true
+    local readySpell = not isOnCooldown and not notEnoughResources and not buffOverlayActive
+    if isItem then
+      readySpell = itemCount and itemCount > 0 and not isOnCooldown
+    elseif isChargeSpell then
+      readySpell = isUsable and not buffOverlayActive
+    end
     EnsureIconRestored(icon)
+    if useSpellGlows and icon.glowType ~= "off" and readySpell then
+      StartReadyGlow(icon, icon.glowType)
+    else
+      StopReadyGlow(icon)
+    end
+    local cbGradT = type(profile.customBarCdGradientThreshold) == "number" and profile.customBarCdGradientThreshold or 0
+    if cbGradT > 0 then
+      ApplyCdTextGradient(icon.cooldown, cbGradT, type(profile.customBarCdGradientR) == "number" and profile.customBarCdGradientR or 1, type(profile.customBarCdGradientG) == "number" and profile.customBarCdGradientG or 0, type(profile.customBarCdGradientB) == "number" and profile.customBarCdGradientB or 0, (not isItem) and activeSpellID or nil)
+    else
+      ResetCdTextGradient(icon.cooldown)
+    end
   end
   if layoutChanged then
     if Masque and profile.enableMasque and MasqueGroups.CustomBar then
@@ -5551,8 +6083,9 @@ local function UpdateCustomBar()
     end
     if not State.cb1Dragging then
       local anchorFrame = ResolveCustomBarAnchorFrame(profile.customBarAnchorFrame)
+      local anchorToPoint = profile.customBarAnchorToPoint or "CENTER"
       customBarFrame:ClearAllPoints()
-      customBarFrame:SetPoint("CENTER", anchorFrame, "CENTER", posX, posY)
+      customBarFrame:SetPoint("CENTER", anchorFrame, anchorToPoint, posX, posY)
     end
     customBarFrame:SetSize(math.max(totalWidth, 10), math.max(totalHeight, 10))
   end
@@ -5565,8 +6098,9 @@ local function UpdateCustomBarPosition()
   local posX = type(profile.customBarX) == "number" and profile.customBarX or 0
   local posY = type(profile.customBarY) == "number" and profile.customBarY or -200
   local anchorFrame = ResolveCustomBarAnchorFrame(profile.customBarAnchorFrame)
+  local anchorToPoint = profile.customBarAnchorToPoint or "CENTER"
   customBarFrame:ClearAllPoints()
-  customBarFrame:SetPoint("CENTER", anchorFrame, "CENTER", posX, posY)
+  customBarFrame:SetPoint("CENTER", anchorFrame, anchorToPoint, posX, posY)
   if customBarFrame.highlightVisible or #State.customBar1Icons > 0 then
     customBarFrame:Show()
   end
@@ -5609,7 +6143,7 @@ local function CreateCustomBar2Icons()
     customBar2Frame:Hide()
     return
   end
-  local entries, entriesEnabled = GetCustomBar2Spells()
+  local entries, entriesEnabled, entryGlowEnabled, entryGlowType = GetCustomBar2Spells()
   if #entries == 0 then
     customBar2Frame:Hide()
     return
@@ -5652,8 +6186,10 @@ local function CreateCustomBar2Icons()
       icon.entryID = id
       icon.isItem = id < 0
       icon.actualID = math.abs(id)
+      icon.glowType = (entryGlowEnabled[i] == true) and (entryGlowType[i] or profile.customBar2SpellGlowDefaultType or "pixel") or "off"
+      SetGlowIdentityMethods(icon)
       if icon.isItem then
-        local itemIcon = GetItemIcon(icon.actualID) or C_Item.GetItemIconByID(icon.actualID)
+        local itemIcon = C_Item.GetItemIconByID(icon.actualID)
         icon.Icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
       else
         local spellInfo = C_Spell.GetSpellInfo(icon.actualID)
@@ -5669,12 +6205,13 @@ local function CreateCustomBar2Icons()
   local x = type(profile.customBar2X) == "number" and profile.customBar2X or 0
   local y = type(profile.customBar2Y) == "number" and profile.customBar2Y or -250
   local anchorFrame, _ = ResolveCustomBarAnchorFrame(profile.customBar2AnchorFrame)
+  local anchorToPoint = profile.customBar2AnchorToPoint or "CENTER"
   if centered then
     x = 0 + x
   end
   if not State.cb2Dragging then
     customBar2Frame:ClearAllPoints()
-    customBar2Frame:SetPoint("CENTER", anchorFrame, "CENTER", x, y)
+    customBar2Frame:SetPoint("CENTER", anchorFrame, anchorToPoint, x, y)
   end
   customBar2Frame:Show()
   if Masque and profile.enableMasque and MasqueGroups.CustomBar2 then
@@ -5688,8 +6225,9 @@ local function UpdateCustomBar2()
     customBar2Frame:Hide()
     return
   end
+  local onMyTab = State.guiIsOpen and addonTable.activeTab and addonTable.activeTab() == 4
   if not IsShowModeActive(profile.customBar2ShowMode, true) then
-    if not customBar2Frame.highlightVisible then
+    if not customBar2Frame.highlightVisible and not onMyTab then
       customBar2Frame:Hide()
       return
     end
@@ -5701,7 +6239,7 @@ local function UpdateCustomBar2()
     end
   end
   if #State.customBar2Icons == 0 then
-    if not customBar2Frame.highlightVisible then
+    if not customBar2Frame.highlightVisible and not onMyTab then
       customBar2Frame:Hide()
     end
     return
@@ -5733,20 +6271,17 @@ local function UpdateCustomBar2()
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
-        iconTexture = GetItemIcon(actualID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(actualID))
+        iconTexture = C_Item.GetItemIconByID(actualID)
         if not iconTexture then
-          local _, _, _, _, _, _, _, _, _, infoIcon = GetItemInfo(actualID)
+          local _, _, _, _, _, _, _, _, _, infoIcon = C_Item.GetItemInfo(actualID)
           iconTexture = infoIcon
         end
         if iconTexture then
           icon.cachedItemIcon = iconTexture
         end
       end
-      itemCount = GetItemCount(actualID, false, true)
-      if itemCount == 0 then
-        itemCount = C_Item.GetItemCount(actualID, false, true)
-      end
-      cdStart, cdDuration = GetItemCooldown(actualID)
+      itemCount = C_Item.GetItemCount(actualID, false, true)
+      cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
         if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
@@ -5857,13 +6392,17 @@ local function UpdateCustomBar2()
         end
       end
     end
-    local notEnoughResources = false
+    local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
-      local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
-      if usableInfo ~= nil then
-        notEnoughResources = (insufficientPower == true)
-      end
+      isUsable, notEnoughResources, hasUsability = GetSpellUsabilityState(activeSpellID)
       if notEnoughResources and isOnCooldown then
+        notEnoughResources = false
+      end
+      if isChargeSpell then
+        if hasUsability == false then
+          isUsable = false
+        end
+        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
@@ -5873,6 +6412,7 @@ local function UpdateCustomBar2()
         itemCount = itemCount,
         isOnCooldown = isOnCooldown,
         isChargeSpell = isChargeSpell,
+        isUsable = isUsable,
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
         chargesData = chargesData,
@@ -5881,7 +6421,7 @@ local function UpdateCustomBar2()
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell and not buffOverlayActive and not isOverride then
+    if not onMyTab and not buffOverlayActive and not isOverride then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -5902,7 +6442,9 @@ local function UpdateCustomBar2()
   end
   local visibleCount = #visibleIcons
   if visibleCount == 0 then
-    customBar2Frame:Hide()
+    if not onMyTab then
+      customBar2Frame:Hide()
+    end
     return
   end
   local totalIcons = #State.customBar2Icons
@@ -6047,6 +6589,8 @@ local function UpdateCustomBar2()
       end
     end
     local shouldDesaturate = false
+    local isUsable = icon._tempData and icon._tempData.isUsable
+    if isUsable == nil then isUsable = true end
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
     local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
     local isOverride = icon._tempData and icon._tempData.isOverride
@@ -6108,7 +6652,25 @@ local function UpdateCustomBar2()
     if not (isChargeSpell and not isItem) then
       icon.icon:SetDesaturated(shouldDesaturate)
     end
+    local useSpellGlows = profile.customBar2UseSpellGlows == true
+    local readySpell = not isOnCooldown and not notEnoughResources and not buffOverlayActive
+    if isItem then
+      readySpell = itemCount and itemCount > 0 and not isOnCooldown
+    elseif isChargeSpell then
+      readySpell = isUsable and not buffOverlayActive
+    end
     EnsureIconRestored(icon)
+    if useSpellGlows and icon.glowType ~= "off" and readySpell then
+      StartReadyGlow(icon, icon.glowType)
+    else
+      StopReadyGlow(icon)
+    end
+    local cbGradT = type(profile.customBar2CdGradientThreshold) == "number" and profile.customBar2CdGradientThreshold or 0
+    if cbGradT > 0 then
+      ApplyCdTextGradient(icon.cooldown, cbGradT, type(profile.customBar2CdGradientR) == "number" and profile.customBar2CdGradientR or 1, type(profile.customBar2CdGradientG) == "number" and profile.customBar2CdGradientG or 0, type(profile.customBar2CdGradientB) == "number" and profile.customBar2CdGradientB or 0, (not isItem) and activeSpellID or nil)
+    else
+      ResetCdTextGradient(icon.cooldown)
+    end
   end
   if layoutChanged then
     if Masque and profile.enableMasque and MasqueGroups.CustomBar2 then
@@ -6116,8 +6678,9 @@ local function UpdateCustomBar2()
     end
     if not State.cb2Dragging then
       local anchorFrame = ResolveCustomBarAnchorFrame(profile.customBar2AnchorFrame)
+      local anchorToPoint = profile.customBar2AnchorToPoint or "CENTER"
       customBar2Frame:ClearAllPoints()
-      customBar2Frame:SetPoint("CENTER", anchorFrame, "CENTER", posX, posY)
+      customBar2Frame:SetPoint("CENTER", anchorFrame, anchorToPoint, posX, posY)
     end
     customBar2Frame:SetSize(math.max(totalWidth, 10), math.max(totalHeight, 10))
   end
@@ -6130,8 +6693,9 @@ local function UpdateCustomBar2Position()
   local posX = type(profile.customBar2X) == "number" and profile.customBar2X or 0
   local posY = type(profile.customBar2Y) == "number" and profile.customBar2Y or -250
   local anchorFrame = ResolveCustomBarAnchorFrame(profile.customBar2AnchorFrame)
+  local anchorToPoint = profile.customBar2AnchorToPoint or "CENTER"
   customBar2Frame:ClearAllPoints()
-  customBar2Frame:SetPoint("CENTER", anchorFrame, "CENTER", posX, posY)
+  customBar2Frame:SetPoint("CENTER", anchorFrame, anchorToPoint, posX, posY)
   if customBar2Frame.highlightVisible or #State.customBar2Icons > 0 then
     customBar2Frame:Show()
   end
@@ -6174,7 +6738,7 @@ local function CreateCustomBar3Icons()
     customBar3Frame:Hide()
     return
   end
-  local entries, entriesEnabled = GetCustomBar3Spells()
+  local entries, entriesEnabled, entryGlowEnabled, entryGlowType = GetCustomBar3Spells()
   if #entries == 0 then
     customBar3Frame:Hide()
     return
@@ -6217,8 +6781,10 @@ local function CreateCustomBar3Icons()
       icon.entryID = id
       icon.isItem = id < 0
       icon.actualID = math.abs(id)
+      icon.glowType = (entryGlowEnabled[i] == true) and (entryGlowType[i] or profile.customBar3SpellGlowDefaultType or "pixel") or "off"
+      SetGlowIdentityMethods(icon)
       if icon.isItem then
-        local itemIcon = GetItemIcon(icon.actualID) or C_Item.GetItemIconByID(icon.actualID)
+        local itemIcon = C_Item.GetItemIconByID(icon.actualID)
         icon.Icon:SetTexture(itemIcon or "Interface\\Icons\\INV_Misc_QuestionMark")
       else
         local spellInfo = C_Spell.GetSpellInfo(icon.actualID)
@@ -6234,12 +6800,13 @@ local function CreateCustomBar3Icons()
   local x = type(profile.customBar3X) == "number" and profile.customBar3X or 0
   local y = type(profile.customBar3Y) == "number" and profile.customBar3Y or -300
   local anchorFrame, _ = ResolveCustomBarAnchorFrame(profile.customBar3AnchorFrame)
+  local anchorToPoint = profile.customBar3AnchorToPoint or "CENTER"
   if centered then
     x = 0 + x
   end
   if not State.cb3Dragging then
     customBar3Frame:ClearAllPoints()
-    customBar3Frame:SetPoint("CENTER", anchorFrame, "CENTER", x, y)
+    customBar3Frame:SetPoint("CENTER", anchorFrame, anchorToPoint, x, y)
   end
   customBar3Frame:Show()
   if Masque and profile.enableMasque and MasqueGroups.CustomBar3 then
@@ -6253,8 +6820,9 @@ local function UpdateCustomBar3()
     customBar3Frame:Hide()
     return
   end
+  local onMyTab = State.guiIsOpen and addonTable.activeTab and addonTable.activeTab() == 5
   if not IsShowModeActive(profile.customBar3ShowMode, true) then
-    if not customBar3Frame.highlightVisible then
+    if not customBar3Frame.highlightVisible and not onMyTab then
       customBar3Frame:Hide()
       return
     end
@@ -6266,7 +6834,7 @@ local function UpdateCustomBar3()
     end
   end
   if #State.customBar3Icons == 0 then
-    if not customBar3Frame.highlightVisible then
+    if not customBar3Frame.highlightVisible and not onMyTab then
       customBar3Frame:Hide()
     end
     return
@@ -6298,20 +6866,17 @@ local function UpdateCustomBar3()
     if isItem then
       iconTexture = icon.cachedItemIcon
       if not iconTexture then
-        iconTexture = GetItemIcon(actualID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(actualID))
+        iconTexture = C_Item.GetItemIconByID(actualID)
         if not iconTexture then
-          local _, _, _, _, _, _, _, _, _, infoIcon = GetItemInfo(actualID)
+          local _, _, _, _, _, _, _, _, _, infoIcon = C_Item.GetItemInfo(actualID)
           iconTexture = infoIcon
         end
         if iconTexture then
           icon.cachedItemIcon = iconTexture
         end
       end
-      itemCount = GetItemCount(actualID, false, true)
-      if itemCount == 0 then
-        itemCount = C_Item.GetItemCount(actualID, false, true)
-      end
-      cdStart, cdDuration = GetItemCooldown(actualID)
+      itemCount = C_Item.GetItemCount(actualID, false, true)
+      cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
         if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
@@ -6422,13 +6987,17 @@ local function UpdateCustomBar3()
         end
       end
     end
-    local notEnoughResources = false
+    local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
-      local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
-      if usableInfo ~= nil then
-        notEnoughResources = (insufficientPower == true)
-      end
+      isUsable, notEnoughResources, hasUsability = GetSpellUsabilityState(activeSpellID)
       if notEnoughResources and isOnCooldown then
+        notEnoughResources = false
+      end
+      if isChargeSpell then
+        if hasUsability == false then
+          isUsable = false
+        end
+        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
@@ -6438,6 +7007,7 @@ local function UpdateCustomBar3()
         itemCount = itemCount,
         isOnCooldown = isOnCooldown,
         isChargeSpell = isChargeSpell,
+        isUsable = isUsable,
         originalIndex = originalIdx,
         notEnoughResources = notEnoughResources,
         chargesData = chargesData,
@@ -6446,7 +7016,7 @@ local function UpdateCustomBar3()
       }
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
-    if not isChargeSpell and not buffOverlayActive and not isOverride then
+    if not onMyTab and not buffOverlayActive and not isOverride then
       if cooldownMode == "hideAvailable" then
         if not isUnavailable then
           shouldShow = false
@@ -6467,7 +7037,9 @@ local function UpdateCustomBar3()
   end
   local visibleCount = #visibleIcons
   if visibleCount == 0 then
-    customBar3Frame:Hide()
+    if not onMyTab then
+      customBar3Frame:Hide()
+    end
     return
   end
   local totalIcons = #State.customBar3Icons
@@ -6612,6 +7184,8 @@ local function UpdateCustomBar3()
       end
     end
     local shouldDesaturate = false
+    local isUsable = icon._tempData and icon._tempData.isUsable
+    if isUsable == nil then isUsable = true end
     local notEnoughResources = icon._tempData and icon._tempData.notEnoughResources
     local buffOverlayActive = icon._tempData and icon._tempData.buffOverlayActive
     local isOverride = icon._tempData and icon._tempData.isOverride
@@ -6673,7 +7247,25 @@ local function UpdateCustomBar3()
     if not (isChargeSpell and not isItem) then
       icon.icon:SetDesaturated(shouldDesaturate)
     end
+    local useSpellGlows = profile.customBar3UseSpellGlows == true
+    local readySpell = not isOnCooldown and not notEnoughResources and not buffOverlayActive
+    if isItem then
+      readySpell = itemCount and itemCount > 0 and not isOnCooldown
+    elseif isChargeSpell then
+      readySpell = isUsable and not buffOverlayActive
+    end
     EnsureIconRestored(icon)
+    if useSpellGlows and icon.glowType ~= "off" and readySpell then
+      StartReadyGlow(icon, icon.glowType)
+    else
+      StopReadyGlow(icon)
+    end
+    local cbGradT = type(profile.customBar3CdGradientThreshold) == "number" and profile.customBar3CdGradientThreshold or 0
+    if cbGradT > 0 then
+      ApplyCdTextGradient(icon.cooldown, cbGradT, type(profile.customBar3CdGradientR) == "number" and profile.customBar3CdGradientR or 1, type(profile.customBar3CdGradientG) == "number" and profile.customBar3CdGradientG or 0, type(profile.customBar3CdGradientB) == "number" and profile.customBar3CdGradientB or 0, (not isItem) and activeSpellID or nil)
+    else
+      ResetCdTextGradient(icon.cooldown)
+    end
   end
   if layoutChanged then
     if Masque and profile.enableMasque and MasqueGroups.CustomBar3 then
@@ -6681,8 +7273,9 @@ local function UpdateCustomBar3()
     end
     if not State.cb3Dragging then
       local anchorFrame = ResolveCustomBarAnchorFrame(profile.customBar3AnchorFrame)
+      local anchorToPoint = profile.customBar3AnchorToPoint or "CENTER"
       customBar3Frame:ClearAllPoints()
-      customBar3Frame:SetPoint("CENTER", anchorFrame, "CENTER", posX, posY)
+      customBar3Frame:SetPoint("CENTER", anchorFrame, anchorToPoint, posX, posY)
     end
     customBar3Frame:SetSize(math.max(totalWidth, 10), math.max(totalHeight, 10))
   end
@@ -6695,8 +7288,9 @@ local function UpdateCustomBar3Position()
   local posX = type(profile.customBar3X) == "number" and profile.customBar3X or 0
   local posY = type(profile.customBar3Y) == "number" and profile.customBar3Y or -300
   local anchorFrame = ResolveCustomBarAnchorFrame(profile.customBar3AnchorFrame)
+  local anchorToPoint = profile.customBar3AnchorToPoint or "CENTER"
   customBar3Frame:ClearAllPoints()
-  customBar3Frame:SetPoint("CENTER", anchorFrame, "CENTER", posX, posY)
+  customBar3Frame:SetPoint("CENTER", anchorFrame, anchorToPoint, posX, posY)
   if customBar3Frame.highlightVisible or #State.customBar3Icons > 0 then
     customBar3Frame:Show()
   end
@@ -6721,6 +7315,8 @@ addonTable.UpdateCustomBar3StackTextPositions = UpdateCustomBar3StackTextPositio
 local cursorIconContainer = CreateFrame("Frame", "CCMCursorIconContainer", UIParent)
 cursorIconContainer:SetSize(1, 1)
 cursorIconContainer:EnableMouse(false)
+if cursorIconContainer.SetSnapToPixelGrid then cursorIconContainer:SetSnapToPixelGrid(false) end
+if cursorIconContainer.SetTexelSnappingBias then cursorIconContainer:SetTexelSnappingBias(0) end
 cursorIconContainer:Show()
 local function UpdateCursorIconAnchors()
   local cache = State.cursorLayoutCache
@@ -6774,6 +7370,8 @@ local function CreateIcons()
   if not profile then return end
   if not profile.trackedSpells then profile.trackedSpells = {} end
   if not profile.spellsEnabled then profile.spellsEnabled = {} end
+  if not profile.spellGlowEnabled then profile.spellGlowEnabled = {} end
+  if not profile.spellGlowType then profile.spellGlowType = {} end
   local iconSize = type(profile.iconSize) == "number" and profile.iconSize or 30
   local borderSize = type(profile.iconBorderSize) == "number" and profile.iconBorderSize or 1
   for i, entryID in ipairs(profile.trackedSpells) do
@@ -6824,6 +7422,9 @@ local function CreateIcons()
       icon.spellID = actualID
       icon.isItem = isItem
       icon.spellIndex = i
+      icon.glowType = (profile.spellGlowEnabled[i] == true) and (profile.spellGlowType[i] or profile.spellGlowDefaultType or "pixel") or "off"
+      icon.actualID = actualID
+      SetGlowIdentityMethods(icon)
       table.insert(State.cursorIcons, icon)
       if Masque and profile.enableMasque and MasqueGroups.CursorIcons then
         SkinButtonWithMasque(icon, MasqueGroups.CursorIcons)
@@ -6871,8 +7472,8 @@ addonTable.CreateIcons = function()
 end
 local onUpdateElapsed = 0
 local cursorTrackElapsed = 0
-local ON_UPDATE_THROTTLE = 0.05
-local CURSOR_TRACK_THROTTLE = 0.016
+local ON_UPDATE_THROTTLE = 0.016
+local CURSOR_TRACK_THROTTLE = 0
 local cachedProfile = nil
 local lastProfileCheck = 0
 local cachedUIScale = UIParent:GetEffectiveScale()
@@ -7071,9 +7672,9 @@ UpdateSpellIcon = function(icon)
     if isItem then
       local itemIcon = icon.cachedItemIcon
       if not itemIcon then
-        itemIcon = GetItemIcon(spellID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(spellID))
+        itemIcon = C_Item.GetItemIconByID(spellID)
         if not itemIcon then
-          local _, _, _, _, _, _, _, _, _, infoIcon = GetItemInfo(spellID)
+          local _, _, _, _, _, _, _, _, _, infoIcon = C_Item.GetItemInfo(spellID)
           itemIcon = infoIcon
         end
         if itemIcon then icon.cachedItemIcon = itemIcon end
@@ -7083,7 +7684,7 @@ UpdateSpellIcon = function(icon)
       local cdTextScale = type(profile.cdTextScale) == "number" and profile.cdTextScale or 1.0
       icon.cooldown:SetScale(cdTextScale > 0 and cdTextScale or 1)
       icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
-      local cdStart, cdDuration = GetItemCooldown(spellID)
+      local cdStart, cdDuration = C_Item.GetItemCooldown(spellID)
       if cdStart and cdDuration and cdDuration > 1.5 then
         icon.cooldown:SetCooldown(cdStart, cdDuration)
         icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
@@ -7092,7 +7693,7 @@ UpdateSpellIcon = function(icon)
       end
       local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
       icon.stackText:SetScale(stackTextScale)
-      local itemCount = GetItemCount(spellID, false, true)
+      local itemCount = C_Item.GetItemCount(spellID, false, true)
       if not itemCount or itemCount <= 0 then
         icon.stackText:SetText("0")
         icon.stackText:Show()
@@ -7131,6 +7732,11 @@ UpdateSpellIcon = function(icon)
       end
     end
     EnsureIconRestored(icon)
+    if profile.useSpellGlows == true and icon.glowType ~= "off" then
+      StartReadyGlow(icon, icon.glowType)
+    else
+      StopReadyGlow(icon)
+    end
     return
   end
   if profile.cursorIconsEnabled == false then
@@ -7140,20 +7746,27 @@ UpdateSpellIcon = function(icon)
   local spellID = icon.spellID
   local isItem = icon.isItem
   local showGCD = profile.cursorShowGCD == true
-  if not IsShowModeActive(profile.showMode) then
-    HideIconByScale(icon)
-    return
+  local alwaysShowInActive = false
+  if profile.alwaysShowInEnabled and profile.alwaysShowInMode then
+    local inInstance, instanceType = IsInInstance()
+    if profile.alwaysShowInMode == "raid" and inInstance and instanceType == "raid" then
+      alwaysShowInActive = true
+    elseif profile.alwaysShowInMode == "dungeon" and inInstance and instanceType == "party" then
+      alwaysShowInActive = true
+    elseif profile.alwaysShowInMode == "raidanddungeon" and inInstance and (instanceType == "raid" or instanceType == "party") then
+      alwaysShowInActive = true
+    end
   end
-  if (profile.iconsCombatOnly or profile.showInCombatOnly) and not UnitAffectingCombat("player") then
+  if (profile.iconsCombatOnly or profile.showInCombatOnly) and not UnitAffectingCombat("player") and not alwaysShowInActive then
     HideIconByScale(icon)
     return
   end
   if isItem then
     local itemIcon = icon.cachedItemIcon
     if not itemIcon then
-      itemIcon = GetItemIcon(spellID) or (C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(spellID))
+      itemIcon = C_Item.GetItemIconByID(spellID)
       if not itemIcon then
-        local _, _, _, _, _, _, _, _, _, infoIcon = GetItemInfo(spellID)
+        local _, _, _, _, _, _, _, _, _, infoIcon = C_Item.GetItemInfo(spellID)
         itemIcon = infoIcon
       end
       if itemIcon then
@@ -7186,7 +7799,7 @@ UpdateSpellIcon = function(icon)
         end
       end
     end
-    local cdStart, cdDuration = GetItemCooldown(spellID)
+    local cdStart, cdDuration = C_Item.GetItemCooldown(spellID)
     local shouldShowSwipe = true
     if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
       if not showGCD and IsOnlyGCD(cdStart, cdDuration) then
@@ -7194,12 +7807,14 @@ UpdateSpellIcon = function(icon)
       end
     end
     if shouldShowSwipe and cdStart and cdDuration and cdDuration > 1.5 then
+      icon.cooldown:SetDrawSwipe(true)
       icon.cooldown:SetCooldown(cdStart, cdDuration)
       icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
     else
+      icon.cooldown:SetDrawSwipe(false)
       icon.cooldown:Clear()
     end
-    local itemCount = GetItemCount(spellID, false, true)
+    local itemCount = C_Item.GetItemCount(spellID, false, true)
     local itemNotInBags = not itemCount or itemCount <= 0
     local isItemOnCooldown = itemNotInBags or (cdStart and cdDuration and cdStart > 0 and cdDuration > 1.5)
     local cooldownMode = profile.cooldownIconMode or "show"
@@ -7229,6 +7844,19 @@ UpdateSpellIcon = function(icon)
       icon.stackText:Show()
     else
       icon.stackText:Hide()
+    end
+    local useSpellGlows = profile.useSpellGlows == true
+    local shouldGlow = useSpellGlows and icon.glowType ~= "off" and (not isItemOnCooldown) and (not itemNotInBags)
+    if shouldGlow then
+      StartReadyGlow(icon, icon.glowType)
+    else
+      StopReadyGlow(icon)
+    end
+    local cdGradT = type(profile.cdTextGradientThreshold) == "number" and profile.cdTextGradientThreshold or 0
+    if cdGradT > 0 then
+      ApplyCdTextGradient(icon.cooldown, cdGradT, type(profile.cdTextGradientR) == "number" and profile.cdTextGradientR or 1, type(profile.cdTextGradientG) == "number" and profile.cdTextGradientG or 0, type(profile.cdTextGradientB) == "number" and profile.cdTextGradientB or 0, nil)
+    else
+      ResetCdTextGradient(icon.cooldown)
     end
     return
   end
@@ -7284,10 +7912,12 @@ UpdateSpellIcon = function(icon)
       shouldShowSwipe = false
     end
     if shouldShowSwipe and cdStart and cdDuration then
+      icon.cooldown:SetDrawSwipe(true)
       pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
       icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       icon.cooldown:SetDrawEdge(false)
     else
+      icon.cooldown:SetDrawSwipe(false)
       icon.cooldown:Clear()
     end
   else
@@ -7300,8 +7930,10 @@ UpdateSpellIcon = function(icon)
         shouldShowSwipe = false
       end
       if shouldShowSwipe then
+        icon.cooldown:SetDrawSwipe(true)
         pcall(icon.cooldown.SetCooldown, icon.cooldown, cdStart, cdDuration)
       else
+        icon.cooldown:SetDrawSwipe(false)
         icon.cooldown:Clear()
       end
       icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
@@ -7363,13 +7995,15 @@ UpdateSpellIcon = function(icon)
       end
     end
   end
-  local isUsable, notEnoughResources = false, false
-  local usableInfo, insufficientPower = C_Spell.IsSpellUsable(activeSpellID)
-  if usableInfo ~= nil then
-    isUsable = usableInfo and not insufficientPower
-    notEnoughResources = (insufficientPower == true)
-  end
+  local isUsable, notEnoughResources, hasUsability = GetSpellUsabilityState(activeSpellID)
   if notEnoughResources and isOnCooldown then
+    notEnoughResources = false
+  end
+  if isChargeSpell then
+    if hasUsability == false then
+      isUsable = false
+    end
+    isOnCooldown = not isUsable
     notEnoughResources = false
   end
   local isUnavailable = isOnCooldown or notEnoughResources
@@ -7382,7 +8016,25 @@ UpdateSpellIcon = function(icon)
     icon.icon:SetDesaturated(false)
     if not isChargeSpell then icon.stackText:Hide() end
   elseif isChargeSpell then
-    if cooldownMode == "hide" or cooldownMode == "hideAvailable" or cooldownMode == "desaturate" then
+    if cooldownMode == "hideAvailable" then
+      if not isUnavailable then
+        HideIconByScale(icon)
+        return
+      end
+      icon:SetAlpha(1)
+      if icon.icon.SetDesaturation then
+        icon.icon:SetDesaturation(GetChargeSpellDesaturation(activeSpellID))
+      else
+        icon.icon:SetDesaturated(GetChargeSpellDesaturation(activeSpellID) > 0)
+      end
+    elseif cooldownMode == "hide" then
+      if isUnavailable then
+        HideIconByScale(icon)
+        return
+      end
+      icon:SetAlpha(1)
+      icon.icon:SetDesaturated(false)
+    elseif cooldownMode == "desaturate" then
       icon:SetAlpha(1)
       if icon.icon.SetDesaturation then
         icon.icon:SetDesaturation(GetChargeSpellDesaturation(activeSpellID))
@@ -7417,6 +8069,23 @@ UpdateSpellIcon = function(icon)
       icon.icon:SetDesaturated(false)
     end
   end
+  local useSpellGlows = profile.useSpellGlows == true
+  local readySpell = not isOnCooldown and not notEnoughResources and not buffOverlayActive
+  if isChargeSpell then
+    readySpell = isUsable and not buffOverlayActive
+  end
+  local shouldGlow = useSpellGlows and icon.glowType ~= "off" and readySpell
+  if shouldGlow then
+    StartReadyGlow(icon, icon.glowType)
+  else
+    StopReadyGlow(icon)
+  end
+  local cdGradT = type(profile.cdTextGradientThreshold) == "number" and profile.cdTextGradientThreshold or 0
+  if cdGradT > 0 then
+    ApplyCdTextGradient(icon.cooldown, cdGradT, type(profile.cdTextGradientR) == "number" and profile.cdTextGradientR or 1, type(profile.cdTextGradientG) == "number" and profile.cdTextGradientG or 0, type(profile.cdTextGradientB) == "number" and profile.cdTextGradientB or 0, activeSpellID)
+  else
+    ResetCdTextGradient(icon.cooldown)
+  end
 end
 local function UpdateAllIcons()
   for _, icon in ipairs(State.cursorIcons) do
@@ -7431,42 +8100,60 @@ addonTable.UpdateEnabledCustomBars = function(profile, force)
   local hasPending = false
   local keepPolling = false
   if profile.customBarEnabled then
-    local m = profile.customBarCooldownMode or "show"
-    if m == "hide" or m == "hideAvailable" or m == "desaturate" then
-      keepPolling = true
-    end
-    local interval = State.customBar1UpdateInterval or 0.08
-    if force or (now - (State.lastCustomBar1Update or 0)) >= interval then
+    local cb1ShowActive = IsShowModeActive(profile.customBarShowMode, true)
+    local cb1CombatOk = profile.customBarOutOfCombat ~= false or InCombatLockdown()
+    if cb1ShowActive and cb1CombatOk then
+      local m = profile.customBarCooldownMode or "show"
+      if m == "hide" or m == "hideAvailable" or m == "desaturate" then
+        keepPolling = true
+      end
+      local interval = State.customBar1UpdateInterval or 0.08
+      if force or (now - (State.lastCustomBar1Update or 0)) >= interval then
+        UpdateCustomBar()
+        State.lastCustomBar1Update = now
+      else
+        hasPending = true
+      end
+    elseif cb1ShowActive then
       UpdateCustomBar()
-      State.lastCustomBar1Update = now
-    else
-      hasPending = true
     end
   end
   if profile.customBar2Enabled then
-    local m = profile.customBar2CooldownMode or "show"
-    if m == "hide" or m == "hideAvailable" or m == "desaturate" then
-      keepPolling = true
-    end
-    local interval = State.customBar2UpdateInterval or 0.12
-    if force or (now - (State.lastCustomBar2Update or 0)) >= interval then
+    local cb2ShowActive = IsShowModeActive(profile.customBar2ShowMode, true)
+    local cb2CombatOk = profile.customBar2OutOfCombat ~= false or InCombatLockdown()
+    if cb2ShowActive and cb2CombatOk then
+      local m = profile.customBar2CooldownMode or "show"
+      if m == "hide" or m == "hideAvailable" or m == "desaturate" then
+        keepPolling = true
+      end
+      local interval = State.customBar2UpdateInterval or 0.12
+      if force or (now - (State.lastCustomBar2Update or 0)) >= interval then
+        UpdateCustomBar2()
+        State.lastCustomBar2Update = now
+      else
+        hasPending = true
+      end
+    elseif cb2ShowActive then
       UpdateCustomBar2()
-      State.lastCustomBar2Update = now
-    else
-      hasPending = true
     end
   end
   if profile.customBar3Enabled then
-    local m = profile.customBar3CooldownMode or "show"
-    if m == "hide" or m == "hideAvailable" or m == "desaturate" then
-      keepPolling = true
-    end
-    local interval = State.customBar3UpdateInterval or 0.12
-    if force or (now - (State.lastCustomBar3Update or 0)) >= interval then
+    local cb3ShowActive = IsShowModeActive(profile.customBar3ShowMode, true)
+    local cb3CombatOk = profile.customBar3OutOfCombat ~= false or InCombatLockdown()
+    if cb3ShowActive and cb3CombatOk then
+      local m = profile.customBar3CooldownMode or "show"
+      if m == "hide" or m == "hideAvailable" or m == "desaturate" then
+        keepPolling = true
+      end
+      local interval = State.customBar3UpdateInterval or 0.12
+      if force or (now - (State.lastCustomBar3Update or 0)) >= interval then
+        UpdateCustomBar3()
+        State.lastCustomBar3Update = now
+      else
+        hasPending = true
+      end
+    elseif cb3ShowActive then
       UpdateCustomBar3()
-      State.lastCustomBar3Update = now
-    else
-      hasPending = true
     end
   end
   State.customBarsDirty = hasPending or keepPolling
@@ -7513,7 +8200,7 @@ addonTable.MainTickerTick = function()
   State.tickerProfile = GetProfile()
   if not State.tickerProfile then return end
   local now = GetTime()
-  if State.tickerProfile.showRadialCircle and State.tickerProfile.showGCD then
+  if (State.tickerProfile.showRadialCircle and State.tickerProfile.showGCD) or State.tickerProfile.cursorShowGCD then
     UpdateGCD()
   end
   if State.customBarsDirty and not State.customBarUpdatePending then
@@ -7589,7 +8276,13 @@ end
 addonTable.UpdateStackTextPositions = UpdateStackTextPositions
 UpdateGCD = function()
   local profile = addonTable.GetProfile()
-  if not profile or not profile.showGCD then
+  if not profile then
+    State.gcdStartTime = 0
+    State.gcdDuration = 0
+    return
+  end
+  if not profile.showGCD and not profile.cursorShowGCD
+     and not profile.customBarShowGCD and not profile.customBar2ShowGCD and not profile.customBar3ShowGCD then
     State.gcdStartTime = 0
     State.gcdDuration = 0
     return
@@ -7654,6 +8347,7 @@ CCM:RegisterEvent("PLAYER_FOCUS_CHANGED")
 CCM:RegisterEvent("PLAYER_ENTERING_WORLD")
 CCM:RegisterEvent("MERCHANT_SHOW")
 CCM:RegisterUnitEvent("UNIT_DISPLAYPOWER", "player")
+CCM:RegisterEvent("UPDATE_SHAPESHIFT_FORM")
 CCM:RegisterUnitEvent("UNIT_AURA", "player")
 CCM:RegisterEvent("UNIT_ABSORB_AMOUNT_CHANGED")
 CCM:RegisterEvent("UNIT_HEAL_ABSORB_AMOUNT_CHANGED")
@@ -7740,6 +8434,15 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         SetCVar("uiScale", profile.uiScale)
         UIParent:SetScale(profile.uiScale)
       end
+      if profile.lowHealthWarningEnabled then
+        SetCVar("doNotFlashLowHealthWarning", "0")
+      end
+      if profile.skyridingScreenFx ~= nil and C_CVar then
+        C_CVar.SetCVar("DisableAdvancedFlyingFullScreenEffects", profile.skyridingScreenFx and "0" or "1")
+      end
+      if profile.skyridingSpeedFx ~= nil and C_CVar then
+        C_CVar.SetCVar("DisableAdvancedFlyingVelocityVFX", profile.skyridingSpeedFx and "0" or "1")
+      end
     end
     ScanSpellBookCharges()
     ResolveBuffDurations()
@@ -7781,6 +8484,15 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         addonTable.FocusCastbarFrame:Hide()
       end
     end
+    if profile and profile.useTargetCastbar then
+      if addonTable.SetupTargetCastbarEvents then
+        addonTable.SetupTargetCastbarEvents()
+      end
+    else
+      if addonTable.TargetCastbarFrame then
+        addonTable.TargetCastbarFrame:Hide()
+      end
+    end
     if profile and profile.enablePlayerDebuffs then
       if addonTable.ApplyPlayerDebuffsSkinning then
         addonTable.ApplyPlayerDebuffsSkinning()
@@ -7788,6 +8500,14 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     end
     if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    C_Timer.After(0.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
+    C_Timer.After(2.0, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
     if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end
     if addonTable.SetupEnhancedTooltipHook then addonTable.SetupEnhancedTooltipHook() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
@@ -7803,6 +8523,14 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
   elseif event == "PLAYER_ENTERING_WORLD" then
     ScanSpellBookCharges()
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    C_Timer.After(0.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
+    C_Timer.After(2.0, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
     if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
     if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
@@ -7810,6 +8538,42 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
     if addonTable.TryAutoSellJunk then addonTable.TryAutoSellJunk() end
   elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
+    if event == "PLAYER_FOCUS_CHANGED" then
+      local profile = addonTable.GetProfile and addonTable.GetProfile()
+      if profile and profile.useFocusCastbar then
+        if UnitExists("focus") then
+          if addonTable.SetupFocusCastbarEvents then addonTable.SetupFocusCastbarEvents() end
+          local castName = UnitCastingInfo("focus")
+          if not castName then castName = UnitChannelInfo("focus") end
+          if castName and addonTable.StartFocusCastbarTicker then
+            addonTable.StartFocusCastbarTicker()
+          elseif not castName and addonTable.StopFocusCastbarTicker then
+            addonTable.StopFocusCastbarTicker()
+          end
+        else
+          if addonTable.StopFocusCastbarTicker then addonTable.StopFocusCastbarTicker() end
+          if addonTable.FocusCastbarFrame then addonTable.FocusCastbarFrame:Hide() end
+        end
+      end
+    end
+    if event == "PLAYER_TARGET_CHANGED" then
+      local profile = addonTable.GetProfile and addonTable.GetProfile()
+      if profile and profile.useTargetCastbar then
+        if UnitExists("target") then
+          if addonTable.SetupTargetCastbarEvents then addonTable.SetupTargetCastbarEvents() end
+          local castName = UnitCastingInfo("target")
+          if not castName then castName = UnitChannelInfo("target") end
+          if castName and addonTable.StartTargetCastbarTicker then
+            addonTable.StartTargetCastbarTicker()
+          elseif not castName and addonTable.StopTargetCastbarTicker then
+            addonTable.StopTargetCastbarTicker()
+          end
+        else
+          if addonTable.StopTargetCastbarTicker then addonTable.StopTargetCastbarTicker() end
+          if addonTable.TargetCastbarFrame then addonTable.TargetCastbarFrame:Hide() end
+        end
+      end
+    end
     if State.ufBigHBOverlays then
       State.ufBigHBAbsorbSwapUntil = State.ufBigHBAbsorbSwapUntil or {}
       local nowTs = (GetTime and GetTime()) or 0
@@ -8086,7 +8850,16 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       if addonTable.RefreshConfigOnShow then addonTable.RefreshConfigOnShow() end
     end
     if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+    if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    C_Timer.After(0.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
+    C_Timer.After(1.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
   elseif event == "TRAIT_CONFIG_UPDATED" then
     wipe(State.spellCdDurations)
@@ -8094,7 +8867,27 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     ResolveBuffDurations()
     PreCacheSpellDurations()
   elseif event == "UNIT_DISPLAYPOWER" and arg1 == "player" then
+    if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    C_Timer.After(0.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
+    C_Timer.After(1.0, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
+  elseif event == "UPDATE_SHAPESHIFT_FORM" then
+    if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+    if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    C_Timer.After(0.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
+    C_Timer.After(1.5, function()
+      if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    end)
   elseif event == "UNIT_AURA" and arg1 == "player" then
     local profile = GetProfile()
     if profile and (not profile.useBuffBar) and (profile.standaloneBuffCentered == true or profile.standaloneSkinBuff == true) then

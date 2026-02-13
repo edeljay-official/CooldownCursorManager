@@ -66,10 +66,12 @@ end)
 castbarFrame:SetScript("OnDragStop", function(self)
   if not State.castbarDragging then return end
   self:StopMovingOrSizing()
+  local selfScale = self:GetEffectiveScale()
+  local uiScale = UIParent:GetEffectiveScale()
   local centerX, centerY = UIParent:GetCenter()
   local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
+  local newX = math.floor((frameX * selfScale - centerX * uiScale) / selfScale + 0.5)
+  local newY = math.floor((frameY * selfScale - centerY * uiScale) / selfScale + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
     profile.castbarX = newX
@@ -77,6 +79,8 @@ castbarFrame:SetScript("OnDragStop", function(self)
     if addonTable.UpdateCastbarSliders then addonTable.UpdateCastbarSliders(newX, newY) end
   end
   State.castbarDragging = false
+  self:ClearAllPoints()
+  self:SetPoint("CENTER", UIParent, "CENTER", newX, newY)
 end)
 castbarFrame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.castbarDragging then

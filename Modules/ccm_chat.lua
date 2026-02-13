@@ -166,6 +166,7 @@ addonTable.SetupChatCopyButton = function()
         local btn = CreateFrame("Button", nil, chatFrame)
         btn:SetSize(20, 20)
         btn:SetFrameStrata("HIGH")
+        btn:SetIgnoreParentAlpha(true)
         btn:SetNormalTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
         btn:SetHighlightTexture("Interface\\Buttons\\UI-GuildButton-PublicNote-Up")
         btn:SetAlpha(0.6)
@@ -258,22 +259,17 @@ local function ShowUrlPopup(url)
   urlPopup.editBox:HighlightText()
 end
 
-local originalSetItemRef = nil
-
 addonTable.SetupChatUrlDetection = function()
   if urlFilterInstalled then return end
   urlFilterInstalled = true
   for _, event in ipairs(CHAT_MSG_EVENTS) do
     ChatFrame_AddMessageEventFilter(event, UrlFilter)
   end
-  originalSetItemRef = SetItemRef
-  SetItemRef = function(link, text, button, chatFrame)
+  hooksecurefunc("SetItemRef", function(link)
     if link and link:sub(1, 4) == "url:" then
       ShowUrlPopup(link:sub(5))
-      return
     end
-    return originalSetItemRef(link, text, button, chatFrame)
-  end
+  end)
 end
 
 -- ============================================================

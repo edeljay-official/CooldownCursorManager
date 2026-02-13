@@ -93,6 +93,55 @@ local TEXTURE_PATHS = {
   skyline = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Skyline",
   dragonflight = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\Dragonflight",
 }
+local PRB_LowHealthAlphaCurve
+local PRB_LowHealthAlphaCurveKey = ""
+local PRB_LowHealthThreshold = 50
+local function RebuildLowHealthAlphaCurve(thresholdPct)
+  if not C_CurveUtil or not C_CurveUtil.CreateCurve then return end
+  local t = (thresholdPct or 50) / 100
+  if t < 0.10 then t = 0.10 end
+  if t > 0.80 then t = 0.80 end
+  local key = string.format("%.2f", t)
+  if PRB_LowHealthAlphaCurveKey == key then return end
+  PRB_LowHealthAlphaCurveKey = key
+  PRB_LowHealthAlphaCurve = C_CurveUtil.CreateCurve()
+  PRB_LowHealthAlphaCurve:SetType(Enum.LuaCurveType.Step)
+  PRB_LowHealthAlphaCurve:AddPoint(0.0, 1.0)
+  PRB_LowHealthAlphaCurve:AddPoint(t, 0.0)
+  PRB_LowHealthAlphaCurve:AddPoint(1.0, 0.0)
+end
+local function RebuildLowHealthCurve(thresholdPct)
+  PRB_LowHealthThreshold = thresholdPct or 50
+  PRB_LowHealthAlphaCurveKey = ""
+  RebuildLowHealthAlphaCurve(thresholdPct)
+end
+addonTable.RebuildLowHealthCurve = RebuildLowHealthCurve
+RebuildLowHealthCurve(50)
+
+local PRB_LowPowerAlphaCurve
+local PRB_LowPowerAlphaCurveKey = ""
+local PRB_LowPowerThreshold = 30
+local function RebuildLowPowerAlphaCurve(thresholdPct)
+  if not C_CurveUtil or not C_CurveUtil.CreateCurve then return end
+  local t = (thresholdPct or 30) / 100
+  if t < 0.10 then t = 0.10 end
+  if t > 0.80 then t = 0.80 end
+  local key = string.format("%.2f", t)
+  if PRB_LowPowerAlphaCurveKey == key then return end
+  PRB_LowPowerAlphaCurveKey = key
+  PRB_LowPowerAlphaCurve = C_CurveUtil.CreateCurve()
+  PRB_LowPowerAlphaCurve:SetType(Enum.LuaCurveType.Step)
+  PRB_LowPowerAlphaCurve:AddPoint(0.0, 1.0)
+  PRB_LowPowerAlphaCurve:AddPoint(t, 0.0)
+  PRB_LowPowerAlphaCurve:AddPoint(1.0, 0.0)
+end
+local function RebuildLowPowerCurve(thresholdPct)
+  PRB_LowPowerThreshold = thresholdPct or 30
+  PRB_LowPowerAlphaCurveKey = ""
+  RebuildLowPowerAlphaCurve(thresholdPct)
+end
+addonTable.RebuildLowPowerCurve = RebuildLowPowerCurve
+RebuildLowPowerCurve(30)
 local prbBarOrder = {}
 local prbBarEntries = {
   {type = "health", order = 1},
@@ -117,6 +166,14 @@ prbFrame.healthBar = CreateFrame("StatusBar", nil, prbFrame)
 prbFrame.healthBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
 prbFrame.healthBar:SetStatusBarColor(0, 1, 0)
 if prbFrame.healthBar.SetClipsChildren then prbFrame.healthBar:SetClipsChildren(true) end
+prbFrame.healthBar.lowHealthOverlay = CreateFrame("StatusBar", nil, prbFrame.healthBar)
+prbFrame.healthBar.lowHealthOverlay:SetAllPoints(prbFrame.healthBar)
+prbFrame.healthBar.lowHealthOverlay:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+prbFrame.healthBar.lowHealthOverlay:SetStatusBarColor(1, 0, 0)
+prbFrame.healthBar.lowHealthOverlay:SetFrameLevel(prbFrame.healthBar:GetFrameLevel() + 1)
+prbFrame.healthBar.lowHealthOverlay:SetAlpha(0)
+prbFrame.healthBar.lowHealthOverlay:Hide()
+if prbFrame.healthBar.lowHealthOverlay.SetClipsChildren then prbFrame.healthBar.lowHealthOverlay:SetClipsChildren(true) end
 prbFrame.healthBar.bg = prbFrame.healthBar:CreateTexture(nil, "BACKGROUND")
 prbFrame.healthBar.bg:SetAllPoints()
 prbFrame.healthBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
@@ -222,6 +279,14 @@ prbFrame.powerBar.border:SetPoint("TOPLEFT", prbFrame.powerBar, "TOPLEFT", 0, 0)
 prbFrame.powerBar.border:SetPoint("BOTTOMRIGHT", prbFrame.powerBar, "BOTTOMRIGHT", 0, 0)
 prbFrame.powerBar.border:SetBackdrop({edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
 prbFrame.powerBar.border:SetBackdropBorderColor(0, 0, 0, 1)
+prbFrame.powerBar.lowPowerOverlay = CreateFrame("StatusBar", nil, prbFrame.powerBar)
+prbFrame.powerBar.lowPowerOverlay:SetAllPoints(prbFrame.powerBar)
+prbFrame.powerBar.lowPowerOverlay:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+prbFrame.powerBar.lowPowerOverlay:SetStatusBarColor(1, 0.5, 0)
+prbFrame.powerBar.lowPowerOverlay:SetFrameLevel(prbFrame.powerBar:GetFrameLevel() + 1)
+prbFrame.powerBar.lowPowerOverlay:SetAlpha(0)
+prbFrame.powerBar.lowPowerOverlay:Hide()
+if prbFrame.powerBar.lowPowerOverlay.SetClipsChildren then prbFrame.powerBar.lowPowerOverlay:SetClipsChildren(true) end
 prbFrame.powerBar.text = prbFrame.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
 prbFrame.powerBar.text:SetPoint("CENTER")
 prbFrame.powerBar.text:SetTextColor(1, 1, 1)
@@ -280,10 +345,12 @@ end)
 prbFrame:SetScript("OnDragStop", function(self)
   if not State.prbDragging then return end
   self:StopMovingOrSizing()
+  local selfScale = self:GetEffectiveScale()
+  local uiScale = UIParent:GetEffectiveScale()
   local centerX, centerY = UIParent:GetCenter()
   local frameX, frameY = self:GetCenter()
-  local newX = math.floor(frameX - centerX + 0.5)
-  local newY = math.floor(frameY - centerY + 0.5)
+  local newX = math.floor((frameX * selfScale - centerX * uiScale) / selfScale + 0.5)
+  local newY = math.floor((frameY * selfScale - centerY * uiScale) / selfScale + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
     profile.prbX = newX
@@ -291,6 +358,8 @@ prbFrame:SetScript("OnDragStop", function(self)
     if addonTable.UpdatePRBSliders then addonTable.UpdatePRBSliders(newX, newY) end
   end
   State.prbDragging = false
+  self:ClearAllPoints()
+  self:SetPoint("CENTER", UIParent, "CENTER", newX, newY)
 end)
 prbFrame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.prbDragging then
@@ -716,6 +785,27 @@ local function UpdatePRB(force)
         local b = profile.prbHealthColorB or 0
         prbFrame.healthBar:SetStatusBarColor(r, g, b)
       end
+      local overlay = prbFrame.healthBar.lowHealthOverlay
+      if profile.prbUseLowHealthColor and overlay and PRB_LowHealthAlphaCurve and UnitHealthPercent then
+        RebuildLowHealthAlphaCurve(PRB_LowHealthThreshold)
+        local lr = profile.prbLowHealthColorR or 1
+        local lg = profile.prbLowHealthColorG or 0
+        local lb = profile.prbLowHealthColorB or 0
+        overlay:SetStatusBarTexture(healthTexturePath)
+        overlay:SetStatusBarColor(lr, lg, lb)
+        overlay:SetMinMaxValues(0, UnitHealthMax("player") or 1)
+        overlay:SetValue(UnitHealth("player") or 0)
+        overlay:Show()
+        local alpha = UnitHealthPercent("player", false, PRB_LowHealthAlphaCurve)
+        if alpha ~= nil then
+          pcall(overlay.SetAlpha, overlay, alpha)
+        else
+          overlay:SetAlpha(0)
+        end
+      elseif overlay then
+        overlay:Hide()
+        overlay:SetAlpha(0)
+      end
       local bgR = profile.prbBgColorR or 0.1
       local bgG = profile.prbBgColorG or 0.1
       local bgB = profile.prbBgColorB or 0.1
@@ -758,9 +848,11 @@ local function UpdatePRB(force)
             healthText = "100"
           end
         elseif healthTextMode == "value" then
-          healthText = AbbreviateNumbers(UnitHealth("player"))
+          local raw = UnitHealth("player")
+          healthText = SafeNum(raw) and AbbreviateNumbers(raw) or tostring(raw)
         elseif healthTextMode == "both" then
-          local valStr = AbbreviateNumbers(UnitHealth("player"))
+          local raw = UnitHealth("player")
+          local valStr = SafeNum(raw) and AbbreviateNumbers(raw) or tostring(raw)
           local pct = 100
           if UnitHealthPercent then
             pct = UnitHealthPercent("player", false, CurveConstants.ScaleTo100) or 100
@@ -782,6 +874,7 @@ local function UpdatePRB(force)
     else
       prbFrame.healthBar:Hide()
       prbFrame.healthBar.text:Hide()
+      prbFrame.healthBar.border:Hide()
       HidePRBHealthOverlays()
     end
     if showPower then
@@ -814,6 +907,27 @@ local function UpdatePRB(force)
         local g = profile.prbPowerColorG or 0.5
         local b = profile.prbPowerColorB or 1
         prbFrame.powerBar:SetStatusBarColor(r, g, b)
+      end
+      local powerOverlay = prbFrame.powerBar.lowPowerOverlay
+      if profile.prbUseLowPowerColor and powerOverlay and PRB_LowPowerAlphaCurve and UnitPowerPercent then
+        RebuildLowPowerAlphaCurve(PRB_LowPowerThreshold)
+        local lpr = profile.prbLowPowerColorR or 1
+        local lpg = profile.prbLowPowerColorG or 0.5
+        local lpb = profile.prbLowPowerColorB or 0
+        powerOverlay:SetStatusBarTexture(powerTexturePath)
+        powerOverlay:SetStatusBarColor(lpr, lpg, lpb)
+        powerOverlay:SetMinMaxValues(0, UnitPowerMax("player") or 1)
+        powerOverlay:SetValue(UnitPower("player") or 0)
+        powerOverlay:Show()
+        local pAlpha = UnitPowerPercent("player", powerType, false, PRB_LowPowerAlphaCurve)
+        if pAlpha ~= nil then
+          pcall(powerOverlay.SetAlpha, powerOverlay, pAlpha)
+        else
+          powerOverlay:SetAlpha(0)
+        end
+      elseif powerOverlay then
+        powerOverlay:Hide()
+        powerOverlay:SetAlpha(0)
       end
       local bgR = profile.prbBgColorR or 0.1
       local bgG = profile.prbBgColorG or 0.1
@@ -857,9 +971,11 @@ local function UpdatePRB(force)
             powerText = "100"
           end
         elseif powerTextMode == "value" then
-          powerText = AbbreviateNumbers(UnitPower("player", powerType))
+          local raw = UnitPower("player", powerType)
+          powerText = SafeNum(raw) and AbbreviateNumbers(raw) or tostring(raw)
         elseif powerTextMode == "both" then
-          local valStr = AbbreviateNumbers(UnitPower("player", powerType))
+          local raw = UnitPower("player", powerType)
+          local valStr = SafeNum(raw) and AbbreviateNumbers(raw) or tostring(raw)
           local pct = 100
           if UnitPowerPercent then
             pct = UnitPowerPercent("player", powerType, false, CurveConstants.ScaleTo100) or 100
@@ -947,9 +1063,11 @@ local function UpdatePRB(force)
             manaText = "100"
           end
         elseif manaTextMode == "value" then
-          manaText = AbbreviateNumbers(UnitPower("player", 0))
+          local raw = UnitPower("player", 0)
+          manaText = SafeNum(raw) and AbbreviateNumbers(raw) or tostring(raw)
         elseif manaTextMode == "both" then
-          local valStr = AbbreviateNumbers(UnitPower("player", 0))
+          local raw = UnitPower("player", 0)
+          local valStr = SafeNum(raw) and AbbreviateNumbers(raw) or tostring(raw)
           local pct = 100
           if UnitPowerPercent then
             pct = UnitPowerPercent("player", 0, true, CurveConstants and CurveConstants.ScaleTo100 or 1) or 100
@@ -1112,17 +1230,43 @@ local function UpdatePRBFonts()
 end
 addonTable.UpdatePRBFonts = UpdatePRBFonts
 local PRB_TICK_INTERVAL = 0.20
-local function StartPRBTicker()
-  if State.prbTicker then return end
-  State.prbTicker = C_Timer.NewTicker(PRB_TICK_INTERVAL, function()
-    UpdatePRB(false)
-  end)
-end
+local StartPRBTicker
 local function StopPRBTicker()
   if State.prbTicker then
     State.prbTicker:Cancel()
     State.prbTicker = nil
   end
 end
+StartPRBTicker = function()
+  if State.prbTicker then return end
+  State.prbTicker = C_Timer.NewTicker(PRB_TICK_INTERVAL, function()
+    local profile = addonTable.GetProfile and addonTable.GetProfile()
+    if not profile or not profile.usePersonalResourceBar then
+      StopPRBTicker()
+      return
+    end
+    local showMode = profile.prbShowMode or "always"
+    if showMode == "combat" and not InCombatLockdown() then
+      return
+    end
+    UpdatePRB(false)
+  end)
+end
 addonTable.StartPRBTicker = StartPRBTicker
 addonTable.StopPRBTicker = StopPRBTicker
+addonTable.EvaluatePRBTicker = function()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile or not profile.usePersonalResourceBar then
+    StopPRBTicker()
+    return
+  end
+  local showMode = profile.prbShowMode or "always"
+  if showMode == "combat" then
+    if InCombatLockdown() then
+      StartPRBTicker()
+      UpdatePRB(true)
+    end
+  else
+    StartPRBTicker()
+  end
+end

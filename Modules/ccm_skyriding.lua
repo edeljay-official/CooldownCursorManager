@@ -13,24 +13,17 @@ local WHIRLING_SURGE_ID = 361584
 local SECOND_WIND_ID = 425782
 local SEGMENT_GAP = 2
 local BAR_HEIGHT = 14
-local SPEED_BAR_HEIGHT = 14
 local CD_BAR_HEIGHT = 10
-local BASE_MOVEMENT_SPEED = 7
 
-local mainFrame, vigorContainer, speedContainer, speedBar, speedText
+local mainFrame, vigorContainer
 local whirlingSurgeContainer, whirlingSurgeBar, whirlingSurgeText
 local secondWindContainer
 local vigorSegments = {}
 local secondWindSegments = {}
 local eventFrame, onUpdateFrame
-local prevX, prevY, prevTime
-local smoothSpeed = 0
 local chargeSpellID
 local previewActive = false
-local speedFontDirty = true
 local colorsDirty = true
-local lastSpeedText
-local lastSpeedColorTier = 0
 local lastVigorFull, lastVigorTotal = -1, -1
 local lastSWFull, lastSWTotal = -1, -1
 local textureDirty = true
@@ -114,9 +107,6 @@ local function RefreshCachedColors(profile)
   cachedColors.rechargeR = profile.skyridingVigorRechargeColorR or 0.85
   cachedColors.rechargeG = profile.skyridingVigorRechargeColorG or 0.65
   cachedColors.rechargeB = profile.skyridingVigorRechargeColorB or 0.1
-  cachedColors.speedR = profile.skyridingSpeedColorR or 0.3
-  cachedColors.speedG = profile.skyridingSpeedColorG or 0.6
-  cachedColors.speedB = profile.skyridingSpeedColorB or 1.0
   cachedColors.surgeR = profile.skyridingWhirlingSurgeColorR or 0.85
   cachedColors.surgeG = profile.skyridingWhirlingSurgeColorG or 0.65
   cachedColors.surgeB = profile.skyridingWhirlingSurgeColorB or 0.1
@@ -134,7 +124,6 @@ end
 
 local function ApplySkyridingTexture()
   local tex = cachedTexturePath
-  if speedBar then speedBar:SetStatusBarTexture(tex) end
   if whirlingSurgeBar then whirlingSurgeBar:SetStatusBarTexture(tex) end
   for i = 1, #vigorSegments do vigorSegments[i]:SetStatusBarTexture(tex) end
   for i = 1, #secondWindSegments do secondWindSegments[i]:SetStatusBarTexture(tex) end
@@ -207,29 +196,6 @@ local function CreateMainFrame()
   vigorContainer:SetHeight(BAR_HEIGHT + 4)
   vigorContainer:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 0, 0)
   vigorContainer:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", 0, 0)
-
-  speedContainer = CreateBarContainer(mainFrame)
-  speedContainer:SetHeight(SPEED_BAR_HEIGHT + 4)
-
-  speedBar = CreateFrame("StatusBar", nil, speedContainer)
-  speedBar:SetPoint("TOPLEFT", speedContainer, "TOPLEFT", 2, -2)
-  speedBar:SetPoint("BOTTOMRIGHT", speedContainer, "BOTTOMRIGHT", -2, 2)
-  speedBar:SetStatusBarTexture(cachedTexturePath)
-  speedBar:SetMinMaxValues(0, 1000)
-  speedBar:SetValue(0)
-  speedBar:GetStatusBarTexture():SetVertexColor(0.3, 0.6, 1.0, 0.9)
-
-  speedBar.bg = speedBar:CreateTexture(nil, "BACKGROUND", nil, -4)
-  speedBar.bg:SetAllPoints()
-  speedBar.bg:SetColorTexture(0.08, 0.08, 0.10, 1)
-
-  speedText = speedBar:CreateFontString(nil, "OVERLAY")
-  speedText:SetPoint("CENTER", speedBar, "CENTER", 0, 0)
-  speedText:SetTextColor(0.9, 0.9, 0.9, 1)
-  local fontPath, fontOutline
-  if GetGlobalFont then fontPath, fontOutline = GetGlobalFont() end
-  speedText:SetFont(fontPath or "Fonts\\FRIZQT__.TTF", 10, fontOutline or "OUTLINE")
-  speedFontDirty = false
 
   whirlingSurgeContainer = CreateBarContainer(mainFrame)
   whirlingSurgeContainer:SetHeight(CD_BAR_HEIGHT + 4)
@@ -348,7 +314,6 @@ local function UpdateLayout()
   if not profile then return end
 
   local showVigor = profile.skyridingVigorBar
-  local showSpeed = profile.skyridingSpeedDisplay
   local showCDs = profile.skyridingCooldowns
 
   local prevContainer = nil
@@ -362,22 +327,6 @@ local function UpdateLayout()
     lastVigorFull, lastVigorTotal = -1, -1
   else
     vigorContainer:Hide()
-    for i = 1, #vigorSegments do vigorSegments[i]:Hide() end
-  end
-
-  speedContainer:ClearAllPoints()
-  if prevContainer then
-    speedContainer:SetPoint("TOPLEFT", prevContainer, "BOTTOMLEFT", 0, 0)
-    speedContainer:SetPoint("TOPRIGHT", prevContainer, "BOTTOMRIGHT", 0, 0)
-  else
-    speedContainer:SetPoint("TOPLEFT", mainFrame, "TOPLEFT", 0, 0)
-    speedContainer:SetPoint("TOPRIGHT", mainFrame, "TOPRIGHT", 0, 0)
-  end
-  if showSpeed then
-    speedContainer:Show()
-    prevContainer = speedContainer
-  else
-    speedContainer:Hide()
   end
 
   whirlingSurgeContainer:ClearAllPoints()
@@ -413,7 +362,6 @@ local function UpdateLayout()
 
   local totalHeight = 0
   if showVigor then totalHeight = totalHeight + BAR_HEIGHT + 4 end
-  if showSpeed then totalHeight = totalHeight + SPEED_BAR_HEIGHT + 4 end
   if showCDs then totalHeight = totalHeight + (CD_BAR_HEIGHT + 4) * 2 end
   if totalHeight == 0 then totalHeight = BAR_HEIGHT + 4 end
   mainFrame:SetHeight(totalHeight)
@@ -469,89 +417,6 @@ local function UpdateVigorBar(profile)
       end
     end
   end
-end
-
-local function UpdateSpeedDisplay(profile)
-  if not profile.skyridingSpeedDisplay then return end
-
-  local speed = GetUnitSpeed("player") or 0
-  local speedPercent = 0
-
-  if speed > 0 then
-    speedPercent = (speed / BASE_MOVEMENT_SPEED) * 100
-    smoothSpeed = speedPercent
-  else
-    local _, isGliding = C_PlayerInfo.GetGlidingInfo()
-    if isGliding and UnitPosition then
-      local x, y = UnitPosition("player")
-      local now = GetTime()
-      if x and y and prevX and prevY and prevTime then
-        local dt = now - prevTime
-        if dt > 0.01 then
-          local dx = x - prevX
-          local dy = y - prevY
-          local dist = math_sqrt(dx * dx + dy * dy)
-          local rawSpeed = dist / dt
-          speedPercent = (rawSpeed / BASE_MOVEMENT_SPEED) * 100
-          smoothSpeed = smoothSpeed + (speedPercent - smoothSpeed) * 0.3
-          speedPercent = smoothSpeed
-        end
-      end
-      prevX, prevY, prevTime = x, y, now
-    else
-      smoothSpeed = smoothSpeed * 0.85
-      speedPercent = smoothSpeed
-      if speedPercent < 1 then speedPercent = 0; smoothSpeed = 0 end
-      prevX, prevY, prevTime = nil, nil, nil
-    end
-  end
-
-  local c = cachedColors
-  if colorsDirty then
-    speedBar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
-  end
-
-  if profile.skyridingSpeedBar then
-    speedBar:SetValue(math_min(1000, speedPercent))
-    if colorsDirty then
-      speedBar:GetStatusBarTexture():SetVertexColor(c.speedR, c.speedG, c.speedB, 0.9)
-    end
-  else
-    speedBar:SetValue(0)
-  end
-
-  local unit = profile.skyridingSpeedUnit or "percent"
-  local txt
-  if unit == "yds" then
-    local ydsPerSec = (speedPercent / 100) * BASE_MOVEMENT_SPEED
-    txt = string_format("%.0f yds/s", ydsPerSec)
-  else
-    txt = string_format("%.0f%%", speedPercent)
-  end
-  if txt ~= lastSpeedText then
-    lastSpeedText = txt
-    speedText:SetText(txt)
-  end
-
-  local tier = speedPercent >= 830 and 3 or speedPercent >= 650 and 2 or 1
-  if tier ~= lastSpeedColorTier then
-    lastSpeedColorTier = tier
-    if tier == 3 then
-      speedText:SetTextColor(1, 0.2, 0.2)
-    elseif tier == 2 then
-      speedText:SetTextColor(0.3, 0.6, 1.0)
-    else
-      speedText:SetTextColor(0.9, 0.9, 0.9)
-    end
-  end
-
-  if speedFontDirty and GetGlobalFont then
-    local fontPath, fontOutline = GetGlobalFont()
-    local _, size = speedText:GetFont()
-    speedText:SetFont(fontPath, size or 10, fontOutline or "OUTLINE")
-    speedFontDirty = false
-  end
-  speedText:Show()
 end
 
 local function UpdateWhirlingSurge(profile)
@@ -632,19 +497,13 @@ local function ApplySkyridingFonts()
   if not GetGlobalFont then return end
   local fontPath, fontOutline = GetGlobalFont()
 
-  if speedText then
-    local _, size = speedText:GetFont()
-    speedText:SetFont(fontPath, size or 10, fontOutline or "OUTLINE")
-    speedFontDirty = false
-  end
-
   if whirlingSurgeText then
     local _, size = whirlingSurgeText:GetFont()
     whirlingSurgeText:SetFont(fontPath, size or 9, fontOutline or "OUTLINE")
   end
 end
 addonTable.ApplySkyridingFonts = ApplySkyridingFonts
-addonTable.MarkSkyridingFontDirty = function() speedFontDirty = true end
+addonTable.MarkSkyridingFontDirty = function() end
 
 -- ============================================================
 -- Blizzard UI Hiding (CDM / Bars only)
@@ -757,17 +616,27 @@ local function UpdateVisibility()
     if not onUpdateFrame then
       onUpdateFrame = CreateFrame("Frame")
       onUpdateFrame.elapsed = 0
+      onUpdateFrame.mountCheck = 0
       onUpdateFrame:SetScript("OnUpdate", function(self, dt)
         self.elapsed = self.elapsed + dt
         if self.elapsed < 0.066 then return end
         self.elapsed = 0
         if not mainFrame or not mainFrame:IsShown() then self:Hide(); return end
+        self.mountCheck = (self.mountCheck or 0) + 0.066
+        if self.mountCheck >= 1.0 then
+          self.mountCheck = 0
+          if not previewActive and not IsOnSkyridingMount() then
+            mainFrame:Hide(); self:Hide()
+            ShowBlizzardCDM()
+            UpdatePreviewButtonState()
+            return
+          end
+        end
         local p = GetProfile and GetProfile()
         if not p then return end
         if textureDirty then RefreshCachedTexture(p); ApplySkyridingTexture() end
         RefreshCachedColors(p)
         UpdateVigorBar(p)
-        UpdateSpeedDisplay(p)
         UpdateWhirlingSurge(p)
         UpdateSecondWind(p)
         colorsDirty = false
@@ -782,7 +651,6 @@ local function UpdateVisibility()
       ApplySkyridingTexture()
       RefreshCachedColors(p)
       UpdateVigorBar(p)
-      UpdateSpeedDisplay(p)
       UpdateWhirlingSurge(p)
       UpdateSecondWind(p)
       colorsDirty = false
@@ -793,10 +661,6 @@ local function UpdateVisibility()
   else
     if mainFrame then mainFrame:Hide() end
     if onUpdateFrame then onUpdateFrame:Hide() end
-    smoothSpeed = 0
-    prevX, prevY, prevTime = nil, nil, nil
-    lastSpeedText = nil
-    lastSpeedColorTier = 0
     lastVigorFull, lastVigorTotal = -1, -1
     lastSWFull, lastSWTotal = -1, -1
     ShowBlizzardCDM()
@@ -811,8 +675,10 @@ end
 addonTable.SetupSkyriding = function()
   local profile = GetProfile and GetProfile()
   if not profile or not profile.skyridingEnabled then
-    if mainFrame then mainFrame:Hide() end
-    if onUpdateFrame then onUpdateFrame:Hide() end
+    if not previewActive then
+      if mainFrame then mainFrame:Hide() end
+      if onUpdateFrame then onUpdateFrame:Hide() end
+    end
     ShowBlizzardCDM()
     return
   end
@@ -824,6 +690,7 @@ addonTable.SetupSkyriding = function()
   if not eventFrame then
     eventFrame = CreateFrame("Frame")
     eventFrame:RegisterEvent("PLAYER_MOUNT_DISPLAY_CHANGED")
+    eventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
     eventFrame:RegisterEvent("SPELL_UPDATE_CHARGES")
     eventFrame:RegisterEvent("SPELL_UPDATE_COOLDOWN")
     eventFrame:SetScript("OnEvent", function(self, event)
@@ -831,6 +698,8 @@ addonTable.SetupSkyriding = function()
       if not p or not p.skyridingEnabled then return end
       if event == "PLAYER_MOUNT_DISPLAY_CHANGED" then
         C_Timer.After(0.2, UpdateVisibility)
+      elseif event == "PLAYER_ENTERING_WORLD" then
+        C_Timer.After(1.0, UpdateVisibility)
       elseif event == "SPELL_UPDATE_CHARGES" or event == "SPELL_UPDATE_COOLDOWN" then
         if mainFrame and mainFrame:IsShown() then
           RefreshCachedColors(p)
@@ -866,9 +735,7 @@ local function ShowSkyridingPreview()
 
   if profile.skyridingVigorBar then
     local total = 6
-    if #vigorSegments < total or (#vigorSegments > 0 and not vigorSegments[1]:IsShown()) then
-      CreateVigorSegments(total)
-    end
+    CreateVigorSegments(total)
     for i = 1, total do
       local bar = vigorSegments[i]
       if not bar then break end
@@ -888,24 +755,6 @@ local function ShowSkyridingPreview()
     end
   end
 
-  if profile.skyridingSpeedDisplay then
-    speedBar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
-    if profile.skyridingSpeedBar then
-      speedBar:SetValue(420)
-      speedBar:GetStatusBarTexture():SetVertexColor(c.speedR, c.speedG, c.speedB, 0.9)
-    else
-      speedBar:SetValue(0)
-    end
-    local unit = profile.skyridingSpeedUnit or "percent"
-    if unit == "yds" then
-      speedText:SetText("29 yds/s")
-    else
-      speedText:SetText("420%")
-    end
-    speedText:SetTextColor(0.9, 0.9, 0.9)
-    speedText:Show()
-  end
-
   if profile.skyridingCooldowns then
     whirlingSurgeBar:SetValue(0.6)
     whirlingSurgeBar:GetStatusBarTexture():SetVertexColor(c.surgeR, c.surgeG, c.surgeB, 1)
@@ -913,9 +762,7 @@ local function ShowSkyridingPreview()
     whirlingSurgeText:SetText("12s")
 
     local swTotal = 3
-    if #secondWindSegments < swTotal or (#secondWindSegments > 0 and not secondWindSegments[1]:IsShown()) then
-      CreateSecondWindSegments(swTotal)
-    end
+    CreateSecondWindSegments(swTotal)
     for i = 1, swTotal do
       local bar = secondWindSegments[i]
       if not bar then break end

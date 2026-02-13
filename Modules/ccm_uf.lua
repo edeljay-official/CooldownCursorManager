@@ -590,6 +590,31 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
   end
 
+  local function ApplyGroupIndicatorSuppression(enabled)
+    local content = PlayerFrame and PlayerFrame.PlayerFrameContent
+    local contextual = content and content.PlayerFrameContentContextual
+    local groupIndicator = contextual and contextual.GroupIndicator
+    if not groupIndicator then return end
+    if not orig.groupIndicatorSaved then
+      orig.groupIndicatorSaved = true
+      orig.groupIndicatorShown = groupIndicator.IsShown and groupIndicator:IsShown() or nil
+    end
+    if enabled then
+      if groupIndicator.Hide then groupIndicator:Hide() end
+      if not orig.groupIndicatorHooked and type(hooksecurefunc) == "function" then
+        orig.groupIndicatorHooked = true
+        hooksecurefunc(groupIndicator, "Show", function(self)
+          local p = addonTable.GetProfile and addonTable.GetProfile()
+          if p and p.enableUnitFrameCustomization ~= false and p.ufHideGroupIndicator then self:Hide() end
+        end)
+      end
+      local groupText = contextual.PlayerFrameGroupIndicatorText or _G["PlayerFrameGroupIndicatorText"]
+      if groupText and groupText.Hide then groupText:Hide() end
+    else
+      if orig.groupIndicatorShown and groupIndicator.Show then groupIndicator:Show() end
+    end
+  end
+
   ApplyPlayerHealthColor()
   local disableGlows = ufEnabled and IsGlowSuppressionEnabled()
   if disableGlows then
@@ -614,6 +639,12 @@ addonTable.ApplyUnitFrameCustomization = function()
     ApplyEliteTextureSuppression(true)
   else
     ApplyEliteTextureSuppression(false)
+  end
+  local hideGroupInd = ufEnabled and profile.ufHideGroupIndicator == true
+  if hideGroupInd then
+    ApplyGroupIndicatorSuppression(true)
+  else
+    ApplyGroupIndicatorSuppression(false)
   end
   if ufEnabled then
     ApplyTargetFocusHealthCustomization(TargetFrame, "target")
@@ -925,6 +956,14 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
   end
   addonTable.SyncUFBigHBOverlayValue = SyncUFBigHBOverlayValue
+  addonTable.InvalidateUFBigHBPlayerOverlay = function()
+    local o = State.ufBigHBOverlays and State.ufBigHBOverlays["player"]
+    if not o then return end
+    o.fixedHealthBaseX = nil
+    o.fixedHealthBaseY = nil
+    o.fixedBgBaseX = nil
+    o.fixedBgBaseY = nil
+  end
   local function GetUFBigHBUnitName(unitToken)
     if not unitToken then return nil end
     if GetUnitName then
@@ -1564,12 +1603,18 @@ addonTable.ApplyUnitFrameCustomization = function()
     local overDmgAbsorb = (o.origHP.OverAbsorbGlow and o.origHP.OverAbsorbGlow.IsShown and o.origHP.OverAbsorbGlow:IsShown()) and true or false
 
     local maxHealth = nil
+    local maxHealthRaw = nil
     if hpMin and hpMax and hpMax > hpMin then
       maxHealth = hpMax - hpMin
+      maxHealthRaw = maxHealth
     else
-      maxHealth = SafeNumeric(UnitHealthMax and UnitHealthMax(unit) or nil)
+      local mhRaw = UnitHealthMax and UnitHealthMax(unit) or nil
+      if mhRaw ~= nil then
+        maxHealthRaw = mhRaw
+        maxHealth = SafeNumeric(mhRaw)
+      end
     end
-    if not maxHealth or maxHealth <= 0 then
+    if maxHealthRaw == nil then
       HideDmgAbsorb()
       ApplyGlow(overDmgAbsorb)
       return
@@ -1582,11 +1627,14 @@ addonTable.ApplyUnitFrameCustomization = function()
     if currentHealth == nil then
       currentHealth = SafeNumeric(UnitHealth and UnitHealth(unit) or nil)
     end
-    local missing = (1 - Clamp01(fillRatio)) * maxHealth
-    if currentHealth and currentHealth >= 0 and currentHealth <= maxHealth then
-      missing = maxHealth - currentHealth
+    local missing = nil
+    if maxHealth then
+      missing = (1 - Clamp01(fillRatio)) * maxHealth
+      if currentHealth and currentHealth >= 0 and currentHealth <= maxHealth then
+        missing = maxHealth - currentHealth
+      end
+      if missing < 0 then missing = 0 end
     end
-    if missing < 0 then missing = 0 end
 
     local dmgAbsorbTotalRaw = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or nil
     if o.forceNoSecretDmgAbsorbRaw and IsSecretValue(dmgAbsorbTotalRaw) then
@@ -1635,7 +1683,7 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
         o.dmgAbsorbFrame:SetSize(math.max(1, hardCap), h)
         if o.dmgAbsorbFrame.SetMinMaxValues then
-          pcall(o.dmgAbsorbFrame.SetMinMaxValues, o.dmgAbsorbFrame, 0, maxHealth or 1)
+          pcall(o.dmgAbsorbFrame.SetMinMaxValues, o.dmgAbsorbFrame, 0, maxHealthRaw)
         end
         if o.dmgAbsorbFrame.SetValue then
           pcall(o.dmgAbsorbFrame.SetValue, o.dmgAbsorbFrame, dmgAbsorbTotalRaw)
@@ -2118,7 +2166,6 @@ addonTable.ApplyUnitFrameCustomization = function()
       enabled = false
     end
     local contextual = (key == "player" and PlayerFrame and PlayerFrame.PlayerFrameContent and PlayerFrame.PlayerFrameContent.PlayerFrameContentContextual) or nil
-    local altPowerTex = (key == "player" and PlayerFrame and PlayerFrame.PlayerFrameContainer and PlayerFrame.PlayerFrameContainer.AlternatePowerFrameTexture) or nil
     if not enabled or not bigHBRoot or not hp or not hp.GetWidth then
       local existing = State.ufBigHBOverlays and State.ufBigHBOverlays[key]
       local restoreHP = hp or (existing and existing.origHP) or nil
@@ -2159,30 +2206,30 @@ addonTable.ApplyUnitFrameCustomization = function()
         if existing.contextualAlpha ~= nil and contextual.SetAlpha then contextual:SetAlpha(existing.contextualAlpha) end
         if existing.contextualShown and contextual.Show then contextual:Show() elseif contextual.Hide then contextual:Hide() end
       end
-      if altPowerTex and existing and existing.altPowerTexSaved then
-        if existing.altPowerTexParent and altPowerTex.SetParent then
-          altPowerTex:SetParent(existing.altPowerTexParent)
-        end
-        if existing.altPowerTexPoints and altPowerTex.ClearAllPoints and altPowerTex.SetPoint then
-          altPowerTex:ClearAllPoints()
-          for i = 1, #existing.altPowerTexPoints do
-            local pt = existing.altPowerTexPoints[i]
-            if pt and type(pt[1]) == "string" then
-              pcall(altPowerTex.SetPoint, altPowerTex, pt[1], pt[2], pt[3], pt[4], pt[5])
-            end
-          end
-        end
-        if existing.altPowerTexStrata and altPowerTex.SetFrameStrata then altPowerTex:SetFrameStrata(existing.altPowerTexStrata) end
-        if existing.altPowerTexLevel ~= nil and altPowerTex.SetFrameLevel then altPowerTex:SetFrameLevel(existing.altPowerTexLevel) end
-        if existing.altPowerTexDrawLayer and altPowerTex.SetDrawLayer then
-          altPowerTex:SetDrawLayer(existing.altPowerTexDrawLayer, existing.altPowerTexDrawSubLevel or 0)
-        end
-        if existing.altPowerTexHost and existing.altPowerTexHost.Hide then
-          existing.altPowerTexHost:Hide()
-        end
-      end
       if (key == "target" or key == "focus") and bigHBRoot and bigHBRoot.ReputationColor and existing and existing.repColorSaved then
         if existing.repColorShown and bigHBRoot.ReputationColor.Show then bigHBRoot.ReputationColor:Show() end
+      end
+      if (key == "target" or key == "focus") and existing and existing.targetCtxSaved then
+        local contentFrame = bigHBRoot and bigHBRoot.GetParent and bigHBRoot:GetParent()
+        local ctxFrame = contentFrame and contentFrame.TargetFrameContentContextual
+        if ctxFrame then
+          if existing.targetCtxStrata and ctxFrame.SetFrameStrata then ctxFrame:SetFrameStrata(existing.targetCtxStrata) end
+          if existing.targetCtxLevel ~= nil and ctxFrame.SetFrameLevel then ctxFrame:SetFrameLevel(existing.targetCtxLevel) end
+        end
+      end
+      if (key == "target" or key == "focus") and portrait and existing and existing.portraitModelSaved then
+        local portraitModel = portrait.Portrait
+        if portraitModel then
+          if existing.portraitModelStrata and portraitModel.SetFrameStrata then portraitModel:SetFrameStrata(existing.portraitModelStrata) end
+          if existing.portraitModelLevel ~= nil and portraitModel.SetFrameLevel then portraitModel:SetFrameLevel(existing.portraitModelLevel) end
+        end
+      end
+      if (key == "target" or key == "focus") and portrait and existing and existing.eliteTexSaved then
+        local bossTex = portrait.BossPortraitFrameTexture
+        if bossTex and existing.eliteTexOrigParent then
+          bossTex:SetParent(existing.eliteTexOrigParent)
+        end
+        if existing.eliteTexHost and existing.eliteTexHost.Hide then existing.eliteTexHost:Hide() end
       end
       if (key == "target" or key == "focus") and bigHBRoot and existing and existing.highLevelTexSaved then
         local contentFrame = bigHBRoot.GetParent and bigHBRoot:GetParent()
@@ -2334,6 +2381,29 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     local o = EnsureUFBigHBOverlay(key, parent)
     if not o or not o.bgFrame or not o.healthFrame then return end
+    if isPlayerFrame then
+      if frameTex and o.frameTexSaved then
+        if o.frameTexParent and frameTex.SetParent then frameTex:SetParent(o.frameTexParent) end
+        if o.frameTexPoints and frameTex.ClearAllPoints and frameTex.SetPoint then
+          frameTex:ClearAllPoints()
+          for _, pt in ipairs(o.frameTexPoints) do
+            if pt and type(pt[1]) == "string" then pcall(frameTex.SetPoint, frameTex, pt[1], pt[2], pt[3], pt[4], pt[5]) end
+          end
+        end
+        if o.frameTexStrata and frameTex.SetFrameStrata then frameTex:SetFrameStrata(o.frameTexStrata) end
+        if o.frameTexLevel and frameTex.SetFrameLevel then frameTex:SetFrameLevel(o.frameTexLevel) end
+        if o.frameTexDrawLayer and frameTex.SetDrawLayer then frameTex:SetDrawLayer(o.frameTexDrawLayer, o.frameTexDrawSubLevel or 0) end
+        if o.frameTexAlpha and frameTex.SetAlpha then frameTex:SetAlpha(o.frameTexAlpha) end
+        if o.frameTexHost and o.frameTexHost.Hide then o.frameTexHost:Hide() end
+        o.frameTexSaved = nil
+      end
+      if contextual and o.contextualSaved then
+        if o.contextualStrata and contextual.SetFrameStrata then contextual:SetFrameStrata(o.contextualStrata) end
+        if o.contextualLevel and contextual.SetFrameLevel then contextual:SetFrameLevel(o.contextualLevel) end
+        if o.contextualAlpha and contextual.SetAlpha then contextual:SetAlpha(o.contextualAlpha) end
+        o.contextualSaved = nil
+      end
+    end
     local shapePath = isPlayerFrame and "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_health_player"
       or "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\uf_health_other"
     local fillPath = shapePath
@@ -2387,9 +2457,28 @@ addonTable.ApplyUnitFrameCustomization = function()
     if bScale < 0.1 then bScale = 0.1 end
     bgW2 = bgW2 * bScale
     bgH2 = bgH2 * bScale
-    if isPlayerFrame and altPowerTex and altPowerTex.IsShown and altPowerTex:IsShown() then
-      bgH2 = bgH2 + 10
-      bY = bY - 5
+    if isPlayerFrame then
+      local bottomContainer = PlayerFrameBottomManagedFramesContainer
+      if bottomContainer and bottomContainer.IsShown and bottomContainer:IsShown() then
+        -- Only adjust mask if the container has a real second power bar (StatusBar),
+        -- not just class resource indicators (combo points, arcane charges, etc.)
+        local hasSecondPowerBar = false
+        if bottomContainer.GetChildren then
+          for i = 1, select('#', bottomContainer:GetChildren()) do
+            local child = select(i, bottomContainer:GetChildren())
+            if child and child.IsShown and child:IsShown() and child.IsObjectType then
+              local okType, isBar = pcall(child.IsObjectType, child, "StatusBar")
+              if okType and isBar then
+                hasSecondPowerBar = true
+                break
+              end
+            end
+          end
+        end
+        if hasSecondPowerBar then
+          mY = mY - 5
+        end
+      end
     end
     if bgW2 < 1 then bgW2 = 1 end
     if bgH2 < 1 then bgH2 = 1 end
@@ -2560,75 +2649,6 @@ addonTable.ApplyUnitFrameCustomization = function()
         if contextual.SetAlpha then contextual:SetAlpha(o.contextualAlpha or 1) end
         if contextual.Show then contextual:Show() end
       end
-      if altPowerTex then
-        if not o.altPowerTexSaved then
-          o.altPowerTexSaved = true
-          o.altPowerTexParent = altPowerTex.GetParent and altPowerTex:GetParent() or nil
-          o.altPowerTexStrata = altPowerTex.GetFrameStrata and altPowerTex:GetFrameStrata() or nil
-          o.altPowerTexLevel = altPowerTex.GetFrameLevel and altPowerTex:GetFrameLevel() or nil
-          o.altPowerTexShown = altPowerTex.IsShown and altPowerTex:IsShown() or false
-          o.altPowerTexPoints = {}
-          if altPowerTex.GetNumPoints and altPowerTex.GetPoint then
-            local n = altPowerTex:GetNumPoints() or 0
-            for i = 1, n do
-              local p, rel, rp, x, y = altPowerTex:GetPoint(i)
-              if type(p) == "string" then
-                o.altPowerTexPoints[#o.altPowerTexPoints + 1] = {p, rel, rp, x, y}
-              end
-            end
-          end
-          if altPowerTex.GetDrawLayer then
-            o.altPowerTexDrawLayer, o.altPowerTexDrawSubLevel = altPowerTex:GetDrawLayer()
-          end
-        end
-        if altPowerTex.SetFrameStrata then altPowerTex:SetFrameStrata("BACKGROUND") end
-        if altPowerTex.SetFrameLevel then altPowerTex:SetFrameLevel(0) end
-        if not o.altPowerTexHost then
-          o.altPowerTexHost = CreateFrame("Frame", nil, UIParent)
-        end
-        if o.altPowerTexHost then
-          if o.altPowerTexHost.SetFrameStrata then o.altPowerTexHost:SetFrameStrata("BACKGROUND") end
-          if o.altPowerTexHost.SetFrameLevel then o.altPowerTexHost:SetFrameLevel(0) end
-          if o.altPowerTexParent and o.altPowerTexHost.SetParent then
-            o.altPowerTexHost:SetParent(o.altPowerTexParent)
-          end
-          if o.altPowerTexParent and o.altPowerTexHost.ClearAllPoints and o.altPowerTexHost.SetPoint then
-            o.altPowerTexHost:ClearAllPoints()
-            o.altPowerTexHost:SetPoint("TOPLEFT", o.altPowerTexParent, "TOPLEFT", 0, 0)
-            o.altPowerTexHost:SetPoint("BOTTOMRIGHT", o.altPowerTexParent, "BOTTOMRIGHT", 0, 0)
-          end
-          if altPowerTex.SetParent and altPowerTex.GetParent and altPowerTex:GetParent() ~= o.altPowerTexHost then
-            altPowerTex:SetParent(o.altPowerTexHost)
-          end
-          if altPowerTex.ClearAllPoints and altPowerTex.SetPoint then
-            altPowerTex:ClearAllPoints()
-            local restored = false
-            if o.altPowerTexPoints and #o.altPowerTexPoints > 0 then
-              for i = 1, #o.altPowerTexPoints do
-                local pt = o.altPowerTexPoints[i]
-                if pt and type(pt[1]) == "string" then
-                  pcall(altPowerTex.SetPoint, altPowerTex, pt[1], pt[2], pt[3], pt[4], pt[5])
-                  restored = true
-                end
-              end
-            end
-            if (not restored) and altPowerTex.SetAllPoints then
-              altPowerTex:SetAllPoints(o.altPowerTexHost)
-            end
-          end
-          if o.altPowerTexShown then
-            if o.altPowerTexHost.Show then o.altPowerTexHost:Show() end
-          else
-            if o.altPowerTexHost.Hide then o.altPowerTexHost:Hide() end
-          end
-        end
-        if altPowerTex.SetDrawLayer then
-          altPowerTex:SetDrawLayer("BACKGROUND", -8)
-        end
-        if o.altPowerTexShown then
-          if altPowerTex.Show then altPowerTex:Show() end
-        end
-      end
       if frameTex.SetDrawLayer then
         frameTex:SetDrawLayer("BACKGROUND", -8)
       end
@@ -2724,7 +2744,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     end
     if o.fullDmgAbsorbFrame then
       o.fullDmgAbsorbFrame:SetFrameStrata(strata)
-      o.fullDmgAbsorbFrame:SetFrameLevel(healthLevel + 3)
+      o.fullDmgAbsorbFrame:SetFrameLevel(math.max(1, healthLevel - 1))
     end
     local healPredLevel = math.max(1, healthLevel - 1)
     if o.myHealPredFrame then
@@ -2739,10 +2759,42 @@ addonTable.ApplyUnitFrameCustomization = function()
       o.healAbsorbFrame:SetFrameStrata(strata)
       o.healAbsorbFrame:SetFrameLevel(healthLevel + 1)
     end
-    o.maskFixFrame:SetFrameLevel(math.max(1, healthLevel + 5))
+    if isPlayerFrame then
+      o.maskFixFrame:SetFrameLevel(math.max(1, healthLevel + 5))
+    else
+      o.maskFixFrame:SetFrameLevel(math.max(1, healthLevel + 3))
+    end
     if (key == "target" or key == "focus") and portrait and portrait.SetFrameStrata and portrait.SetFrameLevel then
       portrait:SetFrameStrata(strata)
       portrait:SetFrameLevel(math.max(1, healthLevel + 2))
+      local bossTex = portrait.BossPortraitFrameTexture
+      if bossTex then
+        if not o.eliteTexHost then
+          o.eliteTexHost = CreateFrame("Frame", nil, portrait)
+          o.eliteTexHost:SetAllPoints(portrait)
+        end
+        o.eliteTexHost:SetFrameStrata(strata)
+        o.eliteTexHost:SetFrameLevel(math.max(1, healthLevel + 4))
+        o.eliteTexHost:Show()
+        if not o.eliteTexSaved then
+          o.eliteTexSaved = true
+          o.eliteTexOrigParent = bossTex:GetParent()
+        end
+        bossTex:SetParent(o.eliteTexHost)
+      end
+    end
+    if (key == "target" or key == "focus") then
+      local contentFrame = bigHBRoot and bigHBRoot.GetParent and bigHBRoot:GetParent()
+      local ctxFrame = contentFrame and contentFrame.TargetFrameContentContextual
+      if ctxFrame and ctxFrame.SetFrameStrata and ctxFrame.SetFrameLevel then
+        if not o.targetCtxSaved then
+          o.targetCtxSaved = true
+          o.targetCtxStrata = ctxFrame.GetFrameStrata and ctxFrame:GetFrameStrata() or nil
+          o.targetCtxLevel = ctxFrame.GetFrameLevel and ctxFrame:GetFrameLevel() or nil
+        end
+        ctxFrame:SetFrameStrata(strata)
+        ctxFrame:SetFrameLevel(math.max(1, healthLevel + 5))
+      end
     end
     o.bgFrame:ClearAllPoints()
     o.bgFrame:SetPoint("CENTER", bgAnchor, "CENTER", bgAnchorX, bgAnchorY)

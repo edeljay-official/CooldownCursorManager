@@ -197,18 +197,20 @@ addonTable.UpdateFocusCastbar = function()
     PixelUtil.SetPoint(frame, "CENTER", UIParent, "CENTER", posX, posY)
   end
   frame.bg:SetColorTexture(profile.focusCastbarBgColorR or 0.1, profile.focusCastbarBgColorG or 0.1, profile.focusCastbarBgColorB or 0.1, bgAlpha)
-  if showIcon and texture then
+  local iconTexture = texture or (State.focusCastbarPreviewMode and 136116) or nil
+  if showIcon and iconTexture then
     PixelUtil.SetSize(frame.icon, iconSize, iconSize)
-    frame.icon.texture:SetTexture(texture)
+    frame.icon.texture:SetTexture(iconTexture)
     frame.icon:ClearAllPoints()
     PixelUtil.SetPoint(frame.icon, "RIGHT", frame, "LEFT", 0, 0)
     frame.icon:Show()
   else
     frame.icon:Hide()
   end
+  local iconShown = showIcon and iconTexture
   if borderSize > 0 then
     frame.border:ClearAllPoints()
-    if showIcon and texture then
+    if iconShown then
       frame.border:SetPoint("TOPLEFT", frame.icon, "TOPLEFT", -borderSize, borderSize)
       frame.border:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", borderSize, -borderSize)
     else
@@ -296,16 +298,20 @@ addonTable.UpdateFocusCastbar = function()
         frame.timeText:Hide()
       end
       local showTicks = profile.focusCastbarShowTicks ~= false
-      if isChanneling and showTicks and spellID and channelTickData[spellID] then
-        local numTicks = channelTickData[spellID]
+      local numTicks
+      if isChanneling and showTicks and spellID then
+        local okTick, tickVal = pcall(function() return channelTickData[spellID] end)
+        if okTick then numTicks = tickVal end
+      end
+      if numTicks then
         local barWidth = frame:GetWidth()
         local barHeight = frame:GetHeight()
         local ftk = State.focusCastbarTickCache
-        local fTickChanged = not ftk or ftk.id ~= spellID or ftk.n ~= numTicks or ftk.w ~= barWidth or ftk.h ~= barHeight
+        local fTickChanged = not ftk or ftk.n ~= numTicks or ftk.w ~= barWidth or ftk.h ~= barHeight
         if fTickChanged then
           if not ftk then State.focusCastbarTickCache = {} end
           ftk = State.focusCastbarTickCache
-          ftk.id=spellID; ftk.n=numTicks; ftk.w=barWidth; ftk.h=barHeight
+          ftk.n=numTicks; ftk.w=barWidth; ftk.h=barHeight
           for i = 1, 10 do
             if i <= numTicks then
               local tickPos = (i / numTicks) * barWidth
@@ -402,16 +408,20 @@ addonTable.UpdateFocusCastbar = function()
       frame.timeText:Hide()
     end
     local showTicks = profile.focusCastbarShowTicks ~= false
-    if isChanneling and showTicks and spellID and channelTickData[spellID] then
-      local numTicks = channelTickData[spellID]
+    local numTicks
+    if isChanneling and showTicks and spellID then
+      local okTick, tickVal = pcall(function() return channelTickData[spellID] end)
+      if okTick then numTicks = tickVal end
+    end
+    if numTicks then
       local barWidth = frame:GetWidth()
       local barHeight = frame:GetHeight()
       local ftk = State.focusCastbarTickCache
-      local fTickChanged = not ftk or ftk.id ~= spellID or ftk.n ~= numTicks or ftk.w ~= barWidth or ftk.h ~= barHeight
+      local fTickChanged = not ftk or ftk.n ~= numTicks or ftk.w ~= barWidth or ftk.h ~= barHeight
       if fTickChanged then
         if not ftk then State.focusCastbarTickCache = {} end
         ftk = State.focusCastbarTickCache
-        ftk.id=spellID; ftk.n=numTicks; ftk.w=barWidth; ftk.h=barHeight
+        ftk.n=numTicks; ftk.w=barWidth; ftk.h=barHeight
         for i = 1, 10 do
           if i <= numTicks then
             local tickPos = (i / numTicks) * barWidth
