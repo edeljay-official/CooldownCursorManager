@@ -7,11 +7,20 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    permissions:
+      contents: write
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Tag from TOC version
+        run: |
+          VERSION=$(grep -oP '## Version:\s*\K[\d.]+' CooldownCursorManager.toc)
+          git tag -f "v$VERSION"
+          git push origin -f "v$VERSION"
 
       - name: Package and Deploy
         uses: BigWigsMods/packager@v2
