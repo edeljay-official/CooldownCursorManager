@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- CooldownCursorManager - ccm_buff.lua
--- Buff tracking via Blizzard CDM, live aura overlay, and static fallback
+-- Buff tracking via Blizzard CDM and live aura overlay
 -- Author: Edeljay
 --------------------------------------------------------------------------------
 local addonName, CCM = ...
@@ -11,8 +11,9 @@ local pcall = pcall
 local type = type
 
 local State = addonTable.State
-local CdmAuraOverlayCache = { bySpellID = {}, bySpellName = {}, knownBuffSpellIDs = {}, pureBuffSpellIDs = {}, lastScan = 0 }
+local CdmAuraOverlayCache = { bySpellID = {}, bySpellName = {}, knownBuffSpellIDs = {}, pureBuffSpellIDs = {}, lastScan = 0, notBuff = {} }
 local AuraOverlayScanChildren = {}
+local BlizzBuffSuppressionState = setmetatable({}, { __mode = "k" })
 
 local function IsSafePublicNumber(value)
   if type(value) ~= "number" then return false end
@@ -185,18 +186,21 @@ end
 local function SetBlizzBuffViewerIconSuppressed(icon, suppress)
   if not icon then return end
   if icon.GetObjectType and icon:GetObjectType() ~= "Frame" then return end
+  local state = BlizzBuffSuppressionState[icon]
 
   if suppress then
-    if not icon._ccmBlizzSuppressed then
+    if not state then
       local okScale, oldScale = pcall(icon.GetScale, icon)
       local okAlpha, oldAlpha = pcall(icon.GetAlpha, icon)
       local okWidth, oldWidth = pcall(icon.GetWidth, icon)
       local okHeight, oldHeight = pcall(icon.GetHeight, icon)
-      icon._ccmBlizzSuppressionScale = (okScale and type(oldScale) == "number") and oldScale or 1
-      icon._ccmBlizzSuppressionAlpha = (okAlpha and type(oldAlpha) == "number") and oldAlpha or 1
-      icon._ccmBlizzSuppressionWidth = (okWidth and type(oldWidth) == "number") and oldWidth or nil
-      icon._ccmBlizzSuppressionHeight = (okHeight and type(oldHeight) == "number") and oldHeight or nil
-      icon._ccmBlizzSuppressed = true
+      state = {
+        scale = (okScale and type(oldScale) == "number") and oldScale or 1,
+        alpha = (okAlpha and type(oldAlpha) == "number") and oldAlpha or 1,
+        width = (okWidth and type(oldWidth) == "number") and oldWidth or nil,
+        height = (okHeight and type(oldHeight) == "number") and oldHeight or nil,
+      }
+      BlizzBuffSuppressionState[icon] = state
     end
     pcall(icon.SetScale, icon, 1)
     pcall(icon.SetAlpha, icon, 0)
@@ -210,11 +214,11 @@ local function SetBlizzBuffViewerIconSuppressed(icon, suppress)
     return
   end
 
-  if icon._ccmBlizzSuppressed then
-    local restoreScale = type(icon._ccmBlizzSuppressionScale) == "number" and icon._ccmBlizzSuppressionScale or 1
-    local restoreAlpha = type(icon._ccmBlizzSuppressionAlpha) == "number" and icon._ccmBlizzSuppressionAlpha or 1
-    local restoreWidth = icon._ccmBlizzSuppressionWidth
-    local restoreHeight = icon._ccmBlizzSuppressionHeight
+  if state then
+    local restoreScale = type(state.scale) == "number" and state.scale or 1
+    local restoreAlpha = type(state.alpha) == "number" and state.alpha or 1
+    local restoreWidth = state.width
+    local restoreHeight = state.height
     pcall(icon.SetScale, icon, restoreScale)
     pcall(icon.SetAlpha, icon, restoreAlpha)
     if type(restoreWidth) == "number" and type(restoreHeight) == "number" then
@@ -225,9 +229,7 @@ local function SetBlizzBuffViewerIconSuppressed(icon, suppress)
         if icon.SetHeight then pcall(icon.SetHeight, icon, restoreHeight) end
       end
     end
-    icon._ccmBlizzSuppressed = nil
-    icon._ccmBlizzSuppressionWidth = nil
-    icon._ccmBlizzSuppressionHeight = nil
+    BlizzBuffSuppressionState[icon] = nil
   end
 end
 
@@ -265,25 +267,27 @@ local function AddCdmAuraOverlayCacheEntry(spellID, auraInstanceID, sourceFrame)
   AddCdmAuraOverlayCacheName(spellName, entry)
 end
 
+local function MarkKnownSpellInCache(knownBuffSpellIDs, id, ResolveTrackedSpellID)
+  if not IsSafePublicNumber(id) or id <= 0 then return end
+  knownBuffSpellIDs[id] = true
+  if ResolveTrackedSpellID then
+    local resolved = ResolveTrackedSpellID(id)
+    if IsSafePublicNumber(resolved) and resolved > 0 then
+      knownBuffSpellIDs[resolved] = true
+    end
+  end
+end
+
 local function ScanCdmAuraOverlayCache(now)
   wipe(CdmAuraOverlayCache.bySpellID)
   wipe(CdmAuraOverlayCache.bySpellName)
   wipe(CdmAuraOverlayCache.knownBuffSpellIDs)
+  wipe(CdmAuraOverlayCache.notBuff)
   CdmAuraOverlayCache.lastScan = now or GetTime()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local suppressTrackedBuffIcons = profile and profile.hideTrackedBlizzBuffIcons ~= false and ShouldUseLiveBuffTrackingForProfile(profile) and profile.disableBlizzCDM ~= true
   local knownBuffSpellIDs = CdmAuraOverlayCache.knownBuffSpellIDs
   local ResolveTrackedSpellID = addonTable.ResolveTrackedSpellID
-  local function MarkKnownSpell(id)
-    if not IsSafePublicNumber(id) or id <= 0 then return end
-    knownBuffSpellIDs[id] = true
-    if ResolveTrackedSpellID then
-      local resolved = ResolveTrackedSpellID(id)
-      if IsSafePublicNumber(resolved) and resolved > 0 then
-        knownBuffSpellIDs[resolved] = true
-      end
-    end
-  end
   local suppressBySpellID, suppressBySpellName
   if suppressTrackedBuffIcons then
     suppressBySpellID, suppressBySpellName = BuildSuppressedBuffSpellLookups(profile)
@@ -291,64 +295,56 @@ local function ScanCdmAuraOverlayCache(now)
       suppressTrackedBuffIcons = false
     end
   end
-  local viewers = {BuffIconCooldownViewer, EssentialCooldownViewer, UtilityCooldownViewer}
-  for v = 1, #viewers do
-    local viewer = viewers[v]
-    if viewer then
-      local canSuppressViewer = suppressTrackedBuffIcons and (viewer == BuffIconCooldownViewer)
-      local childCount = CollectChildren(viewer, AuraOverlayScanChildren)
-      for i = 1, childCount do
-        local child = AuraOverlayScanChildren[i]
-        local shouldSuppressChild = false
-        local info = child and child.cooldownInfo
-        if type(info) ~= "table" then
-          local cooldownID = child and child.cooldownID
-          local canQueryCooldown = false
-          if type(cooldownID) == "number" then
-            local okID, isPositive = pcall(function() return cooldownID > 0 end)
-            canQueryCooldown = okID and isPositive
-          end
-          if canQueryCooldown and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
-            local okInfo, fetched = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cooldownID)
-            if okInfo and type(fetched) == "table" then
-              info = fetched
-            end
-          end
+  local viewer = BuffIconCooldownViewer
+  if viewer then
+    local canSuppressViewer = suppressTrackedBuffIcons
+    local childCount = CollectChildren(viewer, AuraOverlayScanChildren)
+    for i = 1, childCount do
+      local child = AuraOverlayScanChildren[i]
+      local shouldSuppressChild = false
+      local info = child and child.cooldownInfo
+      if type(info) ~= "table" then
+        local cooldownID = child and child.cooldownID
+        local canQueryCooldown = false
+        if type(cooldownID) == "number" and not (issecretvalue and issecretvalue(cooldownID)) then
+          canQueryCooldown = cooldownID > 0
         end
-        if viewer == BuffIconCooldownViewer then
-          if type(info) == "table" then
-            MarkKnownSpell(info.spellID)
-            MarkKnownSpell(info.overrideSpellID)
-            if type(info.linkedSpellIDs) == "table" then
-              for li = 1, #info.linkedSpellIDs do
-                MarkKnownSpell(info.linkedSpellIDs[li])
-              end
-            end
+        if canQueryCooldown and C_CooldownViewer and C_CooldownViewer.GetCooldownViewerCooldownInfo then
+          local okInfo, fetched = pcall(C_CooldownViewer.GetCooldownViewerCooldownInfo, cooldownID)
+          if okInfo and type(fetched) == "table" then
+            info = fetched
           end
-          MarkKnownSpell(child and child.spellID)
-          MarkKnownSpell(child and child.actualID)
-        end
-        local auraInstanceID = child and child.auraInstanceID
-        if auraInstanceID ~= nil then
-          if type(info) == "table" then
-            AddCdmAuraOverlayCacheEntry(info.spellID, auraInstanceID, child)
-            AddCdmAuraOverlayCacheEntry(info.overrideSpellID, auraInstanceID, child)
-            if type(info.linkedSpellIDs) == "table" then
-              for li = 1, #info.linkedSpellIDs do
-                AddCdmAuraOverlayCacheEntry(info.linkedSpellIDs[li], auraInstanceID, child)
-              end
-            end
-          end
-          AddCdmAuraOverlayCacheEntry(child.spellID, auraInstanceID, child)
-          AddCdmAuraOverlayCacheEntry(child.actualID, auraInstanceID, child)
-          if canSuppressViewer then
-            shouldSuppressChild = ShouldSuppressBlizzBuffViewerIcon(child, info, suppressBySpellID, suppressBySpellName)
-          end
-        end
-        if viewer == BuffIconCooldownViewer then
-          SetBlizzBuffViewerIconSuppressed(child, canSuppressViewer and shouldSuppressChild)
         end
       end
+      if type(info) == "table" then
+        MarkKnownSpellInCache(knownBuffSpellIDs, info.spellID, ResolveTrackedSpellID)
+        MarkKnownSpellInCache(knownBuffSpellIDs, info.overrideSpellID, ResolveTrackedSpellID)
+        if type(info.linkedSpellIDs) == "table" then
+          for li = 1, #info.linkedSpellIDs do
+            MarkKnownSpellInCache(knownBuffSpellIDs, info.linkedSpellIDs[li], ResolveTrackedSpellID)
+          end
+        end
+      end
+      MarkKnownSpellInCache(knownBuffSpellIDs, child and child.spellID, ResolveTrackedSpellID)
+      MarkKnownSpellInCache(knownBuffSpellIDs, child and child.actualID, ResolveTrackedSpellID)
+      local auraInstanceID = child and child.auraInstanceID
+      if auraInstanceID ~= nil then
+        if type(info) == "table" then
+          AddCdmAuraOverlayCacheEntry(info.spellID, auraInstanceID, child)
+          AddCdmAuraOverlayCacheEntry(info.overrideSpellID, auraInstanceID, child)
+          if type(info.linkedSpellIDs) == "table" then
+            for li = 1, #info.linkedSpellIDs do
+              AddCdmAuraOverlayCacheEntry(info.linkedSpellIDs[li], auraInstanceID, child)
+            end
+          end
+        end
+        AddCdmAuraOverlayCacheEntry(child.spellID, auraInstanceID, child)
+        AddCdmAuraOverlayCacheEntry(child.actualID, auraInstanceID, child)
+        if canSuppressViewer then
+          shouldSuppressChild = ShouldSuppressBlizzBuffViewerIcon(child, info, suppressBySpellID, suppressBySpellName)
+        end
+      end
+      SetBlizzBuffViewerIconSuppressed(child, canSuppressViewer and shouldSuppressChild)
     end
   end
   wipe(CdmAuraOverlayCache.pureBuffSpellIDs)
@@ -393,6 +389,7 @@ end
 
 local function GetCdmAuraOverlayEntryFromCache(spellID)
   if type(spellID) ~= "number" then return nil end
+  if CdmAuraOverlayCache.notBuff[spellID] then return nil end
   local entry = CdmAuraOverlayCache.bySpellID[spellID]
   local ResolveTrackedSpellID = addonTable.ResolveTrackedSpellID
   if not entry and ResolveTrackedSpellID then
@@ -408,17 +405,22 @@ local function GetCdmAuraOverlayEntryFromCache(spellID)
       entry = CdmAuraOverlayCache.bySpellName[spellName]
     end
   end
+  if not entry then
+    CdmAuraOverlayCache.notBuff[spellID] = true
+  end
   return entry
 end
 
 local function GetCdmAuraOverlayEntry(spellID, now, forceRescanIfMissing)
   if type(spellID) ~= "number" then return nil end
   local scanNow = now or GetTime()
+  local justScanned = false
   if scanNow - (CdmAuraOverlayCache.lastScan or 0) > 0.10 then
     ScanCdmAuraOverlayCache(scanNow)
+    justScanned = true
   end
   local entry = GetCdmAuraOverlayEntryFromCache(spellID)
-  if entry or not forceRescanIfMissing then
+  if entry or not forceRescanIfMissing or justScanned then
     return entry
   end
   ScanCdmAuraOverlayCache(GetTime())

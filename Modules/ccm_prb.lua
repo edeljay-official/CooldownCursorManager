@@ -1085,7 +1085,9 @@ local function UpdatePRB(force)
       prbFrame.manaBar.text:Hide()
     end
     local _, playerClass = UnitClass("player")
-    SetBlizzardPlayerPowerBarsVisibility(showPower, showClassPower)
+    -- While PRB is active, always suppress Blizzard class-power widgets
+    -- to avoid duplicate/forced combo-point displays (e.g. druid cat).
+    SetBlizzardPlayerPowerBarsVisibility(showPower, true)
     local classPowerType = cpConfig and cpConfig.powerType
     local buffID = cpConfig and cpConfig.buffID
     local classPower = 0

@@ -172,14 +172,14 @@ local function CreateMainFrame()
   mainFrame:SetFrameLevel(10)
   mainFrame:SetClampedToScreen(true)
   mainFrame:SetMovable(true)
-  mainFrame:EnableMouse(true)
+  mainFrame:EnableMouse(false)
   mainFrame:RegisterForDrag("LeftButton")
   mainFrame:Hide()
 
   mainFrame:SetScript("OnDragStart", function(self)
-    local qolTab = addonTable.TAB_QOL or 12
+    local skyridingTab = addonTable.TAB_SKYRIDING or 16
     local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
-    local onTab = addonTable.activeTab and addonTable.activeTab() == qolTab
+    local onTab = addonTable.activeTab and addonTable.activeTab() == skyridingTab
     if not guiOpen or not onTab then return end
     self.isDragging = true
     self:StartMoving()
@@ -617,8 +617,17 @@ end
 
 local function UpdateVisibility()
   local profile = GetProfile and GetProfile()
+  local skyridingTab = addonTable.TAB_SKYRIDING or 16
+  local guiDrag = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == skyridingTab)
   if not profile or not profile.skyridingEnabled then
-    if not previewActive then
+    if guiDrag then
+      if not mainFrame then CreateMainFrame() end
+      if onUpdateFrame then onUpdateFrame:Hide() end
+      mainFrame:EnableMouse(true)
+      ApplyFrameLayout()
+      UpdateLayout()
+      mainFrame:Show()
+    elseif not previewActive then
       if mainFrame then mainFrame:Hide() end
       if onUpdateFrame then onUpdateFrame:Hide() end
     end
@@ -629,6 +638,7 @@ local function UpdateVisibility()
 
   if IsOnSkyridingMount() then
     if not mainFrame then CreateMainFrame() end
+    mainFrame:EnableMouse(guiDrag)
     ApplyFrameLayout()
     UpdateLayout()
     mainFrame:Show()
@@ -678,8 +688,17 @@ local function UpdateVisibility()
     HideBlizzardCDM()
     UpdatePreviewButtonState()
   else
-    if mainFrame then mainFrame:Hide() end
-    if onUpdateFrame then onUpdateFrame:Hide() end
+    if guiDrag then
+      if not mainFrame then CreateMainFrame() end
+      if onUpdateFrame then onUpdateFrame:Hide() end
+      mainFrame:EnableMouse(true)
+      ApplyFrameLayout()
+      UpdateLayout()
+      mainFrame:Show()
+    else
+      if mainFrame then mainFrame:Hide() end
+      if onUpdateFrame then onUpdateFrame:Hide() end
+    end
     lastVigorFull, lastVigorTotal = -1, -1
     lastSWFull, lastSWTotal = -1, -1
     ShowBlizzardCDM()
@@ -765,6 +784,7 @@ local function ShowSkyridingPreview()
   if not profile then return end
   previewActive = true
   if not mainFrame then CreateMainFrame() end
+  mainFrame:EnableMouse(true)
   ApplyFrameLayout()
   UpdateLayout()
   mainFrame:Show()
@@ -827,6 +847,7 @@ addonTable.ShowSkyridingPreview = ShowSkyridingPreview
 local function StopSkyridingPreview()
   if not previewActive then return end
   previewActive = false
+  if mainFrame then mainFrame:EnableMouse(false) end
   UpdateVisibility()
 end
 addonTable.StopSkyridingPreview = StopSkyridingPreview

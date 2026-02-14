@@ -81,6 +81,24 @@ end
 
 local copyFrame = nil
 local copyButtons = {}
+local function GetEditBoxContentHeight(editBox, text)
+  if not editBox then return 0 end
+  local fs = editBox.GetFontString and editBox:GetFontString() or nil
+  if fs and fs.GetStringHeight then
+    local h = fs:GetStringHeight()
+    if type(h) == "number" and h > 0 then
+      return h
+    end
+  end
+  local lineCount = 1
+  if type(text) == "string" and text ~= "" then
+    local _, n = text:gsub("\n", "")
+    lineCount = (n or 0) + 1
+  end
+  local _, fontSize = editBox:GetFont()
+  fontSize = (type(fontSize) == "number" and fontSize > 0) and fontSize or 14
+  return lineCount * (fontSize + 2)
+end
 
 local function StripColors(text)
   if not text then return "" end
@@ -126,6 +144,11 @@ local function ShowCopyFrame(chatFrame)
     copyFrame.editBox = editBox
   end
 
+  local wasFading = chatFrame.GetFading and chatFrame:GetFading()
+  if wasFading then
+    chatFrame:SetFading(false)
+  end
+
   local lines = {}
   local numMessages = chatFrame:GetNumMessages()
   for i = 1, numMessages do
@@ -135,7 +158,14 @@ local function ShowCopyFrame(chatFrame)
     end
   end
 
-  copyFrame.editBox:SetText(table.concat(lines, "\n"))
+  if wasFading then
+    chatFrame:SetFading(true)
+  end
+
+  local fullText = table.concat(lines, "\n")
+  copyFrame.editBox:SetText(fullText)
+  local contentHeight = GetEditBoxContentHeight(copyFrame.editBox, fullText)
+  copyFrame.editBox:SetHeight(math.max(360, contentHeight + 20))
   copyFrame:Show()
   copyFrame.editBox:HighlightText()
   copyFrame.editBox:SetFocus()

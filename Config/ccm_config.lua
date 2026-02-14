@@ -9,28 +9,11 @@ local function GetProfile() return addonTable.GetProfile and addonTable.GetProfi
 local function CreateIcons() if addonTable.CreateIcons then addonTable.CreateIcons() end end
 local function UpdateAllIcons() if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end
 local function SetGUIOpen(v) if addonTable.SetGUIOpen then addonTable.SetGUIOpen(v) end end
-local _activeDropdownList = nil
-local _dropdownClickCatcher = nil
-local HideActiveDropdownList
+local HideActiveDropdownList = addonTable.HideActiveDropdownList
 addonTable.ConfigGetProfile = GetProfile
 addonTable.ConfigCreateIcons = CreateIcons
 addonTable.ConfigSetGUIOpen = SetGUIOpen
-local function CreateStyledButton(parent, text, w, h)
-  local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
-  btn:SetSize(w, h)
-  btn:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  btn:SetBackdropColor(0.15, 0.15, 0.18, 1)
-  btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  local t = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  t:SetPoint("CENTER")
-  t:SetText(text)
-  t:SetTextColor(0.9, 0.9, 0.9)
-  btn.text = t
-  btn:SetScript("OnEnter", function() btn:SetBackdropColor(0.25, 0.25, 0.3, 1); t:SetTextColor(1, 1, 1) end)
-  btn:SetScript("OnLeave", function() btn:SetBackdropColor(0.15, 0.15, 0.18, 1); t:SetTextColor(0.9, 0.9, 0.9) end)
-  return btn
-end
-addonTable.CreateStyledButton = CreateStyledButton
+local CreateStyledButton = addonTable.CreateStyledButton
 local cfg = CreateFrame("Frame", "CCMConfig", UIParent, "BackdropTemplate")
 cfg:SetSize(710, 630)
 cfg:SetPoint("CENTER")
@@ -51,6 +34,9 @@ cfg:SetScript("OnShow", function(self)
   self:Raise()
   if CooldownCursorManagerDB and CooldownCursorManagerDB.guiHeight then
     self:SetHeight(CooldownCursorManagerDB.guiHeight)
+  end
+  if addonTable.FitConfigToScreen then
+    addonTable.FitConfigToScreen(self)
   end
 end)
 cfg:SetScript("OnHide", function()
@@ -80,14 +66,34 @@ cfg:SetScript("OnHide", function()
   if addonTable.StopSkyridingPreview then
     addonTable.StopSkyridingPreview()
   end
+  if addonTable.StopLowHealthWarningPreview then
+    addonTable.StopLowHealthWarningPreview()
+  end
   if addonTable.ResetAllPreviewHighlights then
     addonTable.ResetAllPreviewHighlights()
   end
+  if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+  if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
+  if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
 end)
 cfg:Hide()
 cfg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 2})
 cfg:SetBackdropColor(0.08, 0.08, 0.10, 0.97)
 cfg:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+local FitConfigToScreen = addonTable.FitConfigToScreen
+cfg:SetScript("OnSizeChanged", function(self)
+  if self:IsShown() and addonTable.FitConfigToScreen then
+    addonTable.FitConfigToScreen(self)
+  end
+end)
+local cfgFitEvent = CreateFrame("Frame")
+cfgFitEvent:RegisterEvent("DISPLAY_SIZE_CHANGED")
+cfgFitEvent:RegisterEvent("UI_SCALE_CHANGED")
+cfgFitEvent:SetScript("OnEvent", function()
+  if cfg and cfg:IsShown() and addonTable.FitConfigToScreen then
+    addonTable.FitConfigToScreen(cfg)
+  end
+end)
 local titleBar = CreateFrame("Frame", nil, cfg, "BackdropTemplate")
 titleBar:SetHeight(32)
 titleBar:SetPoint("TOPLEFT", cfg, "TOPLEFT", 2, -2)
@@ -96,7 +102,7 @@ titleBar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 titleBar:SetBackdropColor(0.15, 0.15, 0.18, 1)
 local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
-titleText:SetText("Cooldown Cursor Manager v7.0.0")
+titleText:SetText("Cooldown Cursor Manager v7.1.0")
 titleText:SetTextColor(1, 0.82, 0)
 local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
 closeBtn:SetSize(24, 24)
@@ -989,6 +995,12 @@ exampleNote:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -170)
 exampleNote:SetText("|cffFFD100Note:|r After loading, customize the profile to your needs and add spells to the Custom Bars.")
 exampleNote:SetJustifyH("LEFT")
 exampleNote:SetTextColor(0.7, 0.7, 0.7)
+addonTable.installWizardBtn = CreateStyledButton(profTab, "Run Installer", 150, 24)
+addonTable.installWizardBtn:SetPoint("TOP", addonTable.exampleProfileTankBtn, "BOTTOM", 0, -38)
+local installWizardNote = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+installWizardNote:SetPoint("TOP", addonTable.installWizardBtn, "BOTTOM", 0, -6)
+installWizardNote:SetTextColor(0.6, 0.6, 0.65)
+installWizardNote:SetText("or type /ccminstall")
 local sidebarButtons = {}
 local expandState = {custombars = true, castbars = true, qol = true}
 local sidebarSep = sidebarChild:CreateTexture(nil, "ARTWORK")
@@ -1004,6 +1016,7 @@ local function StopAllPreviews()
   if addonTable.StopNoTargetAlertPreview then addonTable.StopNoTargetAlertPreview() end
   if addonTable.StopCombatStatusPreview then addonTable.StopCombatStatusPreview() end
   if addonTable.StopSkyridingPreview then addonTable.StopSkyridingPreview() end
+  if addonTable.StopLowHealthWarningPreview then addonTable.StopLowHealthWarningPreview() end
   if addonTable.ResetAllPreviewHighlights then addonTable.ResetAllPreviewHighlights() end
 end
 local TAB_WIDTHS = {
@@ -1021,6 +1034,9 @@ local function ActivateTab(idx)
   local w = TAB_WIDTHS[idx] or 680
   cfg:SetWidth(w)
   cfg:SetResizeBounds(w, 400, w, 1200)
+  if addonTable.FitConfigToScreen then
+    addonTable.FitConfigToScreen(cfg)
+  end
   for i = 1, MAX_TABS do
     if tabFrames[i] then tabFrames[i]:Hide() end
   end
@@ -1038,6 +1054,7 @@ local function ActivateTab(idx)
   if idx == TAB_CUSTOMBAR5 and addonTable.RefreshCB5SpellList then addonTable.RefreshCB5SpellList() end
   if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
   if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
+  if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
   if addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(idx) end
   for _, sb in ipairs(sidebarButtons) do
     if sb.UpdateVisual then sb:UpdateVisual() end
@@ -1061,6 +1078,7 @@ local function RebuildSidebar()
   local SUB_H = 24
   local function CreateSidebarBtn(tabIdx, label, isSubTab, offState, isExpander, expandKey)
     local btn = CreateFrame("Button", nil, sidebarChild, "BackdropTemplate")
+    btn._ccmControlType = "sidebarbtn"
     local h = isSubTab and SUB_H or BTN_H
     btn:SetSize(SIDEBAR_WIDTH, h)
     btn:SetPoint("TOPLEFT", sidebarChild, "TOPLEFT", 0, yOff)
@@ -1298,533 +1316,6 @@ addonTable._searchUpdate = function(query)
     end
   end
 end
-local function Section(p, txt, y, rightOffset)
-  local l = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  l:SetPoint("TOPLEFT", p, "TOPLEFT", 15, y)
-  l:SetText(txt)
-  l:SetTextColor(1, 0.82, 0)
-  local ln = p:CreateTexture(nil, "ARTWORK")
-  ln:SetHeight(1)
-  ln:SetPoint("LEFT", l, "RIGHT", 8, 0)
-  ln:SetPoint("RIGHT", p, "RIGHT", rightOffset or -15, 0)
-  ln:SetColorTexture(0.3, 0.3, 0.35, 1)
-  ln:SetSnapToPixelGrid(true)
-  ln:SetTexelSnappingBias(0)
-  return l
-end
-local function Slider(p, txt, x, y, mn, mx, df, st)
-  local l = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  l:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
-  l:SetText(txt)
-  l:SetTextColor(0.9, 0.9, 0.9)
-  local s = CreateFrame("Slider", nil, p, "BackdropTemplate")
-  s:SetPoint("TOPLEFT", l, "BOTTOMLEFT", 0, -8)
-  s:SetSize(180, 16)
-  s:SetOrientation("HORIZONTAL")
-  s:SetMinMaxValues(mn, mx)
-  s:SetValue(df)
-  s:SetValueStep(st)
-  s:SetObeyStepOnDrag(true)
-  s:EnableMouse(true)
-  s:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  s:SetBackdropColor(0.08, 0.08, 0.10, 1)
-  s:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
-  local thumb = s:CreateTexture(nil, "ARTWORK")
-  thumb:SetSize(14, 18)
-  thumb:SetColorTexture(0.4, 0.4, 0.45, 1)
-  s:SetThumbTexture(thumb)
-  local lowText = s:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  lowText:SetPoint("TOPLEFT", s, "BOTTOMLEFT", 0, -2)
-  lowText:SetText(mn)
-  lowText:SetTextColor(0.5, 0.5, 0.5)
-  s.Low = lowText
-  local highText = s:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  highText:SetPoint("TOPRIGHT", s, "BOTTOMRIGHT", 0, -2)
-  highText:SetText(mx)
-  highText:SetTextColor(0.5, 0.5, 0.5)
-  s.High = highText
-  s.Text = s:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-  s.Text:SetText("")
-  local vtBg = CreateFrame("Frame", nil, p, "BackdropTemplate")
-  vtBg:SetSize(50, 20)
-  vtBg:SetPoint("LEFT", s, "RIGHT", 8, 0)
-  vtBg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  vtBg:SetBackdropColor(0.05, 0.05, 0.07, 1)
-  vtBg:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
-  local vt = CreateFrame("EditBox", nil, vtBg)
-  vt:SetSize(46, 18)
-  vt:SetPoint("CENTER", vtBg, "CENTER", 0, 0)
-  vt:SetFontObject("GameFontHighlightSmall")
-  vt:SetJustifyH("CENTER")
-  vt:SetAutoFocus(false)
-  vt:SetText(df)
-  vt:SetTextColor(1, 1, 1)
-  s.valueText = vt
-  s.valueTextBg = vtBg
-  s.step = st
-  s.minVal = mn
-  s.maxVal = mx
-  s._updating = false
-  local function ApplyEditBoxValue()
-    if s._updating then return end
-    local text = vt:GetText()
-    local num = tonumber(text)
-    if num then
-      local step = s.step or 1
-      num = math.floor(num / step + 0.5) * step
-      if num < s.minVal then num = s.minVal end
-      if num > s.maxVal then num = s.maxVal end
-      s._updating = true
-      s:SetValue(num)
-      s._updating = false
-      if step < 1 then
-        vt:SetText(string.format("%.2f", num))
-      else
-        vt:SetText(math.floor(num))
-      end
-    else
-      local cur = s:GetValue()
-      local step = s.step or 1
-      if step < 1 then
-        vt:SetText(string.format("%.2f", cur))
-      else
-        vt:SetText(math.floor(cur))
-      end
-    end
-    vt:ClearFocus()
-  end
-  vt:SetScript("OnEnterPressed", ApplyEditBoxValue)
-  vt:SetScript("OnEscapePressed", function()
-    local cur = s:GetValue()
-    local step = s.step or 1
-    if step < 1 then
-      vt:SetText(string.format("%.2f", cur))
-    else
-      vt:SetText(math.floor(cur))
-    end
-    vt:ClearFocus()
-  end)
-  vt:SetScript("OnEditFocusLost", ApplyEditBoxValue)
-  s:SetScript("OnValueChanged", function(self, value)
-    if self._updating then return end
-    local step = self.step or 1
-    local rounded = math.floor(value / step + 0.5) * step
-    if math.abs(value - rounded) > 0.001 then
-      self._updating = true
-      self:SetValue(rounded)
-      self._updating = false
-      return
-    end
-    if not self.valueText:HasFocus() then
-      if step < 1 then
-        self.valueText:SetText(string.format("%.2f", rounded))
-      else
-        self.valueText:SetText(math.floor(rounded))
-      end
-    end
-  end)
-  s:SetScript("OnEnter", function() thumb:SetColorTexture(0.5, 0.5, 0.55, 1) end)
-  s:SetScript("OnLeave", function() thumb:SetColorTexture(0.4, 0.4, 0.45, 1) end)
-  s:EnableMouseWheel(false)
-  s:SetScript("OnMouseWheel", nil)
-  local upBtn = CreateFrame("Button", nil, vtBg)
-  upBtn:SetSize(16, 10)
-  upBtn:SetPoint("BOTTOMLEFT", vtBg, "BOTTOMRIGHT", 2, 10)
-  local upTex = upBtn:CreateTexture(nil, "ARTWORK")
-  upTex:SetAllPoints()
-  upTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up.tga")
-  upBtn:SetScript("OnClick", function()
-    local step = 1
-    local minVal, maxVal = s:GetMinMaxValues()
-    local currentVal = s:GetValue()
-    local newVal = currentVal + step
-    if newVal > maxVal then newVal = maxVal end
-    s:SetValue(newVal)
-  end)
-  upBtn:SetScript("OnEnter", function() upTex:SetVertexColor(1, 0.82, 0, 1) end)
-  upBtn:SetScript("OnLeave", function() upTex:SetVertexColor(1, 1, 1, 1) end)
-  local downBtn = CreateFrame("Button", nil, vtBg)
-  downBtn:SetSize(16, 10)
-  downBtn:SetPoint("TOPLEFT", vtBg, "TOPRIGHT", 2, -10)
-  local downTex = downBtn:CreateTexture(nil, "ARTWORK")
-  downTex:SetAllPoints()
-  downTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
-  downBtn:SetScript("OnClick", function()
-    local step = 1
-    local minVal, maxVal = s:GetMinMaxValues()
-    local currentVal = s:GetValue()
-    local newVal = currentVal - step
-    if newVal < minVal then newVal = minVal end
-    s:SetValue(newVal)
-  end)
-  downBtn:SetScript("OnEnter", function() downTex:SetVertexColor(1, 0.82, 0, 1) end)
-  downBtn:SetScript("OnLeave", function() downTex:SetVertexColor(1, 1, 1, 1) end)
-  s.upBtn = upBtn
-  s.downBtn = downBtn
-  s.label = l
-  s.SetEnabled = function(self, enabled)
-    if enabled then
-      self:Enable()
-      l:SetTextColor(0.9, 0.9, 0.9)
-      self:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
-      thumb:SetColorTexture(0.4, 0.4, 0.45, 1)
-      vt:SetTextColor(1, 1, 1)
-      vt:EnableMouse(true)
-      upBtn:Enable()
-      downBtn:Enable()
-    else
-      self:Disable()
-      l:SetTextColor(0.4, 0.4, 0.4)
-      self:SetBackdropBorderColor(0.15, 0.15, 0.18, 1)
-      thumb:SetColorTexture(0.25, 0.25, 0.28, 1)
-      vt:SetTextColor(0.4, 0.4, 0.4)
-      vt:EnableMouse(false)
-      upBtn:Disable()
-      downBtn:Disable()
-    end
-  end
-  return s
-end
-local function Checkbox(p, txt, x, y)
-  local cb = CreateFrame("CheckButton", nil, p, "BackdropTemplate")
-  cb:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
-  cb:SetSize(20, 20)
-  cb:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  cb:SetBackdropColor(0.08, 0.08, 0.10, 1)
-  cb:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  local check = cb:CreateTexture(nil, "ARTWORK")
-  check:SetSize(12, 12)
-  check:SetPoint("CENTER")
-  check:SetColorTexture(1, 0.82, 0, 1)
-  check:Hide()
-  cb.check = check
-  cb:SetChecked(false)
-  local function UpdateCheckState()
-    if cb:GetChecked() then
-      check:Show()
-      cb:SetBackdropColor(0.15, 0.15, 0.18, 1)
-    else
-      check:Hide()
-      cb:SetBackdropColor(0.08, 0.08, 0.10, 1)
-    end
-  end
-  cb:SetScript("OnClick", function()
-    UpdateCheckState()
-    if cb.customOnClick then cb.customOnClick(cb) end
-  end)
-  local origSetChecked = cb.SetChecked
-  cb.SetChecked = function(self, checked)
-    origSetChecked(self, checked)
-    UpdateCheckState()
-  end
-  cb:SetScript("OnEnter", function()
-    if not cb:GetChecked() then
-      cb:SetBackdropColor(0.12, 0.12, 0.15, 1)
-    end
-    cb:SetBackdropBorderColor(0.4, 0.4, 0.45, 1)
-  end)
-  cb:SetScript("OnLeave", function()
-    if not cb:GetChecked() then
-      cb:SetBackdropColor(0.08, 0.08, 0.10, 1)
-    end
-    cb:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  end)
-  local l = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  l:SetPoint("LEFT", cb, "RIGHT", 6, 0)
-  l:SetText(txt)
-  l:SetTextColor(0.9, 0.9, 0.9)
-  cb.label = l
-  cb.SetEnabled = function(self, enabled)
-    if enabled then
-      self:Enable()
-      l:SetTextColor(0.9, 0.9, 0.9)
-      self:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    else
-      self:Disable()
-      l:SetTextColor(0.4, 0.4, 0.4)
-      self:SetBackdropBorderColor(0.2, 0.2, 0.22, 1)
-      self:SetBackdropColor(0.05, 0.05, 0.06, 1)
-    end
-  end
-  return cb, l
-end
-HideActiveDropdownList = function()
-  if _activeDropdownList and _activeDropdownList.Hide then
-    _activeDropdownList:Hide()
-  end
-  _activeDropdownList = nil
-  if _dropdownClickCatcher and _dropdownClickCatcher.Hide then
-    _dropdownClickCatcher:Hide()
-  end
-end
-local function EnsureDropdownClickCatcher()
-  if _dropdownClickCatcher then return end
-  local catcher = CreateFrame("Button", nil, UIParent)
-  catcher:SetAllPoints(UIParent)
-  catcher:EnableMouse(true)
-  catcher:RegisterForClicks("AnyDown")
-  catcher:SetScript("OnClick", function()
-    HideActiveDropdownList()
-  end)
-  catcher:Hide()
-  _dropdownClickCatcher = catcher
-end
-local function StyledDropdown(p, labelTxt, x, y, w)
-  local lbl = nil
-  local dd = CreateFrame("Frame", nil, p, "BackdropTemplate")
-  dd:SetSize(w, 24)
-  if labelTxt then
-    lbl = p:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    lbl:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
-    lbl:SetText(labelTxt)
-    lbl:SetTextColor(0.9, 0.9, 0.9)
-    dd:SetPoint("TOPLEFT", lbl, "BOTTOMLEFT", 0, -4)
-  else
-    dd:SetPoint("TOPLEFT", p, "TOPLEFT", x, y)
-  end
-  dd:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  dd:SetBackdropColor(0.12, 0.12, 0.14, 1)
-  dd:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  local txt = dd:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  txt:SetPoint("LEFT", dd, "LEFT", 8, 0)
-  txt:SetPoint("RIGHT", dd, "RIGHT", -20, 0)
-  txt:SetJustifyH("LEFT")
-  txt:SetTextColor(0.9, 0.9, 0.9)
-  dd.text = txt
-  local arrow = dd:CreateTexture(nil, "ARTWORK")
-  arrow:SetSize(10, 10)
-  arrow:SetPoint("RIGHT", dd, "RIGHT", -8, 0)
-  arrow:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down")
-  arrow:SetVertexColor(0.6, 0.6, 0.6)
-  local list = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
-  list:SetWidth(w)
-  list:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  list:SetBackdropColor(0.1, 0.1, 0.12, 0.98)
-  list:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  list:SetFrameStrata("TOOLTIP")
-  list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
-  list:Hide()
-  list:SetScript("OnHide", function()
-    if _activeDropdownList == list then
-      _activeDropdownList = nil
-      if _dropdownClickCatcher then _dropdownClickCatcher:Hide() end
-    end
-  end)
-  dd.list = list
-  dd.options = {}
-  dd.value = nil
-  dd.keepOpenOnSelect = true
-  dd._scrollOffset = 0
-  dd._maxVisibleOptions = 12
-  dd._buttons = {}
-  dd._moreIndicator = nil
-  dd._effectiveWidth = w
-  list:EnableMouseWheel(true)
-  local RenderDropdownOptions
-  local function ScrollDropdownBy(delta)
-    local total = #(dd.options or {})
-    local maxVisible = dd._maxVisibleOptions or 12
-    local maxOffset = math.max(0, total - maxVisible)
-    local curOffset = dd._scrollOffset or 0
-    local nextOffset = curOffset - (delta or 0)
-    if nextOffset < 0 then nextOffset = 0 end
-    if nextOffset > maxOffset then nextOffset = maxOffset end
-    if nextOffset ~= curOffset then
-      dd._scrollOffset = nextOffset
-      RenderDropdownOptions()
-    end
-  end
-  RenderDropdownOptions = function()
-    local opts = dd.options or {}
-    local total = #opts
-    local maxVisible = dd._maxVisibleOptions or 12
-    local offset = dd._scrollOffset or 0
-    local maxOffset = math.max(0, total - maxVisible)
-    if offset > maxOffset then
-      offset = maxOffset
-      dd._scrollOffset = offset
-    end
-    if offset < 0 then
-      offset = 0
-      dd._scrollOffset = 0
-    end
-    local hasMoreBelow = offset < maxOffset
-    local optionSlots = maxVisible
-    if hasMoreBelow and optionSlots > 0 then
-      optionSlots = optionSlots - 1
-    end
-    local visibleCount = math.min(optionSlots, total - offset)
-    if visibleCount < 0 then visibleCount = 0 end
-    local listW = dd._effectiveWidth or w
-    local buttonWidth = listW - 2
-    list:SetWidth(listW)
-    for i = 1, maxVisible do
-      local btn = dd._buttons[i]
-      if not btn then
-        btn = CreateFrame("Button", nil, list, "BackdropTemplate")
-        btn:SetSize(buttonWidth, 22)
-        btn:SetPoint("TOPLEFT", list, "TOPLEFT", 1, -((i - 1) * 22) - 1)
-        btn:SetFrameStrata(list:GetFrameStrata())
-        btn:SetFrameLevel(list:GetFrameLevel() + 1)
-        btn:EnableMouseWheel(true)
-        btn.text = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-        btn.text:SetPoint("LEFT", btn, "LEFT", 8, 0)
-        btn:SetScript("OnMouseWheel", function(_, delta)
-          ScrollDropdownBy(delta)
-        end)
-        dd._buttons[i] = btn
-      else
-        btn:SetWidth(buttonWidth)
-      end
-      local optIndex = offset + i
-      local opt = (i <= visibleCount) and opts[optIndex] or nil
-      if opt then
-        btn.optValue = opt.value
-        btn.text:SetText(opt.text)
-        if opt.disabled then
-          btn.text:SetTextColor(0.4, 0.4, 0.4)
-          btn:SetScript("OnEnter", nil)
-          btn:SetScript("OnLeave", nil)
-          btn:SetScript("OnClick", function() end)
-        else
-          btn.text:SetTextColor(0.9, 0.9, 0.9)
-          btn:SetScript("OnEnter", function(self)
-            self:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
-            self:SetBackdropColor(0.25, 0.25, 0.3, 1)
-          end)
-          btn:SetScript("OnLeave", function(self)
-            self:SetBackdrop(nil)
-          end)
-          btn:SetScript("OnClick", function()
-            dd.value = opt.value
-            txt:SetText(opt.text)
-            if not dd.keepOpenOnSelect then list:Hide() end
-            if dd.onSelect then dd.onSelect(opt.value) end
-          end)
-        end
-        if dd.onButtonRendered then dd.onButtonRendered(btn, opt, i) end
-        btn:Show()
-      else
-        if dd.onButtonRendered then dd.onButtonRendered(btn, nil, i) end
-        btn:Hide()
-      end
-    end
-    if not dd._moreIndicator then
-      local hint = CreateFrame("Button", nil, list, "BackdropTemplate")
-      hint:SetSize(buttonWidth, 22)
-      hint:SetFrameStrata(list:GetFrameStrata())
-      hint:SetFrameLevel(list:GetFrameLevel() + 1)
-      hint:EnableMouseWheel(true)
-      hint.tex = hint:CreateTexture(nil, "ARTWORK")
-      hint.tex:SetSize(12, 12)
-      hint.tex:SetPoint("CENTER", hint, "CENTER", 0, 0)
-      hint.tex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
-      hint.tex:SetVertexColor(0.95, 0.95, 0.95, 0.95)
-      hint:SetScript("OnEnter", function(self)
-        self:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
-        self:SetBackdropColor(0.22, 0.22, 0.27, 0.9)
-        if self.tex then self.tex:SetVertexColor(1, 0.82, 0, 1) end
-      end)
-      hint:SetScript("OnLeave", function(self)
-        self:SetBackdrop(nil)
-        if self.tex then self.tex:SetVertexColor(0.95, 0.95, 0.95, 0.95) end
-      end)
-      hint:SetScript("OnClick", function()
-        local nextOffset = (dd._scrollOffset or 0) + 1
-        local maxOff = math.max(0, #(dd.options or {}) - (dd._maxVisibleOptions or 12))
-        if nextOffset > maxOff then nextOffset = maxOff end
-        if nextOffset ~= dd._scrollOffset then
-          dd._scrollOffset = nextOffset
-          RenderDropdownOptions()
-        end
-      end)
-      hint:SetScript("OnMouseWheel", function(_, delta)
-        ScrollDropdownBy(delta)
-      end)
-      dd._moreIndicator = hint
-    end
-    if dd._moreIndicator then dd._moreIndicator:SetWidth(buttonWidth) end
-    local listRows = visibleCount
-    if hasMoreBelow and dd._moreIndicator then
-      dd._moreIndicator:ClearAllPoints()
-      dd._moreIndicator:SetPoint("TOPLEFT", list, "TOPLEFT", 1, -((visibleCount) * 22) - 1)
-      dd._moreIndicator:Show()
-      listRows = listRows + 1
-    elseif dd._moreIndicator then
-      dd._moreIndicator:Hide()
-    end
-    list:SetHeight((listRows * 22) + 2)
-  end
-  dd.RenderOptions = RenderDropdownOptions
-  list:SetScript("OnMouseWheel", function(_, delta)
-    ScrollDropdownBy(delta)
-  end)
-  function dd:SetOptions(opts)
-    dd.options = opts or {}
-    dd._scrollOffset = 0
-    local maxTextW = 0
-    local oldText = txt:GetText()
-    for _, opt in ipairs(dd.options) do
-      txt:SetText(opt.text)
-      local tw = txt:GetStringWidth()
-      if tw > maxTextW then maxTextW = tw end
-    end
-    txt:SetText(oldText or "")
-    local neededW = math.max(w, maxTextW + 30)
-    dd._effectiveWidth = neededW
-    RenderDropdownOptions()
-    if dd.value ~= nil then
-      dd:SetValue(dd.value)
-    end
-  end
-  function dd:SetValue(val)
-    dd.value = val
-    for _, opt in ipairs(dd.options) do
-      if opt.value == val then txt:SetText(opt.text); return end
-    end
-    txt:SetText(val or "")
-  end
-  function dd:SetEnabled(enabled)
-    if enabled then
-      dd:EnableMouse(true)
-      dd:SetAlpha(1)
-      if lbl then lbl:SetTextColor(0.9, 0.9, 0.9) end
-    else
-      dd:EnableMouse(false)
-      dd:SetAlpha(0.5)
-      if lbl then lbl:SetTextColor(0.4, 0.4, 0.4) end
-    end
-  end
-  dd:SetScript("OnMouseDown", function()
-    if list:IsShown() then
-      list:Hide()
-    else
-      if _activeDropdownList and _activeDropdownList ~= list then
-        _activeDropdownList:Hide()
-      end
-      if dd.refreshOptions then
-        pcall(dd.refreshOptions, dd)
-      end
-      dd._scrollOffset = 0
-      RenderDropdownOptions()
-      list:ClearAllPoints()
-      list:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
-      list:SetFrameStrata("TOOLTIP")
-      list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
-      list:Show()
-      _activeDropdownList = list
-      EnsureDropdownClickCatcher()
-      if _dropdownClickCatcher then
-        _dropdownClickCatcher:SetFrameStrata(list:GetFrameStrata())
-        _dropdownClickCatcher:SetFrameLevel(math.max((list:GetFrameLevel() or 2) - 1, 1))
-        _dropdownClickCatcher:Show()
-      end
-    end
-  end)
-  dd:SetScript("OnEnter", function() dd:SetBackdropColor(0.18, 0.18, 0.22, 1) end)
-  dd:SetScript("OnLeave", function() dd:SetBackdropColor(0.12, 0.12, 0.14, 1) end)
-  return dd, lbl
-end
 addonTable.ConfigFrame = cfg
 addonTable.tabFrames = tabFrames
 addonTable.MAX_TABS = MAX_TABS
@@ -1846,10 +1337,6 @@ addonTable.SwitchToTab = function(idx)
   if idx < 1 or idx > MAX_TABS then return end
   ActivateTab(idx)
 end
-addonTable.Section = Section
-addonTable.Slider = Slider
-addonTable.Checkbox = Checkbox
-addonTable.StyledDropdown = StyledDropdown
 addonTable.profileText = profileText
 addonTable.profileDropdown = profileDropdown
 addonTable.profileList = profileList
@@ -1874,6 +1361,9 @@ SlashCmdList["CCM"] = function()
   else
     SetGUIOpen(true)
     if addonTable.RefreshConfigOnShow then addonTable.RefreshConfigOnShow() end
+    if addonTable.MaybeShowUpdateChangelogOnConfigOpen then
+      addonTable.MaybeShowUpdateChangelogOnConfigOpen()
+    end
     cfg:Show()
   end
 end
@@ -1901,6 +1391,36 @@ SlashCmdList["CCMEDITMODE"] = function()
   end
   if EditModeManagerFrame and EditModeManagerFrame.Show then
     EditModeManagerFrame:Show()
+  end
+end
+SLASH_CCMDEBUG1 = "/ccmdebug"
+SlashCmdList["CCMDEBUG"] = function(msg)
+  local trimmed = type(msg) == "string" and msg:match("^%s*(.-)%s*$") or ""
+  if trimmed == "stop" then
+    if addonTable.StopCCMDebugProfile then
+      addonTable.StopCCMDebugProfile()
+    else
+      print("|cff00ff00CCM Debug:|r profiler not available.")
+    end
+    return
+  end
+  local seconds = tonumber(trimmed) or 10
+  if addonTable.StartCCMDebugProfile then
+    addonTable.StartCCMDebugProfile(seconds)
+  else
+    print("|cff00ff00CCM Debug:|r profiler not available.")
+  end
+end
+SLASH_CCMINSTALL1 = "/ccminstall"
+SlashCmdList["CCMINSTALL"] = function()
+  if InCombatLockdown() then
+    print("|cff00ff00CCM:|r Cannot open installer in combat.")
+    return
+  end
+  if addonTable.OpenInstallWizard then
+    addonTable.OpenInstallWizard()
+  else
+    print("|cff00ff00CCM:|r Installer not available.")
   end
 end
 local initFrame = CreateFrame("Frame")

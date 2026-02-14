@@ -132,6 +132,40 @@ noTargetAlertFrame.text:SetPoint("CENTER")
 noTargetAlertFrame.text:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
 noTargetAlertFrame.text:SetText("NO TARGET")
 noTargetAlertFrame.text:SetTextColor(1, 0, 0, 1)
+noTargetAlertFrame:SetMovable(true)
+noTargetAlertFrame:EnableMouse(false)
+noTargetAlertFrame:SetClampedToScreen(true)
+noTargetAlertFrame:RegisterForDrag("LeftButton")
+noTargetAlertFrame:SetScript("OnDragStart", function(self)
+  local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
+  local activeTab = addonTable.activeTab and addonTable.activeTab()
+  local qolTab = addonTable.TAB_QOL or 12
+  if not guiOpen or activeTab ~= qolTab then return end
+  self:StartMoving()
+end)
+noTargetAlertFrame:SetScript("OnDragStop", function(self)
+  self:StopMovingOrSizing()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  local scale = self:GetScale() or 1
+  local centerX, centerY = self:GetCenter()
+  local parentCenterX, parentCenterY = UIParent:GetCenter()
+  if centerX and centerY and parentCenterX and parentCenterY then
+    local rx = centerX * scale - parentCenterX
+    local ry = centerY * scale - parentCenterY
+    profile.noTargetAlertX = (rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5)
+    profile.noTargetAlertY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
+    if addonTable.noTargetAlertXSlider then
+      addonTable.noTargetAlertXSlider:SetValue(profile.noTargetAlertX)
+      addonTable.noTargetAlertXSlider.valueText:SetText(profile.noTargetAlertX)
+    end
+    if addonTable.noTargetAlertYSlider then
+      addonTable.noTargetAlertYSlider:SetValue(profile.noTargetAlertY)
+      addonTable.noTargetAlertYSlider.valueText:SetText(profile.noTargetAlertY)
+    end
+    if addonTable.UpdateNoTargetAlertPreviewIfActive then addonTable.UpdateNoTargetAlertPreviewIfActive() end
+  end
+end)
 addonTable.NoTargetAlertFrame = noTargetAlertFrame
 State.noTargetAlertFlashActive = false
 State.noTargetAlertFlashTime = 0
@@ -158,8 +192,8 @@ addonTable.CombatTimerFrame:RegisterForDrag("LeftButton")
 addonTable.CombatTimerFrame:SetScript("OnDragStart", function(self)
   local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
   local activeTab = addonTable.activeTab and addonTable.activeTab()
-  local qolTab = addonTable.TAB_QOL or 12
-  if not guiOpen or activeTab ~= qolTab then return end
+  local combatTab = addonTable.TAB_COMBAT or 19
+  if not guiOpen or activeTab ~= combatTab then return end
   self:StartMoving()
 end)
 addonTable.CombatTimerFrame:SetScript("OnDragStop", function(self)
@@ -173,6 +207,7 @@ addonTable.CombatTimerFrame:SetScript("OnDragStop", function(self)
     local rx = centerX * scale - parentCenterX
     local ry = centerY * scale - parentCenterY
     local centered = profile.combatTimerCentered == true
+    if centered then rx = 0 end
     profile.combatTimerX = centered and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
     profile.combatTimerY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
     if addonTable.UpdateCombatTimerSliders then
@@ -207,9 +242,16 @@ function addonTable.UpdateCombatTimer()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local frame = addonTable.CombatTimerFrame
   if not frame then return end
+  local combatTab = addonTable.TAB_COMBAT or 19
+  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == combatTab)
+  frame:EnableMouse(draggable)
   if not profile or profile.combatTimerEnabled ~= true then
-    if addonTable.StopCombatTimerTicker then addonTable.StopCombatTimerTicker() end
-    frame:Hide()
+    if draggable then
+      frame:Show()
+    else
+      if addonTable.StopCombatTimerTicker then addonTable.StopCombatTimerTicker() end
+      frame:Hide()
+    end
     return
   end
   local x = type(profile.combatTimerX) == "number" and profile.combatTimerX or 0
@@ -240,9 +282,6 @@ function addonTable.UpdateCombatTimer()
   frame.text:SetTextColor(tr, tg, tb, 1)
   local mode = profile.combatTimerMode == "always" and "always" or "combat"
   local shouldShow = (mode == "always") or State.combatTimerActive
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
-  frame:EnableMouse(draggable)
   if shouldShow or draggable then
     frame:Show()
     if addonTable.StartCombatTimerTicker then addonTable.StartCombatTimerTicker() end
@@ -313,8 +352,8 @@ addonTable.crTimerFrame.blText:SetTextColor(1, 1, 1, 1)
 addonTable.crTimerFrame:SetScript("OnDragStart", function(self)
   local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
   local activeTab = addonTable.activeTab and addonTable.activeTab()
-  local qolTab = addonTable.TAB_QOL or 12
-  if not guiOpen or activeTab ~= qolTab then return end
+  local combatTab = addonTable.TAB_COMBAT or 19
+  if not guiOpen or activeTab ~= combatTab then return end
   self:StartMoving()
 end)
 addonTable.crTimerFrame:SetScript("OnDragStop", function(self)
@@ -327,6 +366,7 @@ addonTable.crTimerFrame:SetScript("OnDragStop", function(self)
   if centerX and centerY and parentCenterX and parentCenterY then
     local rx = centerX * scale - parentCenterX
     local ry = centerY * scale - parentCenterY
+    if profile.crTimerCentered == true then rx = 0 end
     profile.crTimerX = (profile.crTimerCentered == true) and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
     profile.crTimerY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
     if addonTable.UpdateCRTimerSliders then addonTable.UpdateCRTimerSliders(profile.crTimerX, profile.crTimerY) end
@@ -350,8 +390,8 @@ addonTable.CombatStatusFrame.text:SetText("* Entering Combat *")
 addonTable.CombatStatusFrame:SetScript("OnDragStart", function(self)
   local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
   local activeTab = addonTable.activeTab and addonTable.activeTab()
-  local qolTab = addonTable.TAB_QOL or 12
-  if not guiOpen or activeTab ~= qolTab then return end
+  local combatTab = addonTable.TAB_COMBAT or 19
+  if not guiOpen or activeTab ~= combatTab then return end
   self:StartMoving()
 end)
 addonTable.CombatStatusFrame:SetScript("OnDragStop", function(self)
@@ -364,6 +404,7 @@ addonTable.CombatStatusFrame:SetScript("OnDragStop", function(self)
   if centerX and centerY and parentCenterX and parentCenterY then
     local rx = centerX * scale - parentCenterX
     local ry = centerY * scale - parentCenterY
+    if profile.combatStatusCentered == true then rx = 0 end
     profile.combatStatusX = (profile.combatStatusCentered == true) and 0 or ((rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5))
     profile.combatStatusY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
     if addonTable.UpdateCombatStatusSliders then addonTable.UpdateCombatStatusSliders(profile.combatStatusX, profile.combatStatusY) end
@@ -394,7 +435,10 @@ function addonTable.UpdateCombatStatus()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local frame = addonTable.CombatStatusFrame
   if not profile or not frame or not frame.text then return end
-  if profile.combatStatusEnabled ~= true and not State.combatStatusPreviewMode then
+  local combatTab = addonTable.TAB_COMBAT or 19
+  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == combatTab)
+  frame:EnableMouse(draggable or State.combatStatusPreviewMode)
+  if profile.combatStatusEnabled ~= true and not State.combatStatusPreviewMode and not draggable then
     frame:Hide()
     return
   end
@@ -405,10 +449,7 @@ function addonTable.UpdateCombatStatus()
   local csY = profile.combatStatusY or 280
   frame:SetPoint("CENTER", UIParent, "CENTER", csX / csScale, csY / csScale)
   SetCombatStatusText(State.combatStatusLastEntering ~= false)
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
-  frame:EnableMouse(draggable)
-  if State.combatStatusPreviewMode then
+  if State.combatStatusPreviewMode or draggable then
     frame:Show()
   end
 end
@@ -496,13 +537,18 @@ function addonTable.UpdateCRTimer()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local frame = addonTable.crTimerFrame
   if not profile or not frame then return end
+  local combatTab = addonTable.TAB_COMBAT or 19
+  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == combatTab)
+  frame:EnableMouse(draggable)
   if profile.crTimerEnabled ~= true then
-    frame:Hide()
-    if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
+    if draggable then
+      frame:Show()
+    else
+      frame:Hide()
+      if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
+    end
     return
   end
-  local qolTab = addonTable.TAB_QOL or 11
-  local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
   local mode = profile.crTimerMode == "always" and "always" or "combat"
   local shouldShow = (mode == "always") or UnitAffectingCombat("player")
   if not shouldShow and not draggable then
@@ -539,7 +585,6 @@ function addonTable.UpdateCRTimer()
     frame.crText:SetPoint("LEFT", frame, "LEFT", 0, 0)
     frame:SetSize(190, 26)
   end
-  frame:EnableMouse(draggable)
   if addonTable.RefreshCRTimerText then addonTable.RefreshCRTimerText() end
   frame:Show()
   if addonTable.StartCRTimerTicker then addonTable.StartCRTimerTicker() end
@@ -572,10 +617,19 @@ local function StopNoTargetAlertFlash()
   noTargetAlertFrame:SetScript("OnUpdate", nil)
   noTargetAlertFrame.text:SetAlpha(1)
 end
+local function IsQolDragContext()
+  local qolTab = addonTable.TAB_QOL or 12
+  return (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == qolTab)
+end
 local function UpdateNoTargetAlert()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local draggable = IsQolDragContext()
+  noTargetAlertFrame:EnableMouse(draggable or State.noTargetAlertPreviewMode)
   if not profile or not profile.noTargetAlertEnabled then
-    if not State.noTargetAlertPreviewMode then
+    if draggable then
+      noTargetAlertFrame:Show()
+      StopNoTargetAlertFlash()
+    elseif not State.noTargetAlertPreviewMode then
       noTargetAlertFrame:Hide()
       StopNoTargetAlertFlash()
     end
@@ -595,7 +649,7 @@ local function UpdateNoTargetAlert()
   noTargetAlertFrame.text:SetTextColor(r, g, b, 1)
   local inCombat = InCombatLockdown()
   local hasTarget = UnitExists("target")
-  if inCombat and not hasTarget then
+  if (inCombat and not hasTarget) or draggable then
     noTargetAlertFrame:Show()
     if profile.noTargetAlertFlash then
       StartNoTargetAlertFlash()
@@ -623,6 +677,7 @@ local function ShowNoTargetAlertPreview()
   noTargetAlertFrame.text:SetFont(globalFont, fontSize, globalOutline or "OUTLINE")
   noTargetAlertFrame.text:SetTextColor(r, g, b, 1)
   State.noTargetAlertPreviewMode = true
+  noTargetAlertFrame:EnableMouse(true)
   noTargetAlertFrame:Show()
   if profile.noTargetAlertFlash then
     StartNoTargetAlertFlash()
@@ -633,6 +688,7 @@ end
 addonTable.ShowNoTargetAlertPreview = ShowNoTargetAlertPreview
 local function StopNoTargetAlertPreview()
   State.noTargetAlertPreviewMode = false
+  noTargetAlertFrame:EnableMouse(false)
   StopNoTargetAlertFlash()
   UpdateNoTargetAlert()
 end
@@ -1383,6 +1439,22 @@ local function ShouldHideActionBarGlows()
   return profile.hideActionBarGlows ~= false
 end
 
+local function ShouldHideBlizzCDMGlows()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return false end
+  return profile.hideBlizzCDMGlows == true
+end
+
+local abPrefixes = {"ActionButton","MultiBarBottomLeftButton","MultiBarBottomRightButton","MultiBarRightButton","MultiBarLeftButton","MultiBar5Button","MultiBar6Button","MultiBar7Button","StanceButton","PetActionButton","PossessButton","OverrideActionBarButton"}
+local function IsKnownActionButton(frame)
+  local name = frame and frame.GetName and frame:GetName()
+  if not name then return false end
+  for i = 1, #abPrefixes do
+    if name:sub(1, #abPrefixes[i]) == abPrefixes[i] then return true end
+  end
+  return false
+end
+
 local function RestoreCooldownVisualState(state, cooldownFrame)
   if not state or not cooldownFrame then return end
   local visual = state.origCooldownVisual
@@ -1420,9 +1492,16 @@ local function RestoreButtonGlowVisual(btn)
   if ActionButton_UpdateSpellActivationAlert then pcall(ActionButton_UpdateSpellActivationAlert, btn) end
 end
 
+local function HideOverlayGlowCompat(btn)
+  if not btn then return end
+  if ActionButtonSpellAlertManager and ActionButtonSpellAlertManager.HideAlert then
+    pcall(ActionButtonSpellAlertManager.HideAlert, ActionButtonSpellAlertManager, btn)
+  end
+end
+
 local function SuppressButtonGlow(btn)
   if not btn then return end
-  if ActionButton_HideOverlayGlow then ActionButton_HideOverlayGlow(btn) end
+  HideOverlayGlowCompat(btn)
   if btn.Border then
     btn.Border:SetAlpha(0)
     btn.Border:Hide()
@@ -1484,39 +1563,54 @@ local function EnsureOverlayGlowSuppressedHook()
   if ccmOverlayGlowHooked then return end
   if not hooksecurefunc then return end
   ccmOverlayGlowHooked = true
-  if ActionButton_ShowOverlayGlow then
-    hooksecurefunc("ActionButton_ShowOverlayGlow", function(button)
-      if button and ShouldHideActionBarGlows() then
-        SuppressButtonGlow(button)
+  if ActionButtonSpellAlertManager and ActionButtonSpellAlertManager.ShowAlert then
+    hooksecurefunc(ActionButtonSpellAlertManager, "ShowAlert", function(_, button)
+      if not button then return end
+      if IsKnownActionButton(button) then
+        if ShouldHideActionBarGlows() then SuppressButtonGlow(button) end
+      else
+        if ShouldHideBlizzCDMGlows() then SuppressButtonGlow(button) end
       end
     end)
   end
   if ActionButton_ShowSpellActivationAlert then
     hooksecurefunc("ActionButton_ShowSpellActivationAlert", function(button)
-      if button and ShouldHideActionBarGlows() then
-        SuppressButtonGlow(button)
+      if not button then return end
+      if IsKnownActionButton(button) then
+        if ShouldHideActionBarGlows() then SuppressButtonGlow(button) end
+      else
+        if ShouldHideBlizzCDMGlows() then SuppressButtonGlow(button) end
       end
     end)
   end
   if ActionButton_UpdateSpellActivationAlert then
     hooksecurefunc("ActionButton_UpdateSpellActivationAlert", function(button)
-      if button and ShouldHideActionBarGlows() then
-        SuppressButtonGlow(button)
+      if not button then return end
+      if IsKnownActionButton(button) then
+        if ShouldHideActionBarGlows() then SuppressButtonGlow(button) end
+      else
+        if ShouldHideBlizzCDMGlows() then SuppressButtonGlow(button) end
       end
     end)
   end
   if ActionButton_UpdateOverlayGlow then
     hooksecurefunc("ActionButton_UpdateOverlayGlow", function(button)
-      if button and ShouldHideActionBarGlows() then
-        SuppressButtonGlow(button)
+      if not button then return end
+      if IsKnownActionButton(button) then
+        if ShouldHideActionBarGlows() then SuppressButtonGlow(button) end
+      else
+        if ShouldHideBlizzCDMGlows() then SuppressButtonGlow(button) end
       end
     end)
   end
   local libButtonGlow = LibStub and LibStub("LibButtonGlow-1.0", true)
   if libButtonGlow and libButtonGlow.ShowOverlayGlow then
     hooksecurefunc(libButtonGlow, "ShowOverlayGlow", function(_, button)
-      if button and ShouldHideActionBarGlows() then
-        SuppressButtonGlow(button)
+      if not button then return end
+      if IsKnownActionButton(button) then
+        if ShouldHideActionBarGlows() then SuppressButtonGlow(button) end
+      else
+        if ShouldHideBlizzCDMGlows() then SuppressButtonGlow(button) end
       end
     end)
   end
@@ -2351,8 +2445,8 @@ local function UpdateSlotOverlay(slotInfo)
     return
   end
   local ilvl
-  if GetDetailedItemLevelInfo then
-    ilvl = GetDetailedItemLevelInfo(itemLink)
+  if C_Item and C_Item.GetDetailedItemLevelInfo then
+    ilvl = C_Item.GetDetailedItemLevelInfo(itemLink)
   end
   local quality = GetInventoryItemQuality("player", slotID) or 1
   local qc = QUALITY_COLORS[quality] or QUALITY_COLORS[1]
@@ -2783,7 +2877,7 @@ addonTable.TryAutoSellJunk = function()
     end
   end
   if count > 0 then
-    local coinStr = GetCoinTextureString and GetCoinTextureString(totalPrice) or (totalPrice .. "c")
+    local coinStr = (C_CurrencyInfo and C_CurrencyInfo.GetCoinTextureString and C_CurrencyInfo.GetCoinTextureString(totalPrice)) or (totalPrice .. "c")
     print("|cFF00CCFFCooldownCursorManager:|r Sold " .. count .. " junk item" .. (count > 1 and "s" or "") .. " for " .. coinStr)
   end
 end
@@ -2899,6 +2993,40 @@ lowHealthWarningFrame.text:SetPoint("CENTER")
 lowHealthWarningFrame.text:SetTextColor(1, 0, 0, 1)
 lowHealthWarningFrame.text:SetFont("Fonts\\FRIZQT__.TTF", 36, "OUTLINE")
 lowHealthWarningFrame.text:SetText("LOW HEALTH")
+lowHealthWarningFrame:SetMovable(true)
+lowHealthWarningFrame:EnableMouse(false)
+lowHealthWarningFrame:SetClampedToScreen(true)
+lowHealthWarningFrame:RegisterForDrag("LeftButton")
+lowHealthWarningFrame:SetScript("OnDragStart", function(self)
+  local guiOpen = addonTable.GetGUIOpen and addonTable.GetGUIOpen()
+  local activeTab = addonTable.activeTab and addonTable.activeTab()
+  local qolTab = addonTable.TAB_QOL or 12
+  if not guiOpen or activeTab ~= qolTab then return end
+  self:StartMoving()
+end)
+lowHealthWarningFrame:SetScript("OnDragStop", function(self)
+  self:StopMovingOrSizing()
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  if not profile then return end
+  local scale = self:GetScale() or 1
+  local centerX, centerY = self:GetCenter()
+  local parentCenterX, parentCenterY = UIParent:GetCenter()
+  if centerX and centerY and parentCenterX and parentCenterY then
+    local rx = centerX * scale - parentCenterX
+    local ry = centerY * scale - parentCenterY
+    profile.lowHealthWarningX = (rx >= 0) and math.floor(rx + 0.5) or math.ceil(rx - 0.5)
+    profile.lowHealthWarningY = (ry >= 0) and math.floor(ry + 0.5) or math.ceil(ry - 0.5)
+    if addonTable.lowHealthWarningXSlider then
+      addonTable.lowHealthWarningXSlider:SetValue(profile.lowHealthWarningX)
+      addonTable.lowHealthWarningXSlider.valueText:SetText(profile.lowHealthWarningX)
+    end
+    if addonTable.lowHealthWarningYSlider then
+      addonTable.lowHealthWarningYSlider:SetValue(profile.lowHealthWarningY)
+      addonTable.lowHealthWarningYSlider.valueText:SetText(profile.lowHealthWarningY)
+    end
+    if addonTable.UpdateLowHealthWarningPreviewIfActive then addonTable.UpdateLowHealthWarningPreviewIfActive() end
+  end
+end)
 addonTable.LowHealthWarningFrame = lowHealthWarningFrame
 
 local lowHealthSoundPlayed = false
@@ -2944,14 +3072,31 @@ local function ApplyLowHealthWarningSettings()
 end
 
 local function UpdateLowHealthWarning()
-  if State.lowHealthWarningPreviewMode then return end
   local profile = addonTable.GetProfile and addonTable.GetProfile()
+  local draggable = IsQolDragContext()
+  lowHealthWarningFrame:EnableMouse(draggable or State.lowHealthWarningPreviewMode)
+  if State.lowHealthWarningPreviewMode then return end
   if not profile or not profile.lowHealthWarningEnabled then
-    lowHealthWarningFrame:Hide()
-    StopLowHealthWarningFlash()
+    if draggable then
+      ApplyLowHealthWarningSettings()
+      lowHealthWarningFrame:Show()
+      StopLowHealthWarningFlash()
+    else
+      lowHealthWarningFrame:Hide()
+      StopLowHealthWarningFlash()
+    end
     return
   end
   ApplyLowHealthWarningSettings()
+  if draggable then
+    lowHealthWarningFrame:Show()
+    if profile.lowHealthWarningFlash then
+      StartLowHealthWarningFlash()
+    else
+      StopLowHealthWarningFlash()
+    end
+    return
+  end
 end
 addonTable.UpdateLowHealthWarning = UpdateLowHealthWarning
 
@@ -2960,6 +3105,7 @@ local function ShowLowHealthWarningPreview()
   if not profile then return end
   ApplyLowHealthWarningSettings()
   State.lowHealthWarningPreviewMode = true
+  lowHealthWarningFrame:EnableMouse(true)
   lowHealthWarningFrame:Show()
   if profile.lowHealthWarningFlash then
     StartLowHealthWarningFlash()
@@ -2982,6 +3128,7 @@ addonTable.ShowLowHealthWarningPreview = ShowLowHealthWarningPreview
 
 local function StopLowHealthWarningPreview()
   State.lowHealthWarningPreviewMode = false
+  lowHealthWarningFrame:EnableMouse(false)
   StopLowHealthWarningFlash()
   lowHealthWarningFrame:Hide()
   UpdateLowHealthWarning()

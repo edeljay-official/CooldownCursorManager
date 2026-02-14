@@ -238,6 +238,7 @@ CCM.Defaults = {
       fadeMicroMenu = false,
       hideActionBarBorders = false,
       hideActionBarGlows = true,
+      hideBlizzCDMGlows = false,
       abSkinSpacing = 2,
       actionBarGlobalMode = "custom",
       fadeObjectiveTracker = false,

@@ -10,38 +10,10 @@ local function CreateIcons() if addonTable.CreateIcons then addonTable.CreateIco
 local function UpdateAllIcons()
   if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
 end
-local function SetStyledSliderShown(slider, shown)
-  if not slider then return end
-  slider:SetShown(shown)
-  if slider.label then slider.label:SetShown(shown) end
-  if slider.valueTextBg then slider.valueTextBg:SetShown(shown) end
-  if slider.upBtn then slider.upBtn:SetShown(shown) end
-  if slider.downBtn then slider.downBtn:SetShown(shown) end
-end
-local function SetStyledCheckboxShown(cb, shown)
-  if not cb then return end
-  cb:SetShown(shown)
-  if cb.Text then cb.Text:SetShown(shown) end
-  if cb.label then cb.label:SetShown(shown) end
-end
-local function AttachCheckboxTooltip(cb, text, opts)
-  if not cb then return end
-  opts = opts or {}
-  cb:SetScript("OnEnter", function(self)
-    GameTooltip:SetOwner(self, opts.anchor or "ANCHOR_RIGHT")
-    GameTooltip:ClearLines()
-    GameTooltip:AddLine(text, 1, 1, 1, true)
-    if opts.minWidth then
-      GameTooltip:SetMinimumWidth(opts.minWidth)
-    end
-    GameTooltip:Show()
-  end)
-  cb:SetScript("OnLeave", function()
-    GameTooltip:Hide()
-  end)
-end
+local SetStyledSliderShown = addonTable.SetStyledSliderShown
+local SetStyledCheckboxShown = addonTable.SetStyledCheckboxShown
+local AttachCheckboxTooltip = addonTable.AttachCheckboxTooltip
 local TRACK_BUFFS_TOOLTIP_TEXT = "Add buffs to Blizzard's CDM Buff Tracker\nand to the spell list below.\nTracked buffs are hidden in Blizzard CDM.\nIn Edit Mode, set Buff Tracker to\nAlways Visible or In Combat."
-local BUFF_OVERLAY_TOOLTIP_TEXT = "Uses a fixed buff duration sample\n(not live Blizzard Buff Tracker timing).\nIf Track Buffs is enabled,\nthis is used as fallback only."
 local DISABLE_BLIZZ_CDM_TOOLTIP_TEXT = "Disables Blizzard CDM bars and related integration.\nIf Track Buffs is enabled in any bar,\nthis option is re-enabled automatically."
 local function IsAnyTrackBuffsEnabled(profile)
   if not profile then return false end
@@ -146,149 +118,8 @@ local function FormatHalf(v)
   end
   return string.format("%.1f", n)
 end
-local function SetButtonHighlighted(btn, highlighted)
-  if not btn then return end
-  if highlighted then
-    btn:SetBackdropColor(0.1, 0.4, 0.1, 1)
-    btn:SetBackdropBorderColor(0.2, 0.8, 0.2, 1)
-    if btn.text then btn.text:SetTextColor(0.2, 1, 0.2) end
-    btn._highlighted = true
-    btn:SetScript("OnEnter", function()
-      btn:SetBackdropColor(0.15, 0.5, 0.15, 1)
-      if btn.text then btn.text:SetTextColor(0.3, 1, 0.3) end
-    end)
-    btn:SetScript("OnLeave", function()
-      btn:SetBackdropColor(0.1, 0.4, 0.1, 1)
-      if btn.text then btn.text:SetTextColor(0.2, 1, 0.2) end
-    end)
-  else
-    btn:SetBackdropColor(0.15, 0.15, 0.18, 1)
-    btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    if btn.text then btn.text:SetTextColor(0.9, 0.9, 0.9) end
-    btn._highlighted = false
-    btn:SetScript("OnEnter", function()
-      btn:SetBackdropColor(0.25, 0.25, 0.3, 1)
-      if btn.text then btn.text:SetTextColor(1, 1, 1) end
-    end)
-    btn:SetScript("OnLeave", function()
-      btn:SetBackdropColor(0.15, 0.15, 0.18, 1)
-      if btn.text then btn.text:SetTextColor(0.9, 0.9, 0.9) end
-    end)
-  end
-end
-addonTable.SetButtonHighlighted = SetButtonHighlighted
-local function ShowColorPicker(params)
-  if ColorPickerFrame and not ColorPickerFrame._ccmStyled then
-    local bg = CreateFrame("Frame", nil, ColorPickerFrame, "BackdropTemplate")
-    bg:SetPoint("TOPLEFT", 2, -2)
-    bg:SetPoint("BOTTOMRIGHT", -2, 2)
-    bg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 2})
-    bg:SetBackdropColor(0.08, 0.08, 0.10, 0.97)
-    bg:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-    bg:SetFrameLevel(ColorPickerFrame:GetFrameLevel() - 1)
-    ColorPickerFrame._ccmBg = bg
-    local title = ColorPickerFrame:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
-    title:SetPoint("TOP", ColorPickerFrame, "TOP", 0, -10)
-    title:SetText("Color Picker")
-    title:SetTextColor(1, 0.82, 0)
-    ColorPickerFrame._ccmTitle = title
-    ColorPickerFrame._ccmStyled = true
-    if ColorPickerFrame.Border then ColorPickerFrame.Border:SetAlpha(0) end
-    if ColorPickerFrame.Header then ColorPickerFrame.Header:SetAlpha(0) end
-    if ColorPickerFrame.DragBar then ColorPickerFrame.DragBar:SetAlpha(0) end
-    if ColorPickerFrame.NineSlice then ColorPickerFrame.NineSlice:Hide() end
-    if ColorPickerFrame.Bg then ColorPickerFrame.Bg:SetAlpha(0) end
-    if ColorPickerFrame.Background then ColorPickerFrame.Background:SetAlpha(0) end
-  end
-  if ColorPickerFrame then
-    local function StyleBtn(btn)
-      if not btn or btn._ccmStyled then return end
-      if not btn._ccmBg then
-        local bg = CreateFrame("Frame", nil, btn, "BackdropTemplate")
-        bg:SetPoint("TOPLEFT", btn, "TOPLEFT", 0, 0)
-        bg:SetPoint("BOTTOMRIGHT", btn, "BOTTOMRIGHT", 0, 0)
-        bg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-        bg:SetBackdropColor(0.12, 0.12, 0.14, 1)
-        bg:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-        bg:SetFrameLevel((btn:GetFrameLevel() or 1) - 1)
-        btn._ccmBg = bg
-      end
-      if btn.Left then btn.Left:SetAlpha(0) end
-      if btn.Middle then btn.Middle:SetAlpha(0) end
-      if btn.Right then btn.Right:SetAlpha(0) end
-      if btn.SetNormalTexture then btn:SetNormalTexture("Interface\\Buttons\\WHITE8x8") end
-      if btn.SetHighlightTexture then btn:SetHighlightTexture("Interface\\Buttons\\WHITE8x8") end
-      if btn.SetPushedTexture then btn:SetPushedTexture("Interface\\Buttons\\WHITE8x8") end
-      if btn.SetDisabledTexture then btn:SetDisabledTexture("Interface\\Buttons\\WHITE8x8") end
-      local function ZeroAlpha(tex)
-        if tex and tex.SetVertexColor then tex:SetVertexColor(1, 1, 1, 0) end
-      end
-      ZeroAlpha(btn:GetNormalTexture())
-      ZeroAlpha(btn:GetHighlightTexture())
-      ZeroAlpha(btn:GetPushedTexture())
-      ZeroAlpha(btn:GetDisabledTexture())
-      local fs = btn.GetFontString and btn:GetFontString()
-      if fs then fs:SetTextColor(0.9, 0.9, 0.9) end
-      btn._ccmStyled = true
-    end
-    local function StyleEditBox(box)
-      if not box or box._ccmStyled then return end
-      if not box._ccmBg then
-        local bg = CreateFrame("Frame", nil, box, "BackdropTemplate")
-        bg:SetPoint("TOPLEFT", box, "TOPLEFT", -2, 2)
-        bg:SetPoint("BOTTOMRIGHT", box, "BOTTOMRIGHT", 2, -2)
-        bg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-        bg:SetBackdropColor(0.12, 0.12, 0.14, 1)
-        bg:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-        bg:SetFrameLevel((box:GetFrameLevel() or 1) - 1)
-        box._ccmBg = bg
-      end
-      if box.Left then box.Left:SetAlpha(0) end
-      if box.Middle then box.Middle:SetAlpha(0) end
-      if box.Right then box.Right:SetAlpha(0) end
-      if box.SetTextColor then box:SetTextColor(0.9, 0.9, 0.9) end
-      box._ccmStyled = true
-    end
-    local ok = (ColorPickerFrame.Footer and ColorPickerFrame.Footer.OkayButton) or _G.ColorPickerOkayButton
-    local cancel = (ColorPickerFrame.Footer and ColorPickerFrame.Footer.CancelButton) or _G.ColorPickerCancelButton
-    local hexBox = (ColorPickerFrame.Content and ColorPickerFrame.Content.HexBox) or _G.ColorPickerHexBox
-    StyleBtn(ok)
-    StyleBtn(cancel)
-    StyleEditBox(hexBox)
-    for _, child in ipairs({ColorPickerFrame:GetChildren()}) do
-      if child and child.GetObjectType and child:GetObjectType() == "Button" then
-        StyleBtn(child)
-      elseif child and child.GetObjectType and child:GetObjectType() == "EditBox" then
-        StyleEditBox(child)
-      end
-    end
-    if ColorPickerFrame.Content then
-      for _, child in ipairs({ColorPickerFrame.Content:GetChildren()}) do
-        if child and child.GetObjectType then
-          local t = child:GetObjectType()
-          if t == "Button" then
-            StyleBtn(child)
-          elseif t == "EditBox" then
-            StyleEditBox(child)
-          end
-        end
-      end
-    end
-    ColorPickerFrame._ccmButtonsStyled = true
-  end
-  if ColorPickerFrame then
-    ColorPickerFrame:SetFrameStrata("TOOLTIP")
-    ColorPickerFrame:SetFrameLevel(5000)
-    if ColorPickerFrame.Footer then
-      ColorPickerFrame.Footer:SetAlpha(1)
-    end
-  end
-  if params.opacity == nil then
-    params.opacity = 1
-  end
-  ColorPickerFrame:SetupColorPickerAndShow(params)
-end
-addonTable.ShowColorPicker = ShowColorPicker
+local SetButtonHighlighted = addonTable.SetButtonHighlighted
+local ShowColorPicker = addonTable.ShowColorPicker
 local function GetRingPreviewTexture(thickness)
   local t = math.floor(tonumber(thickness) or 1)
   if t < 1 then t = 1 end
@@ -375,263 +206,70 @@ local function ResetAllPreviewHighlights()
   end
 end
 addonTable.ResetAllPreviewHighlights = ResetAllPreviewHighlights
-local function CreateArrowButton(parent, direction, w, h)
-  local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
-  btn:SetSize(w, h)
-  btn:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  btn:SetBackdropColor(0.15, 0.15, 0.18, 1)
-  btn:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-  local arrow = btn:CreateTexture(nil, "ARTWORK")
-  arrow:SetSize(12, 12)
-  arrow:SetPoint("CENTER")
-  if direction == "up" then
-    arrow:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up")
-  elseif direction == "down" then
-    arrow:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down")
-  end
-  arrow:SetVertexColor(0.7, 0.7, 0.7)
-  btn:SetScript("OnEnter", function() btn:SetBackdropColor(0.25, 0.25, 0.3, 1); arrow:SetVertexColor(1, 0.82, 0) end)
-  btn:SetScript("OnLeave", function() btn:SetBackdropColor(0.15, 0.15, 0.18, 1); arrow:SetVertexColor(0.7, 0.7, 0.7) end)
-  return btn
-end
-local function CreateDeleteButton(parent, w, h)
-  local btn = CreateFrame("Button", nil, parent, "BackdropTemplate")
-  btn:SetSize(w, h)
-  btn:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  btn:SetBackdropColor(0.25, 0.1, 0.1, 1)
-  btn:SetBackdropBorderColor(0.4, 0.2, 0.2, 1)
-  local t = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  t:SetPoint("CENTER")
-  t:SetText("X")
-  t:SetTextColor(1, 0.4, 0.4)
-  btn:SetScript("OnEnter", function() btn:SetBackdropColor(0.4, 0.15, 0.15, 1); t:SetTextColor(1, 0.6, 0.6) end)
-  btn:SetScript("OnLeave", function() btn:SetBackdropColor(0.25, 0.1, 0.1, 1); t:SetTextColor(1, 0.4, 0.4) end)
-  return btn
-end
-local SPELL_GLOW_TYPE_OPTIONS = {
-  { text = "Off", value = "off" },
-  { text = "Blizzard", value = "blizzard" },
-  { text = "Pixel", value = "pixel" },
-  { text = "Auto Cast", value = "autocast" },
-  { text = "Proc", value = "proc" },
-}
-local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, useCustomHideReveal, hideRevealThreshold, onHideRevealChange)
-  local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
-  local rowY = -4 - (idx - 1) * 34
-  row:SetHeight(32)
-  row:SetPoint("TOPLEFT", parent, "TOPLEFT", 4, rowY)
-  row:SetPoint("TOPRIGHT", parent, "TOPRIGHT", -2, rowY)
-  row:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
-  row:SetBackdropColor(0.08, 0.08, 0.10, 1)
-  row._ccmIdx = idx
-  if onReorder then
-    row:RegisterForDrag("LeftButton")
-    row:SetScript("OnDragStart", function(self)
-      parent._ccmDragSource = idx
-      parent._ccmDragTarget = nil
-      self:SetBackdropColor(0.20, 0.40, 0.20, 1)
-    end)
-    row:SetScript("OnDragStop", function()
-      local sourceIdx = parent._ccmDragSource
-      local targetIdx = parent._ccmDragTarget
-      parent._ccmDragSource = nil
-      parent._ccmDragTarget = nil
-      for _, child in ipairs({parent:GetChildren()}) do
-        if child.SetBackdropColor then child:SetBackdropColor(0.08, 0.08, 0.10, 1) end
-      end
-      if sourceIdx and targetIdx and sourceIdx ~= targetIdx then
-        onReorder(sourceIdx, targetIdx)
-      end
-    end)
-    row:SetScript("OnEnter", function(self)
-      if parent._ccmDragSource and parent._ccmDragSource ~= idx then
-        parent._ccmDragTarget = idx
-        self:SetBackdropColor(0.15, 0.30, 0.45, 1)
-      end
-    end)
-    row:SetScript("OnLeave", function(self)
-      if parent._ccmDragSource then
-        if parent._ccmDragTarget == idx then parent._ccmDragTarget = nil end
-        if parent._ccmDragSource ~= idx then
-          self:SetBackdropColor(0.08, 0.08, 0.10, 1)
-        end
-      end
-    end)
-  end
+local CreateSpellRow = addonTable.CreateSpellRow
+local function HasRealCooldownForHideReveal(entryID, isChargeSpell)
+  if type(entryID) ~= "number" then return false end
   local isItem = entryID < 0
   local actualID = math.abs(entryID)
-  local iconTexture, nameText, idText
   if isItem then
-    iconTexture = C_Item.GetItemIconByID(actualID)
-    local itemName = C_Item.GetItemInfo(actualID)
-    nameText = itemName or "Loading..."
-    idText = " |cff888888(" .. actualID .. ")|r"
-  else
-    local spellInfo = C_Spell.GetSpellInfo(actualID)
-    iconTexture = spellInfo and spellInfo.iconID
-    nameText = spellInfo and spellInfo.name or "Loading..."
-    idText = " |cff888888(" .. actualID .. ")|r"
+    if C_Item and C_Item.GetItemCooldown then
+      local startTime, duration = C_Item.GetItemCooldown(actualID)
+      if type(duration) == "number" and duration > 1.5 then return true end
+    end
+    return false
   end
-  local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
-  cb:SetPoint("LEFT", row, "LEFT", 2, 0)
-  cb:SetSize(20, 20)
-  cb:SetChecked(isEnabled ~= false)
-  cb:SetScript("OnClick", function(s) onToggle(idx, s:GetChecked()) end)
-  local icon = row:CreateTexture(nil, "ARTWORK")
-  icon:SetSize(22, 22)
-  icon:SetPoint("LEFT", cb, "RIGHT", 2, 0)
-  icon:SetTexture(iconTexture or "Interface\\Icons\\INV_Misc_QuestionMark")
-  icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-  local name = row:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-  name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
-  name:SetJustifyH("LEFT")
-  name:SetText(nameText .. idText)
-  name:SetTextColor(0.9, 0.9, 0.9)
-  local delBtn = CreateDeleteButton(row, 20, 20)
-  delBtn:SetPoint("RIGHT", row, "RIGHT", -1, 0)
-  delBtn:SetScript("OnClick", function() onDelete(idx) end)
-  local downBtn = CreateArrowButton(row, "down", 20, 20)
-  downBtn:SetPoint("RIGHT", delBtn, "LEFT", -2, 0)
-  downBtn:SetScript("OnClick", function() onMoveDown(idx) end)
-  local upBtn = CreateArrowButton(row, "up", 20, 20)
-  upBtn:SetPoint("RIGHT", downBtn, "LEFT", -2, 0)
-  upBtn:SetScript("OnClick", function() onMoveUp(idx) end)
-  local glowDD = addonTable.StyledDropdown(row, nil, 0, 0, 105)
-  glowDD:ClearAllPoints()
-  glowDD:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
-  glowDD:SetOptions(SPELL_GLOW_TYPE_OPTIONS)
-  local initialGlowType = type(spellGlowType) == "string" and string.lower(spellGlowType) or "off"
-  glowDD:SetValue(initialGlowType)
-  glowDD.keepOpenOnSelect = false
-  if onGlowTypeSelect then
-    glowDD.onSelect = function(value)
-      onGlowTypeSelect(idx, value)
+  local resolvedID = actualID
+  if addonTable.ResolveTrackedSpellID then
+    local rid = addonTable.ResolveTrackedSpellID(actualID)
+    if type(rid) == "number" and rid > 0 then
+      resolvedID = rid
     end
   end
-  local hrFrame = CreateFrame("Frame", nil, row)
-  hrFrame:SetSize(148, 20)
-  local hrSlider = CreateFrame("Slider", nil, hrFrame, "BackdropTemplate")
-  hrSlider:SetPoint("LEFT", hrFrame, "LEFT", 0, 0)
-  hrSlider:SetSize(80, 16)
-  hrSlider:SetOrientation("HORIZONTAL")
-  hrSlider:SetMinMaxValues(0, 10)
-  hrSlider:SetValueStep(0.5)
-  hrSlider:SetObeyStepOnDrag(true)
-  hrSlider:EnableMouse(true)
-  hrSlider:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  hrSlider:SetBackdropColor(0.08, 0.08, 0.10, 1)
-  hrSlider:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
-  local hrThumb = hrSlider:CreateTexture(nil, "ARTWORK")
-  hrThumb:SetSize(10, 18)
-  hrThumb:SetColorTexture(0.4, 0.4, 0.45, 1)
-  hrSlider:SetThumbTexture(hrThumb)
-  hrSlider:SetScript("OnEnter", function() hrThumb:SetColorTexture(0.5, 0.5, 0.55, 1) end)
-  hrSlider:SetScript("OnLeave", function() hrThumb:SetColorTexture(0.4, 0.4, 0.45, 1) end)
-  hrSlider:EnableMouseWheel(false)
-  local hrBox = CreateFrame("EditBox", nil, hrFrame, "BackdropTemplate")
-  hrBox:SetSize(40, 20)
-  hrBox:SetPoint("LEFT", hrSlider, "RIGHT", 4, 0)
-  hrBox:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  hrBox:SetBackdropColor(0.05, 0.05, 0.07, 1)
-  hrBox:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
-  hrBox:SetFontObject("GameFontHighlightSmall")
-  hrBox:SetAutoFocus(false)
-  hrBox:SetTextInsets(4, 4, 0, 0)
-  hrBox:SetJustifyH("CENTER")
-  local hrVal = (type(hideRevealThreshold) == "number" and hideRevealThreshold > 0) and hideRevealThreshold or 0
-  local hrUpBtn = CreateFrame("Button", nil, hrFrame)
-  hrUpBtn:SetSize(14, 10)
-  hrUpBtn:SetPoint("BOTTOMLEFT", hrBox, "BOTTOMRIGHT", 2, 10)
-  local hrUpTex = hrUpBtn:CreateTexture(nil, "ARTWORK")
-  hrUpTex:SetAllPoints()
-  hrUpTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up.tga")
-  hrUpTex:SetVertexColor(0.7, 0.7, 0.7)
-  hrUpBtn:SetScript("OnClick", function()
-    local cur = hrSlider:GetValue()
-    local newVal = cur + 0.5
-    if newVal > 10 then newVal = 10 end
-    hrSlider:SetValue(newVal)
-  end)
-  hrUpBtn:SetScript("OnEnter", function() hrUpTex:SetVertexColor(1, 0.82, 0, 1) end)
-  hrUpBtn:SetScript("OnLeave", function() hrUpTex:SetVertexColor(0.7, 0.7, 0.7) end)
-  local hrDownBtn = CreateFrame("Button", nil, hrFrame)
-  hrDownBtn:SetSize(14, 10)
-  hrDownBtn:SetPoint("TOPLEFT", hrBox, "TOPRIGHT", 2, -10)
-  local hrDownTex = hrDownBtn:CreateTexture(nil, "ARTWORK")
-  hrDownTex:SetAllPoints()
-  hrDownTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
-  hrDownTex:SetVertexColor(0.7, 0.7, 0.7)
-  hrDownBtn:SetScript("OnClick", function()
-    local cur = hrSlider:GetValue()
-    local newVal = cur - 0.5
-    if newVal < 0 then newVal = 0 end
-    hrSlider:SetValue(newVal)
-  end)
-  hrDownBtn:SetScript("OnEnter", function() hrDownTex:SetVertexColor(1, 0.82, 0, 1) end)
-  hrDownBtn:SetScript("OnLeave", function() hrDownTex:SetVertexColor(0.7, 0.7, 0.7) end)
-  local hrUpdating = false
-  local function HRFormatText(val)
-    return val > 0 and string.format("%.1f", val) or "0"
+  local checked = {}
+  local idsToCheck = { actualID }
+  if resolvedID ~= actualID then
+    idsToCheck[#idsToCheck + 1] = resolvedID
   end
-  hrSlider:SetValue(hrVal)
-  hrBox:SetText(HRFormatText(hrVal))
-  hrSlider:SetScript("OnValueChanged", function(self, value)
-    if hrUpdating then return end
-    local rounded = math.floor(value * 2 + 0.5) / 2
-    if math.abs(value - rounded) > 0.001 then
-      hrUpdating = true
-      self:SetValue(rounded)
-      hrUpdating = false
-      return
+
+  local function HasDesignCooldown(spellID)
+    if type(spellID) ~= "number" or spellID <= 0 or checked[spellID] then return false end
+    checked[spellID] = true
+
+    if GetSpellBaseCooldown then
+      local okBase, baseCDMS = pcall(GetSpellBaseCooldown, spellID)
+      if okBase and type(baseCDMS) == "number" and baseCDMS > 1500 then
+        return true
+      end
     end
-    if not hrBox:HasFocus() then
-      hrBox:SetText(HRFormatText(rounded))
+    if C_Spell and C_Spell.GetSpellCharges then
+      local okCharges, chargesInfo = pcall(C_Spell.GetSpellCharges, spellID)
+      if okCharges and type(chargesInfo) == "table" then
+        local maxCharges = tonumber(chargesInfo.maxCharges) or 0
+        if maxCharges > 1 then
+          return true
+        end
+      end
     end
-    if onHideRevealChange then onHideRevealChange(idx, rounded) end
-  end)
-  local function HRApplyEditBox()
-    if hrUpdating then return end
-    local val = tonumber(hrBox:GetText()) or 0
-    if addonTable.NormalizeHideRevealThresholdValue then val = addonTable.NormalizeHideRevealThresholdValue(val) end
-    hrBox:SetText(HRFormatText(val))
-    hrBox:ClearFocus()
-    hrUpdating = true
-    hrSlider:SetValue(val)
-    hrUpdating = false
-    if onHideRevealChange then onHideRevealChange(idx, val) end
-  end
-  hrBox:SetScript("OnEnterPressed", HRApplyEditBox)
-  hrBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
-  hrBox:SetScript("OnEditFocusLost", HRApplyEditBox)
-  local showGlow = isGlobalGlowEnabled == true and not isChargeSpell
-  local showHR = useCustomHideReveal == true and not isChargeSpell
-  glowDD:SetShown(showGlow)
-  glowDD:SetEnabled(showGlow)
-  hrFrame:SetShown(showHR)
-  glowDD:ClearAllPoints()
-  glowDD:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
-  if showHR then
-    if showGlow then
-      hrFrame:ClearAllPoints()
-      hrFrame:SetPoint("RIGHT", glowDD, "LEFT", -4, 0)
-      name:SetPoint("RIGHT", hrFrame, "LEFT", -6, 0)
-    else
-      hrFrame:ClearAllPoints()
-      hrFrame:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
-      name:SetPoint("RIGHT", hrFrame, "LEFT", -6, 0)
+    if C_Spell and C_Spell.GetSpellCooldown then
+      local okCD, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
+      if okCD and type(cdInfo) == "table" and type(cdInfo.duration) == "number" and cdInfo.duration > 1.5 then
+        return true
+      end
     end
-  elseif showGlow then
-    name:SetPoint("RIGHT", glowDD, "LEFT", -6, 0)
-  else
-    name:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+    local state = addonTable and addonTable.State
+    if state and state.spellBaseCdDurations then
+      local baseDur = state.spellBaseCdDurations[spellID]
+      if type(baseDur) == "number" and baseDur > 1.5 then
+        return true
+      end
+    end
+    return false
   end
-  local function forwardDrop()
-    local parentHandler = parent:GetScript("OnReceiveDrag")
-    if parentHandler then parentHandler(parent) end
+
+  for i = 1, #idsToCheck do
+    if HasDesignCooldown(idsToCheck[i]) then return true end
   end
-  row:SetScript("OnReceiveDrag", forwardDrop)
-  row:HookScript("OnMouseUp", forwardDrop)
-  return row
+  return false
 end
 local function UpdateSpellListHeight(spellChild, count)
   local rowHeight = 34
@@ -652,6 +290,8 @@ local function RefreshCursorSpellList()
   local profile = GetProfile()
   local useGlobalGlows = profile and profile.useSpellGlows == true
   local useCustomHideReveal = profile and profile.useCustomHideReveal == true
+  local trackBuffsOff = profile and profile.trackBuffs == false
+  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked)
     spellEnabled[idx] = checked
     addonTable.SetSpellList(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHideRevealThresholds)
@@ -719,7 +359,9 @@ local function RefreshCursorSpellList()
   for i, eID in ipairs(spellList) do
     local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"
     local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true)
-    CreateSpellRow(cur.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHideReveal, spellHideRevealThresholds[i], onHideRevealChange)
+    local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge)
+    local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true
+    CreateSpellRow(cur.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHideReveal, spellHideRevealThresholds[i], onHideRevealChange, pureBuffOff)
   end
   UpdateSpellListHeight(cur.spellChild, #spellList)
 end
@@ -733,6 +375,8 @@ local function RefreshCB1SpellList()
   local profile = GetProfile()
   local useGlobalGlows = profile and profile.customBarUseSpellGlows == true
   local useCustomHR = profile and profile.customBarUseCustomHideReveal == true
+  local trackBuffsOff = profile and profile.customBarTrackBuffs == false
+  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end
@@ -740,7 +384,7 @@ local function RefreshCB1SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB2SpellList()
@@ -753,6 +397,8 @@ local function RefreshCB2SpellList()
   local profile = GetProfile()
   local useGlobalGlows = profile and profile.customBar2UseSpellGlows == true
   local useCustomHR = profile and profile.customBar2UseCustomHideReveal == true
+  local trackBuffsOff = profile and profile.customBar2TrackBuffs == false
+  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end
@@ -760,7 +406,7 @@ local function RefreshCB2SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB3SpellList()
@@ -773,6 +419,8 @@ local function RefreshCB3SpellList()
   local profile = GetProfile()
   local useGlobalGlows = profile and profile.customBar3UseSpellGlows == true
   local useCustomHR = profile and profile.customBar3UseCustomHideReveal == true
+  local trackBuffsOff = profile and profile.customBar3TrackBuffs == false
+  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end
@@ -780,7 +428,7 @@ local function RefreshCB3SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function SetupDragDrop(tabFrame, getSpellsFunc, setSpellsFunc, refreshFunc, createIconsFunc, updateFunc, extraFrames)
@@ -837,6 +485,8 @@ local function RefreshCB4SpellList()
   local profile = GetProfile()
   local useGlobalGlows = profile and profile.customBar4UseSpellGlows == true
   local useCustomHR = profile and profile.customBar4UseCustomHideReveal == true
+  local trackBuffsOff = profile and profile.customBar4TrackBuffs == false
+  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end
@@ -844,7 +494,7 @@ local function RefreshCB4SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB5SpellList()
@@ -857,6 +507,8 @@ local function RefreshCB5SpellList()
   local profile = GetProfile()
   local useGlobalGlows = profile and profile.customBar5UseSpellGlows == true
   local useCustomHR = profile and profile.customBar5UseCustomHideReveal == true
+  local trackBuffsOff = profile and profile.customBar5TrackBuffs == false
+  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end
@@ -864,7 +516,7 @@ local function RefreshCB5SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 addonTable.RefreshCursorSpellList = RefreshCursorSpellList
@@ -1122,7 +774,9 @@ local function UpdateAllControls()
 
   local function ApplyUFBigSlider(slider, value, enabled, fmt)
     if not slider then return end
+    slider._updating = true
     slider:SetValue(value)
+    slider._updating = false
     if slider.valueText then
       if fmt then slider.valueText:SetText(string.format(fmt, value)) else slider.valueText:SetText(math.floor(value + 0.5)) end
     end
@@ -1313,7 +967,13 @@ local function UpdateAllControls()
     if cur.offsetYSlider then cur.offsetYSlider:SetValue(num(profile.offsetY, 25)); cur.offsetYSlider.valueText:SetText(math.floor(num(profile.offsetY, 25))) end
     if cur.directionDD then cur.directionDD:SetValue(profile.layoutDirection or "horizontal") end
 	    if cur.stackAnchorDD then cur.stackAnchorDD:SetValue(profile.stackTextPosition or "BOTTOMRIGHT") end
-	    if cur.buffOverlayCB then cur.buffOverlayCB:SetChecked(profile.useBuffOverlay ~= false) end
+	    if cur.buffOverlayCB then
+	      profile.useBuffOverlay = false
+	      cur.buffOverlayCB:SetChecked(false)
+	      cur.buffOverlayCB:SetEnabled(false)
+	      if cur.buffOverlayCB.label and cur.buffOverlayCB.label.Hide then cur.buffOverlayCB.label:Hide() end
+	      if cur.buffOverlayCB.Hide then cur.buffOverlayCB:Hide() end
+	    end
 	    if cur.trackBuffsCB then cur.trackBuffsCB:SetChecked(profile.trackBuffs ~= false) end
 	    if cur.openBlizzBuffBtn then cur.openBlizzBuffBtn:SetShown(profile.trackBuffs ~= false) end
 	    if cur.useGlowsCB then cur.useGlowsCB:SetChecked(profile.useSpellGlows == true) end
@@ -1336,7 +996,13 @@ local function UpdateAllControls()
   if cb1 then
     if cb1.combatOnlyCB then cb1.combatOnlyCB:SetChecked(profile.customBarOutOfCombat == false) end
     if cb1.gcdCB then cb1.gcdCB:SetChecked(profile.customBarShowGCD == true) end
-    if cb1.buffOverlayCB then cb1.buffOverlayCB:SetChecked(profile.customBarUseBuffOverlay ~= false) end
+    if cb1.buffOverlayCB then
+      profile.customBarUseBuffOverlay = false
+      cb1.buffOverlayCB:SetChecked(false)
+      cb1.buffOverlayCB:SetEnabled(false)
+      if cb1.buffOverlayCB.label and cb1.buffOverlayCB.label.Hide then cb1.buffOverlayCB.label:Hide() end
+      if cb1.buffOverlayCB.Hide then cb1.buffOverlayCB:Hide() end
+    end
     if cb1.trackBuffsCB then cb1.trackBuffsCB:SetChecked(profile.customBarTrackBuffs ~= false) end
     if cb1.openBlizzBuffBtn then cb1.openBlizzBuffBtn:SetShown(profile.customBarTrackBuffs ~= false) end
     if cb1.centeredCB then cb1.centeredCB:SetChecked(profile.customBarCentered == true) end
@@ -1377,7 +1043,13 @@ local function UpdateAllControls()
   if cb2 then
     if cb2.combatOnlyCB then cb2.combatOnlyCB:SetChecked(profile.customBar2OutOfCombat == false) end
     if cb2.gcdCB then cb2.gcdCB:SetChecked(profile.customBar2ShowGCD == true) end
-    if cb2.buffOverlayCB then cb2.buffOverlayCB:SetChecked(profile.customBar2UseBuffOverlay ~= false) end
+    if cb2.buffOverlayCB then
+      profile.customBar2UseBuffOverlay = false
+      cb2.buffOverlayCB:SetChecked(false)
+      cb2.buffOverlayCB:SetEnabled(false)
+      if cb2.buffOverlayCB.label and cb2.buffOverlayCB.label.Hide then cb2.buffOverlayCB.label:Hide() end
+      if cb2.buffOverlayCB.Hide then cb2.buffOverlayCB:Hide() end
+    end
     if cb2.trackBuffsCB then cb2.trackBuffsCB:SetChecked(profile.customBar2TrackBuffs ~= false) end
     if cb2.openBlizzBuffBtn then cb2.openBlizzBuffBtn:SetShown(profile.customBar2TrackBuffs ~= false) end
     if cb2.centeredCB then cb2.centeredCB:SetChecked(profile.customBar2Centered == true) end
@@ -1418,7 +1090,13 @@ local function UpdateAllControls()
   if cb3 then
     if cb3.combatOnlyCB then cb3.combatOnlyCB:SetChecked(profile.customBar3OutOfCombat == false) end
     if cb3.gcdCB then cb3.gcdCB:SetChecked(profile.customBar3ShowGCD == true) end
-    if cb3.buffOverlayCB then cb3.buffOverlayCB:SetChecked(profile.customBar3UseBuffOverlay ~= false) end
+    if cb3.buffOverlayCB then
+      profile.customBar3UseBuffOverlay = false
+      cb3.buffOverlayCB:SetChecked(false)
+      cb3.buffOverlayCB:SetEnabled(false)
+      if cb3.buffOverlayCB.label and cb3.buffOverlayCB.label.Hide then cb3.buffOverlayCB.label:Hide() end
+      if cb3.buffOverlayCB.Hide then cb3.buffOverlayCB:Hide() end
+    end
     if cb3.trackBuffsCB then cb3.trackBuffsCB:SetChecked(profile.customBar3TrackBuffs ~= false) end
     if cb3.openBlizzBuffBtn then cb3.openBlizzBuffBtn:SetShown(profile.customBar3TrackBuffs ~= false) end
     if cb3.centeredCB then cb3.centeredCB:SetChecked(profile.customBar3Centered == true) end
@@ -1459,7 +1137,13 @@ local function UpdateAllControls()
   if cb4 then
     if cb4.combatOnlyCB then cb4.combatOnlyCB:SetChecked(profile.customBar4OutOfCombat == false) end
     if cb4.gcdCB then cb4.gcdCB:SetChecked(profile.customBar4ShowGCD == true) end
-    if cb4.buffOverlayCB then cb4.buffOverlayCB:SetChecked(profile.customBar4UseBuffOverlay ~= false) end
+    if cb4.buffOverlayCB then
+      profile.customBar4UseBuffOverlay = false
+      cb4.buffOverlayCB:SetChecked(false)
+      cb4.buffOverlayCB:SetEnabled(false)
+      if cb4.buffOverlayCB.label and cb4.buffOverlayCB.label.Hide then cb4.buffOverlayCB.label:Hide() end
+      if cb4.buffOverlayCB.Hide then cb4.buffOverlayCB:Hide() end
+    end
     if cb4.trackBuffsCB then cb4.trackBuffsCB:SetChecked(profile.customBar4TrackBuffs ~= false) end
     if cb4.openBlizzBuffBtn then cb4.openBlizzBuffBtn:SetShown(profile.customBar4TrackBuffs ~= false) end
     if cb4.centeredCB then cb4.centeredCB:SetChecked(profile.customBar4Centered == true) end
@@ -1500,7 +1184,13 @@ local function UpdateAllControls()
   if cb5 then
     if cb5.combatOnlyCB then cb5.combatOnlyCB:SetChecked(profile.customBar5OutOfCombat == false) end
     if cb5.gcdCB then cb5.gcdCB:SetChecked(profile.customBar5ShowGCD == true) end
-    if cb5.buffOverlayCB then cb5.buffOverlayCB:SetChecked(profile.customBar5UseBuffOverlay ~= false) end
+    if cb5.buffOverlayCB then
+      profile.customBar5UseBuffOverlay = false
+      cb5.buffOverlayCB:SetChecked(false)
+      cb5.buffOverlayCB:SetEnabled(false)
+      if cb5.buffOverlayCB.label and cb5.buffOverlayCB.label.Hide then cb5.buffOverlayCB.label:Hide() end
+      if cb5.buffOverlayCB.Hide then cb5.buffOverlayCB:Hide() end
+    end
     if cb5.trackBuffsCB then cb5.trackBuffsCB:SetChecked(profile.customBar5TrackBuffs ~= false) end
     if cb5.openBlizzBuffBtn then cb5.openBlizzBuffBtn:SetShown(profile.customBar5TrackBuffs ~= false) end
     if cb5.centeredCB then cb5.centeredCB:SetChecked(profile.customBar5Centered == true) end
@@ -1556,6 +1246,7 @@ local function UpdateAllControls()
     if sa.buffCenteredCB then sa.buffCenteredCB:SetChecked(profile.standaloneBuffCentered == true) end
     if sa.essentialCenteredCB then sa.essentialCenteredCB:SetChecked(profile.standaloneEssentialCentered == true) end
     if sa.utilityCenteredCB then sa.utilityCenteredCB:SetChecked(profile.standaloneUtilityCentered == true) end
+    if sa.hideGlowsCB then sa.hideGlowsCB:SetChecked(profile.hideBlizzCDMGlows == true) end
     if sa.spacingSlider then sa.spacingSlider:SetValue(num(profile.standaloneSpacing, 0)); sa.spacingSlider.valueText:SetText(math.floor(num(profile.standaloneSpacing, 0))) end
     if sa.borderSizeSlider then sa.borderSizeSlider:SetValue(num(profile.standaloneIconBorderSize, 1)); sa.borderSizeSlider.valueText:SetText(math.floor(num(profile.standaloneIconBorderSize, 1))) end
     if sa.cdTextScaleSlider then sa.cdTextScaleSlider:SetValue(num(profile.standaloneCdTextScale, 1.0)); sa.cdTextScaleSlider.valueText:SetText(string.format("%.1f", num(profile.standaloneCdTextScale, 1.0))) end
@@ -1851,6 +1542,17 @@ local function InitHandlers()
         if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
         if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
         if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+      end
+    end)
+  end
+  if addonTable.installWizardBtn then
+    addonTable.installWizardBtn:SetScript("OnClick", function()
+      if InCombatLockdown() then
+        print("|cff00ff00CCM:|r Cannot open installer during combat.")
+        return
+      end
+      if addonTable.OpenInstallWizard then
+        addonTable.OpenInstallWizard()
       end
     end)
   end
@@ -2277,7 +1979,7 @@ local function InitHandlers()
       ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel})
     end)
   end
-  local function ApplyUFBigHealthbarChanges(forceTargetImmediate)
+  local function ApplyUFBigHealthbarChanges(forceTargetImmediate, skipControlSync)
     local p = GetProfile()
     if p and (p.ufBigHBPlayerEnabled == true or p.ufBigHBTargetEnabled == true or p.ufBigHBFocusEnabled == true) then
       p.useCustomBorderColor = true
@@ -2287,8 +1989,19 @@ local function InitHandlers()
         p.ufCustomBorderColorR = 0; p.ufCustomBorderColorG = 0; p.ufCustomBorderColorB = 0
       end
     end
-    if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
-    if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+    if not skipControlSync and addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+    if addonTable.ApplyUnitFrameCustomization then
+      if skipControlSync and C_Timer and C_Timer.After then
+        if addonTable._ufBigHBApplyQueued then return end
+        addonTable._ufBigHBApplyQueued = true
+        C_Timer.After(0, function()
+          addonTable._ufBigHBApplyQueued = false
+          if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        end)
+      else
+        addonTable.ApplyUnitFrameCustomization()
+      end
+    end
     if forceTargetImmediate and addonTable.ApplyUnitFrameCustomization and C_Timer and C_Timer.After then
       C_Timer.After(0.03, function()
         if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
@@ -2316,24 +2029,56 @@ local function InitHandlers()
   if addonTable.ufBigHBHideFocusNameCB then addonTable.ufBigHBHideFocusNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideFocusName = s:GetChecked(); ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBFocusNameAnchorDD then addonTable.ufBigHBFocusNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBFocusNameAnchor = v or "center"; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBFocusLevelDD then addonTable.ufBigHBFocusLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBFocusLevelMode = v; ApplyUFBigHealthbarChanges() end end end
-  if addonTable.ufBigHBPlayerNameXSlider then addonTable.ufBigHBPlayerNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBPlayerNameYSlider then addonTable.ufBigHBPlayerNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBPlayerLevelXSlider then addonTable.ufBigHBPlayerLevelXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBPlayerLevelYSlider then addonTable.ufBigHBPlayerLevelYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBPlayerNameTextScaleSlider then addonTable.ufBigHBPlayerNameTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBPlayerNameTextScale)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBPlayerLevelTextScaleSlider then addonTable.ufBigHBPlayerLevelTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBPlayerLevelTextScale)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetNameXSlider then addonTable.ufBigHBTargetNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetNameYSlider then addonTable.ufBigHBTargetNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetLevelXSlider then addonTable.ufBigHBTargetLevelXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetLevelX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetLevelYSlider then addonTable.ufBigHBTargetLevelYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetLevelY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetNameTextScaleSlider then addonTable.ufBigHBTargetNameTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBTargetNameTextScale)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetLevelTextScaleSlider then addonTable.ufBigHBTargetLevelTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetLevelTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBTargetLevelTextScale)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusNameXSlider then addonTable.ufBigHBFocusNameXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusNameYSlider then addonTable.ufBigHBFocusNameYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusLevelXSlider then addonTable.ufBigHBFocusLevelXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusLevelX = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusLevelYSlider then addonTable.ufBigHBFocusLevelYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusLevelY = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusNameTextScaleSlider then addonTable.ufBigHBFocusNameTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBFocusNameTextScale)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusLevelTextScaleSlider then addonTable.ufBigHBFocusLevelTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusLevelTextScale = math.floor(v * 100 + 0.5) / 100; s.valueText:SetText(string.format("%.2f", p.ufBigHBFocusLevelTextScale)); ApplyUFBigHealthbarChanges() end end) end
+  local function BindUFBigIntSlider(slider, key)
+    if not slider then return end
+    slider:SetScript("OnValueChanged", function(s, v)
+      if s._updating then return end
+      local p = GetProfile()
+      if not p then return end
+      local rounded = math.floor(v + 0.5)
+      if p[key] == rounded then
+        if s.valueText and not s.valueText:HasFocus() then s.valueText:SetText(rounded) end
+        return
+      end
+      p[key] = rounded
+      if s.valueText then s.valueText:SetText(rounded) end
+      ApplyUFBigHealthbarChanges(nil, true)
+    end)
+  end
+  local function BindUFBigScaleSlider(slider, key)
+    if not slider then return end
+    slider:SetScript("OnValueChanged", function(s, v)
+      if s._updating then return end
+      local p = GetProfile()
+      if not p then return end
+      local rounded = math.floor(v * 100 + 0.5) / 100
+      if p[key] == rounded then
+        if s.valueText and not s.valueText:HasFocus() then s.valueText:SetText(string.format("%.2f", rounded)) end
+        return
+      end
+      p[key] = rounded
+      if s.valueText then s.valueText:SetText(string.format("%.2f", rounded)) end
+      ApplyUFBigHealthbarChanges(nil, true)
+    end)
+  end
+  BindUFBigIntSlider(addonTable.ufBigHBPlayerNameXSlider, "ufBigHBPlayerNameX")
+  BindUFBigIntSlider(addonTable.ufBigHBPlayerNameYSlider, "ufBigHBPlayerNameY")
+  BindUFBigIntSlider(addonTable.ufBigHBPlayerLevelXSlider, "ufBigHBPlayerLevelX")
+  BindUFBigIntSlider(addonTable.ufBigHBPlayerLevelYSlider, "ufBigHBPlayerLevelY")
+  BindUFBigScaleSlider(addonTable.ufBigHBPlayerNameTextScaleSlider, "ufBigHBPlayerNameTextScale")
+  BindUFBigScaleSlider(addonTable.ufBigHBPlayerLevelTextScaleSlider, "ufBigHBPlayerLevelTextScale")
+  BindUFBigIntSlider(addonTable.ufBigHBTargetNameXSlider, "ufBigHBTargetNameX")
+  BindUFBigIntSlider(addonTable.ufBigHBTargetNameYSlider, "ufBigHBTargetNameY")
+  BindUFBigIntSlider(addonTable.ufBigHBTargetLevelXSlider, "ufBigHBTargetLevelX")
+  BindUFBigIntSlider(addonTable.ufBigHBTargetLevelYSlider, "ufBigHBTargetLevelY")
+  BindUFBigScaleSlider(addonTable.ufBigHBTargetNameTextScaleSlider, "ufBigHBTargetNameTextScale")
+  BindUFBigScaleSlider(addonTable.ufBigHBTargetLevelTextScaleSlider, "ufBigHBTargetLevelTextScale")
+  BindUFBigIntSlider(addonTable.ufBigHBFocusNameXSlider, "ufBigHBFocusNameX")
+  BindUFBigIntSlider(addonTable.ufBigHBFocusNameYSlider, "ufBigHBFocusNameY")
+  BindUFBigIntSlider(addonTable.ufBigHBFocusLevelXSlider, "ufBigHBFocusLevelX")
+  BindUFBigIntSlider(addonTable.ufBigHBFocusLevelYSlider, "ufBigHBFocusLevelY")
+  BindUFBigScaleSlider(addonTable.ufBigHBFocusNameTextScaleSlider, "ufBigHBFocusNameTextScale")
+  BindUFBigScaleSlider(addonTable.ufBigHBFocusLevelTextScaleSlider, "ufBigHBFocusLevelTextScale")
   if addonTable.ufBigHBPlayerHealAbsorbDD then addonTable.ufBigHBPlayerHealAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerHealAbsorb = val; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerDmgAbsorbDD then addonTable.ufBigHBPlayerDmgAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerDmgAbsorb = val; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerHealPredDD then addonTable.ufBigHBPlayerHealPredDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerHealPred = val; ApplyUFBigHealthbarChanges() end end end
@@ -2992,8 +2737,12 @@ local function InitHandlers()
       end)
     end
     if cur.stackAnchorDD then cur.stackAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.stackTextPosition = v; if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end end end end
-    if cur.buffOverlayCB then cur.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.useBuffOverlay = s:GetChecked(); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end end
-    AttachCheckboxTooltip(cur.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cur.buffOverlayCB then
+      cur.buffOverlayCB:SetChecked(false)
+      cur.buffOverlayCB:SetEnabled(false)
+      if cur.buffOverlayCB.label and cur.buffOverlayCB.label.Hide then cur.buffOverlayCB.label:Hide() end
+      if cur.buffOverlayCB.Hide then cur.buffOverlayCB:Hide() end
+    end
     if cur.trackBuffsCB then cur.trackBuffsCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
       p.trackBuffs = s:GetChecked()
@@ -3005,6 +2754,7 @@ local function InitHandlers()
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         end
       end
+      RefreshCursorSpellList()
       if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
       if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
       if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
@@ -3045,8 +2795,12 @@ local function InitHandlers()
   if cb1 then
     if cb1.combatOnlyCB then cb1.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarOutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
     if cb1.gcdCB then cb1.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
-    if cb1.buffOverlayCB then cb1.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarUseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
-    AttachCheckboxTooltip(cb1.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb1.buffOverlayCB then
+      cb1.buffOverlayCB:SetChecked(false)
+      cb1.buffOverlayCB:SetEnabled(false)
+      if cb1.buffOverlayCB.label and cb1.buffOverlayCB.label.Hide then cb1.buffOverlayCB.label:Hide() end
+      if cb1.buffOverlayCB.Hide then cb1.buffOverlayCB:Hide() end
+    end
     if cb1.trackBuffsCB then cb1.trackBuffsCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
       p.customBarTrackBuffs = s:GetChecked()
@@ -3058,6 +2812,7 @@ local function InitHandlers()
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         end
       end
+      RefreshCB1SpellList()
       if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
       if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
       if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
@@ -3136,8 +2891,12 @@ local function InitHandlers()
   if cb2 then
     if cb2.combatOnlyCB then cb2.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
     if cb2.gcdCB then cb2.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
-    if cb2.buffOverlayCB then cb2.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
-    AttachCheckboxTooltip(cb2.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb2.buffOverlayCB then
+      cb2.buffOverlayCB:SetChecked(false)
+      cb2.buffOverlayCB:SetEnabled(false)
+      if cb2.buffOverlayCB.label and cb2.buffOverlayCB.label.Hide then cb2.buffOverlayCB.label:Hide() end
+      if cb2.buffOverlayCB.Hide then cb2.buffOverlayCB:Hide() end
+    end
     if cb2.trackBuffsCB then cb2.trackBuffsCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
       p.customBar2TrackBuffs = s:GetChecked()
@@ -3149,6 +2908,7 @@ local function InitHandlers()
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         end
       end
+      RefreshCB2SpellList()
       if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
       if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
       if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
@@ -3227,8 +2987,12 @@ local function InitHandlers()
   if cb3 then
     if cb3.combatOnlyCB then cb3.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
     if cb3.gcdCB then cb3.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
-    if cb3.buffOverlayCB then cb3.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
-    AttachCheckboxTooltip(cb3.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb3.buffOverlayCB then
+      cb3.buffOverlayCB:SetChecked(false)
+      cb3.buffOverlayCB:SetEnabled(false)
+      if cb3.buffOverlayCB.label and cb3.buffOverlayCB.label.Hide then cb3.buffOverlayCB.label:Hide() end
+      if cb3.buffOverlayCB.Hide then cb3.buffOverlayCB:Hide() end
+    end
     if cb3.trackBuffsCB then cb3.trackBuffsCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
       p.customBar3TrackBuffs = s:GetChecked()
@@ -3240,6 +3004,7 @@ local function InitHandlers()
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         end
       end
+      RefreshCB3SpellList()
       if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
       if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
       if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
@@ -3318,8 +3083,12 @@ local function InitHandlers()
   if cb4 then
     if cb4.combatOnlyCB then cb4.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar4OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
     if cb4.gcdCB then cb4.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar4ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
-    if cb4.buffOverlayCB then cb4.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar4UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
-    AttachCheckboxTooltip(cb4.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb4.buffOverlayCB then
+      cb4.buffOverlayCB:SetChecked(false)
+      cb4.buffOverlayCB:SetEnabled(false)
+      if cb4.buffOverlayCB.label and cb4.buffOverlayCB.label.Hide then cb4.buffOverlayCB.label:Hide() end
+      if cb4.buffOverlayCB.Hide then cb4.buffOverlayCB:Hide() end
+    end
     if cb4.trackBuffsCB then cb4.trackBuffsCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -3336,6 +3105,7 @@ local function InitHandlers()
             ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
           end
         end
+        RefreshCB4SpellList()
         if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
         if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
         if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
@@ -3417,8 +3187,12 @@ local function InitHandlers()
   if cb5 then
     if cb5.combatOnlyCB then cb5.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar5OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
     if cb5.gcdCB then cb5.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar5ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
-    if cb5.buffOverlayCB then cb5.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar5UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
-    AttachCheckboxTooltip(cb5.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb5.buffOverlayCB then
+      cb5.buffOverlayCB:SetChecked(false)
+      cb5.buffOverlayCB:SetEnabled(false)
+      if cb5.buffOverlayCB.label and cb5.buffOverlayCB.label.Hide then cb5.buffOverlayCB.label:Hide() end
+      if cb5.buffOverlayCB.Hide then cb5.buffOverlayCB:Hide() end
+    end
     if cb5.trackBuffsCB then cb5.trackBuffsCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -3435,6 +3209,7 @@ local function InitHandlers()
             ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
           end
         end
+        RefreshCB5SpellList()
         if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
         if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
         if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
@@ -3801,6 +3576,7 @@ local function InitHandlers()
     if sa.buffCenteredCB then sa.buffCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneBuffCentered == true); return end; p.standaloneBuffCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
     if sa.essentialCenteredCB then sa.essentialCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneEssentialCentered == true); return end; p.standaloneEssentialCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
     if sa.utilityCenteredCB then sa.utilityCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneUtilityCentered == true); return end; p.standaloneUtilityCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.hideGlowsCB then sa.hideGlowsCB.customOnClick = function(s) local p = GetProfile(); if p then p.hideBlizzCDMGlows = s:GetChecked(); ShowReloadPrompt("A reload is required for glow changes to take effect.", "Reload", "Later") end end end
     if sa.spacingSlider then sa.spacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneSpacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
     if sa.borderSizeSlider then sa.borderSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneIconBorderSize = math.floor(v); s.valueText:SetText(math.floor(v)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
     if sa.cdTextScaleSlider then sa.cdTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
@@ -3914,7 +3690,7 @@ local function InitHandlers()
 	              "glowWhenReady", "showInCombatOnly", "alwaysShowInEnabled", "alwaysShowInMode"},
     blizzcdm = {"disableBlizzCDM", "hideTrackedBlizzBuffIcons", "useBuffBar", "useEssentialBar",
                 "essentialBarSpacing", "standaloneIconBorderSize", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
-                "standaloneCentered", "standaloneBuffCentered", "standaloneEssentialCentered", "standaloneUtilityCentered",
+                "standaloneCentered", "standaloneBuffCentered", "standaloneEssentialCentered", "standaloneUtilityCentered", "hideBlizzCDMGlows",
                 "standaloneSpacing", "standaloneBuffSize", "standaloneBuffIconsPerRow", "standaloneBuffMaxRows", "standaloneBuffGrowDirection", "standaloneBuffRowGrowDirection", "standaloneBuffY", "standaloneBuffX",
                 "standaloneEssentialSize", "standaloneEssentialSecondRowSize", "standaloneEssentialIconsPerRow", "standaloneEssentialMaxRows", "standaloneEssentialGrowDirection", "standaloneEssentialRowGrowDirection", "standaloneEssentialY", "standaloneEssentialX",
                 "standaloneUtilitySize", "standaloneUtilitySecondRowSize", "standaloneUtilityIconsPerRow", "standaloneUtilityMaxRows", "standaloneUtilityGrowDirection", "standaloneUtilityRowGrowDirection", "standaloneUtilityY", "standaloneUtilityX", "standaloneUtilityAutoWidth",

@@ -1,4 +1,5 @@
 <Ui xmlns="http://www.blizzard.com/wow/ui/">
+	<Script file="ccm_gui.lua"/>
 	<Script file="ccm_uf.lua"/>
 	<Script file="ccm_castbar.lua"/>
 	<Script file="ccm_fcastbar.lua"/>
@@ -9,5 +10,6 @@
 	<Script file="ccm_chat.lua"/>
 	<Script file="ccm_skyriding.lua"/>
 	<Script file="ccm_buff.lua"/>
+	<Script file="ccm_wizard.lua"/>
 	<Script file="ccm_wago.lua"/>
 </Ui>

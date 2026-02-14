@@ -146,9 +146,31 @@ do
 end
 local function SetSmoothScroll(scrollFrame, step)
   step = step or 30
+  if scrollFrame and scrollFrame.GetName then
+    local name = scrollFrame:GetName()
+    if name then
+      local bar = _G[name .. "ScrollBar"]
+      if bar then
+        bar:SetPoint("TOPLEFT", scrollFrame, "TOPRIGHT", 6, -16)
+        bar:SetPoint("BOTTOMLEFT", scrollFrame, "BOTTOMRIGHT", 6, 16)
+        bar:SetWidth(10)
+        local thumb = bar:GetThumbTexture()
+        if thumb then
+          thumb:SetColorTexture(0.4, 0.4, 0.45, 0.85)
+          thumb:SetSize(8, 40)
+        end
+        local up = _G[name .. "ScrollBarScrollUpButton"]
+        local down = _G[name .. "ScrollBarScrollDownButton"]
+        if up then up:SetAlpha(0); up:EnableMouse(false) end
+        if down then down:SetAlpha(0); down:EnableMouse(false) end
+      end
+    end
+  end
   scrollFrame:EnableMouseWheel(true)
   scrollFrame:SetScript("OnMouseWheel", function(self, delta)
-    local bar = _G[self:GetName() .. "ScrollBar"]
+    local name = self.GetName and self:GetName()
+    if not name then return end
+    local bar = _G[name .. "ScrollBar"]
     if not bar then return end
     local cur = bar:GetValue()
     local mn, mx = bar:GetMinMaxValues()
@@ -449,6 +471,8 @@ local function InitTabs()
     {text = "BOTTOMLEFT", value = "BOTTOMLEFT"}, {text = "BOTTOM", value = "BOTTOM"}, {text = "BOTTOMRIGHT", value = "BOTTOMRIGHT"},
   })
   local curTrackedSec = Section(ct, "Tracked Spells / Items", -415)
+  curTrackedSec:ClearAllPoints()
+  curTrackedSec:SetPoint("TOPLEFT", cur.directionDD, "BOTTOMLEFT", 0, -26)
   cur.useGlowsCB = Checkbox(ct, "Use Glows", 15, -440)
   cur.useGlowsCB:ClearAllPoints()
   cur.useGlowsCB:SetPoint("TOPLEFT", curTrackedSec, "BOTTOMLEFT", 0, -12)
@@ -463,7 +487,7 @@ local function InitTabs()
   cur.glowSpeedSlider:SetPoint("LEFT", cur.glowSpeedSlider.label, "RIGHT", 4, 0)
   cur.glowThicknessSlider = Slider(ct, "Glow Thickness", 370, -440, 0.1, 4.0, 1.0, 0.1)
   cur.glowThicknessSlider:ClearAllPoints()
-  cur.glowThicknessSlider:SetPoint("TOPRIGHT", ct, "TOPRIGHT", -91, -445)
+  cur.glowThicknessSlider:SetPoint("LEFT", cur.glowSpeedSlider, "RIGHT", 250, 0)
   cur.glowThicknessSlider:SetSize(100, 10)
   cur.glowThicknessSlider:GetThumbTexture():SetSize(10, 14)
   cur.glowThicknessSlider.Low:Hide()
@@ -473,17 +497,19 @@ local function InitTabs()
   cur.customHideRevealCB = Checkbox(ct, "Custom Hide Reveal", 15, -470)
   cur.customHideRevealCB:ClearAllPoints()
   cur.customHideRevealCB:SetPoint("TOPLEFT", cur.useGlowsCB, "BOTTOMLEFT", 0, -8)
-  cur.buffOverlayCB = Checkbox(ct, "Damage Reduction Buff Overlay", 175, -470)
-  cur.buffOverlayCB:ClearAllPoints()
-  cur.buffOverlayCB:SetPoint("LEFT", cur.customHideRevealCB.label, "RIGHT", 15, 0)
   cur.trackBuffsCB = Checkbox(ct, "Track Buffs", 410, -470)
   cur.trackBuffsCB:ClearAllPoints()
-  cur.trackBuffsCB:SetPoint("LEFT", cur.buffOverlayCB.label, "RIGHT", 15, 0)
+  cur.trackBuffsCB:SetPoint("LEFT", cur.customHideRevealCB.label, "RIGHT", 15, 0)
   cur.openBlizzBuffBtn = CreateStyledButton(ct, "Open Buff Tracker", 130, 20)
   cur.openBlizzBuffBtn:SetPoint("TOPRIGHT", ct, "TOPRIGHT", -15, -470)
   cur.openBlizzBuffBtn:ClearAllPoints()
   cur.openBlizzBuffBtn:SetPoint("LEFT", cur.trackBuffsCB.label, "RIGHT", 15, 0)
   cur.openBlizzBuffBtn:SetScript("OnClick", function()
+    local cfg = addonTable.ConfigFrame
+    if cfg then
+      cfg:ClearAllPoints()
+      cfg:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+    end
     if not CooldownViewerSettings then return end
     CooldownViewerSettings:Show()
     C_Timer.After(0.1, function()
@@ -707,6 +733,8 @@ local function InitTabs()
       {text = "BOTTOMLEFT", value = "BOTTOMLEFT"}, {text = "BOTTOM", value = "BOTTOM"}, {text = "BOTTOMRIGHT", value = "BOTTOMRIGHT"},
     })
     local cbTrackedSec = Section(tf, "Tracked Spells / Items", -450)
+    cbTrackedSec:ClearAllPoints()
+    cbTrackedSec:SetPoint("TOPLEFT", cb.anchorToPointDD, "BOTTOMLEFT", 0, -24)
     cb.useGlowsCB = Checkbox(tf, "Use Glows", 15, -475)
     cb.useGlowsCB:ClearAllPoints()
     cb.useGlowsCB:SetPoint("TOPLEFT", cbTrackedSec, "BOTTOMLEFT", 0, -12)
@@ -721,7 +749,7 @@ local function InitTabs()
     cb.glowSpeedSlider:SetPoint("LEFT", cb.glowSpeedSlider.label, "RIGHT", 4, 0)
     cb.glowThicknessSlider = Slider(tf, "Glow Thickness", 370, -475, 0.1, 4.0, 1.0, 0.1)
     cb.glowThicknessSlider:ClearAllPoints()
-    cb.glowThicknessSlider:SetPoint("TOPRIGHT", tf, "TOPRIGHT", -91, -480)
+    cb.glowThicknessSlider:SetPoint("LEFT", cb.glowSpeedSlider, "RIGHT", 250, 0)
     cb.glowThicknessSlider:SetSize(100, 10)
     cb.glowThicknessSlider:GetThumbTexture():SetSize(10, 14)
     cb.glowThicknessSlider.Low:Hide()
@@ -731,16 +759,18 @@ local function InitTabs()
     cb.customHideRevealCB = Checkbox(tf, "Custom Hide Reveal", 15, -505)
     cb.customHideRevealCB:ClearAllPoints()
     cb.customHideRevealCB:SetPoint("TOPLEFT", cb.useGlowsCB, "BOTTOMLEFT", 0, -8)
-    cb.buffOverlayCB = Checkbox(tf, "Damage Reduction Buff Overlay", 175, -505)
-    cb.buffOverlayCB:ClearAllPoints()
-    cb.buffOverlayCB:SetPoint("LEFT", cb.customHideRevealCB.label, "RIGHT", 15, 0)
     cb.trackBuffsCB = Checkbox(tf, "Track Buffs", 410, -505)
     cb.trackBuffsCB:ClearAllPoints()
-    cb.trackBuffsCB:SetPoint("LEFT", cb.buffOverlayCB.label, "RIGHT", 15, 0)
+    cb.trackBuffsCB:SetPoint("LEFT", cb.customHideRevealCB.label, "RIGHT", 15, 0)
     cb.openBlizzBuffBtn = CreateStyledButton(tf, "Open Buff Tracker", 130, 20)
     cb.openBlizzBuffBtn:ClearAllPoints()
     cb.openBlizzBuffBtn:SetPoint("LEFT", cb.trackBuffsCB.label, "RIGHT", 15, 0)
     cb.openBlizzBuffBtn:SetScript("OnClick", function()
+      local cfg = addonTable.ConfigFrame
+      if cfg then
+        cfg:ClearAllPoints()
+        cfg:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
+      end
       if not CooldownViewerSettings then return end
       CooldownViewerSettings:Show()
       C_Timer.After(0.1, function()
@@ -905,9 +935,12 @@ local function InitTabs()
   local b6HighlightBtn = CreateHighlightToggle(b6)
   b6HighlightBtn:ClearAllPoints()
   b6HighlightBtn:SetPoint("LEFT", sa.utilityCenteredCB.label, "RIGHT", 15, 0)
+  sa.hideGlowsCB = Checkbox(b6, "Hide Glows", 15, -390)
+  sa.hideGlowsCB:ClearAllPoints()
+  sa.hideGlowsCB:SetPoint("TOPLEFT", sa.buffCenteredCB, "BOTTOMLEFT", 0, -8)
   sa.spacingSlider = Slider(b6, "Spacing", 15, -410, -3, 10, 0, 1)
   sa.spacingSlider.label:ClearAllPoints()
-  sa.spacingSlider.label:SetPoint("TOPLEFT", sa.buffCenteredCB, "BOTTOMLEFT", 0, -20)
+  sa.spacingSlider.label:SetPoint("TOPLEFT", sa.hideGlowsCB, "BOTTOMLEFT", 0, -20)
   sa.spacingSlider:ClearAllPoints()
   sa.spacingSlider:SetPoint("TOPLEFT", sa.spacingSlider.label, "BOTTOMLEFT", 0, -8)
   sa.borderSizeSlider = Slider(b6, "Border Size", 280, -410, 0, 5, 1, 1)
@@ -1299,7 +1332,7 @@ local function InitTabs()
       local showClassPower = p and p.prbShowClassPower
       local dmgAbsorbMode = (p and p.prbDmgAbsorb) or "bar"
       local showOverAbsorbOption = showHealth and dmgAbsorbMode ~= "off"
-      local cpConfig = addonTable.GetClassPowerConfig and addonTable.GetClassPowerConfig()
+      local cpConfig = addonTable.GetClassPowerConfig and addonTable.GetClassPowerConfig(true)
       local isRedundant = addonTable.IsClassPowerRedundant and addonTable.IsClassPowerRedundant()
       local noClassPower = cpConfig == nil or isRedundant
       local _, playerClass = UnitClass("player")
@@ -2321,9 +2354,9 @@ local function InitTabs()
     addonTable.skyridingHideCDMCB = Checkbox(skc, "Hide CDM / Bars", 250, -42)
     addonTable.skyridingHideCDMCB:ClearAllPoints()
     addonTable.skyridingHideCDMCB:SetPoint("TOPLEFT", skySec, "BOTTOMLEFT", 235, -15)
-    addonTable.skyridingVigorBarCB = Checkbox(skc, "Skyriding Bar", 15, -72)
+    addonTable.skyridingVigorBarCB = Checkbox(skc, "Charge Bar", 15, -72)
     addonTable.skyridingVigorBarCB:ClearAllPoints()
-    addonTable.skyridingVigorBarCB:SetPoint("TOPLEFT", addonTable.skyridingEnabledCB, "BOTTOMLEFT", 0, -8)
+    addonTable.skyridingVigorBarCB:SetPoint("TOPLEFT", addonTable.skyridingEnabledCB, "BOTTOMLEFT", 22, -8)
     addonTable.skyridingCenteredCB = Checkbox(skc, "Center", 250, -72)
     addonTable.skyridingCenteredCB:ClearAllPoints()
     addonTable.skyridingCenteredCB:SetPoint("TOPLEFT", addonTable.skyridingHideCDMCB, "BOTTOMLEFT", 0, -8)
@@ -2348,7 +2381,7 @@ local function InitTabs()
       sw:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
       return btn, sw
     end
-    addonTable.skyridingVigorColorBtn, addonTable.skyridingVigorColorSwatch = SkyColorPicker("Vigor", 15, -202, 0.2, 0.8, 0.2)
+    addonTable.skyridingVigorColorBtn, addonTable.skyridingVigorColorSwatch = SkyColorPicker("Charge", 15, -202, 0.2, 0.8, 0.2)
     addonTable.skyridingVigorColorBtn:ClearAllPoints()
     addonTable.skyridingVigorColorBtn:SetPoint("TOPLEFT", addonTable.skyridingScreenFxCB, "BOTTOMLEFT", 0, -18)
     addonTable.skyridingSurgeColorBtn, addonTable.skyridingSurgeColorSwatch = SkyColorPicker("Surge", 130, -202, 0.85, 0.65, 0.1)
@@ -2488,7 +2521,7 @@ local function InitTabs()
     addonTable.combatTimerScaleSlider:SetPoint("TOPLEFT", addonTable.combatTimerScaleSlider.label, "BOTTOMLEFT", 0, -8)
     addonTable.combatTimerCenteredCB = Checkbox(cc, "Center X", 280, -399)
     addonTable.combatTimerCenteredCB:ClearAllPoints()
-    addonTable.combatTimerCenteredCB:SetPoint("TOPLEFT", addonTable.combatTimerYSlider, "BOTTOMLEFT", 0, -12)
+    addonTable.combatTimerCenteredCB:SetPoint("TOPLEFT", addonTable.combatTimerScaleSlider, "TOPLEFT", 265, -2)
     local ctbd = {bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1}
     addonTable.combatTimerTextColorBtn = CreateStyledButton(cc, "Text Color", 80, 22)
     addonTable.combatTimerTextColorBtn:SetPoint("TOPLEFT", addonTable.combatTimerScaleSlider, "BOTTOMLEFT", 0, -18)
@@ -2551,7 +2584,7 @@ local function InitTabs()
     addonTable.crTimerScaleSlider:SetPoint("TOPLEFT", addonTable.crTimerScaleSlider.label, "BOTTOMLEFT", 0, -8)
     addonTable.crTimerCenteredCB = Checkbox(cc, "Center X", 280, -721)
     addonTable.crTimerCenteredCB:ClearAllPoints()
-    addonTable.crTimerCenteredCB:SetPoint("TOPLEFT", addonTable.crTimerYSlider, "BOTTOMLEFT", 0, -12)
+    addonTable.crTimerCenteredCB:SetPoint("TOPLEFT", addonTable.crTimerScaleSlider, "TOPLEFT", 265, -2)
     local combStatusSec = Section(cc, "Combat Status", -870)
     addonTable.combatStatusCB = Checkbox(cc, "Enable Combat Status", 15, -806)
     addonTable.combatStatusCB:ClearAllPoints()
@@ -2578,7 +2611,7 @@ local function InitTabs()
     addonTable.combatStatusScaleSlider:SetPoint("TOPLEFT", addonTable.combatStatusScaleSlider.label, "BOTTOMLEFT", 0, -8)
     addonTable.combatStatusCenteredCB = Checkbox(cc, "Center X", 280, -916)
     addonTable.combatStatusCenteredCB:ClearAllPoints()
-    addonTable.combatStatusCenteredCB:SetPoint("TOPLEFT", addonTable.combatStatusYSlider, "BOTTOMLEFT", 0, -12)
+    addonTable.combatStatusCenteredCB:SetPoint("TOPLEFT", addonTable.combatStatusScaleSlider, "TOPLEFT", 265, -2)
     local csbd = {bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1}
     addonTable.combatStatusEnterColorBtn = CreateStyledButton(cc, "Enter Color", 90, 22)
     addonTable.combatStatusEnterColorBtn:ClearAllPoints()
