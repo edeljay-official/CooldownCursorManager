@@ -18,6 +18,90 @@ local function SetStyledSliderShown(slider, shown)
   if slider.upBtn then slider.upBtn:SetShown(shown) end
   if slider.downBtn then slider.downBtn:SetShown(shown) end
 end
+local function SetStyledCheckboxShown(cb, shown)
+  if not cb then return end
+  cb:SetShown(shown)
+  if cb.Text then cb.Text:SetShown(shown) end
+  if cb.label then cb.label:SetShown(shown) end
+end
+local function AttachCheckboxTooltip(cb, text, opts)
+  if not cb then return end
+  opts = opts or {}
+  cb:SetScript("OnEnter", function(self)
+    GameTooltip:SetOwner(self, opts.anchor or "ANCHOR_RIGHT")
+    GameTooltip:ClearLines()
+    GameTooltip:AddLine(text, 1, 1, 1, true)
+    if opts.minWidth then
+      GameTooltip:SetMinimumWidth(opts.minWidth)
+    end
+    GameTooltip:Show()
+  end)
+  cb:SetScript("OnLeave", function()
+    GameTooltip:Hide()
+  end)
+end
+local TRACK_BUFFS_TOOLTIP_TEXT = "Add buffs to Blizzard's CDM Buff Tracker\nand to the spell list below.\nTracked buffs are hidden in Blizzard CDM.\nIn Edit Mode, set Buff Tracker to\nAlways Visible or In Combat."
+local BUFF_OVERLAY_TOOLTIP_TEXT = "Uses a fixed buff duration sample\n(not live Blizzard Buff Tracker timing).\nIf Track Buffs is enabled,\nthis is used as fallback only."
+local DISABLE_BLIZZ_CDM_TOOLTIP_TEXT = "Disables Blizzard CDM bars and related integration.\nIf Track Buffs is enabled in any bar,\nthis option is re-enabled automatically."
+local function IsAnyTrackBuffsEnabled(profile)
+  if not profile then return false end
+  if profile.trackBuffs ~= false then return true end
+  if profile.customBarTrackBuffs ~= false then return true end
+  if profile.customBar2TrackBuffs ~= false then return true end
+  if profile.customBar3TrackBuffs ~= false then return true end
+  if profile.customBar4TrackBuffs ~= false then return true end
+  if profile.customBar5TrackBuffs ~= false then return true end
+  return false
+end
+local function SetAllTrackBuffsEnabled(profile, enabled)
+  if type(profile) ~= "table" then return false end
+  local target = enabled == true
+  local changed = false
+  local function SetFlag(key)
+    local isEnabled = profile[key] ~= false
+    if isEnabled ~= target then
+      profile[key] = target
+      changed = true
+    end
+  end
+  SetFlag("trackBuffs")
+  SetFlag("customBarTrackBuffs")
+  SetFlag("customBar2TrackBuffs")
+  SetFlag("customBar3TrackBuffs")
+  SetFlag("customBar4TrackBuffs")
+  SetFlag("customBar5TrackBuffs")
+  return changed
+end
+local function SyncTrackBuffsCheckboxesFromProfile(profile)
+  if type(profile) ~= "table" then return end
+  if addonTable.cur and addonTable.cur.trackBuffsCB then addonTable.cur.trackBuffsCB:SetChecked(profile.trackBuffs ~= false) end
+  if addonTable.cur and addonTable.cur.openBlizzBuffBtn then addonTable.cur.openBlizzBuffBtn:SetShown(profile.trackBuffs ~= false) end
+  if addonTable.cb1 and addonTable.cb1.trackBuffsCB then addonTable.cb1.trackBuffsCB:SetChecked(profile.customBarTrackBuffs ~= false) end
+  if addonTable.cb1 and addonTable.cb1.openBlizzBuffBtn then addonTable.cb1.openBlizzBuffBtn:SetShown(profile.customBarTrackBuffs ~= false) end
+  if addonTable.cb2 and addonTable.cb2.trackBuffsCB then addonTable.cb2.trackBuffsCB:SetChecked(profile.customBar2TrackBuffs ~= false) end
+  if addonTable.cb2 and addonTable.cb2.openBlizzBuffBtn then addonTable.cb2.openBlizzBuffBtn:SetShown(profile.customBar2TrackBuffs ~= false) end
+  if addonTable.cb3 and addonTable.cb3.trackBuffsCB then addonTable.cb3.trackBuffsCB:SetChecked(profile.customBar3TrackBuffs ~= false) end
+  if addonTable.cb3 and addonTable.cb3.openBlizzBuffBtn then addonTable.cb3.openBlizzBuffBtn:SetShown(profile.customBar3TrackBuffs ~= false) end
+  if addonTable.cb4 and addonTable.cb4.trackBuffsCB then addonTable.cb4.trackBuffsCB:SetChecked(profile.customBar4TrackBuffs ~= false) end
+  if addonTable.cb4 and addonTable.cb4.openBlizzBuffBtn then addonTable.cb4.openBlizzBuffBtn:SetShown(profile.customBar4TrackBuffs ~= false) end
+  if addonTable.cb5 and addonTable.cb5.trackBuffsCB then addonTable.cb5.trackBuffsCB:SetChecked(profile.customBar5TrackBuffs ~= false) end
+  if addonTable.cb5 and addonTable.cb5.openBlizzBuffBtn then addonTable.cb5.openBlizzBuffBtn:SetShown(profile.customBar5TrackBuffs ~= false) end
+end
+local function EnsureTrackBuffsCompatible(profile)
+  if type(profile) ~= "table" then return false end
+  if profile.disableBlizzCDM == true and IsAnyTrackBuffsEnabled(profile) then
+    return SetAllTrackBuffsEnabled(profile, false)
+  end
+  return false
+end
+local function EnsureDisableBlizzCDMCompatible(profile)
+  if type(profile) ~= "table" then return false end
+  if profile.disableBlizzCDM == true and IsAnyTrackBuffsEnabled(profile) then
+    profile.disableBlizzCDM = false
+    return true
+  end
+  return false
+end
 local function ResolveLSMFontValueFromPath(path)
   if type(path) ~= "string" or path == "" then return nil end
   local LSM = LibStub and LibStub("LibSharedMedia-3.0", true)
@@ -266,17 +350,12 @@ local function ShowReloadPrompt(text, okText, cancelText)
     addonTable.ShowReloadPrompt(text, okText, cancelText)
     return
   end
-  StaticPopupDialogs["CCM_RELOAD_FALLBACK"] = {
-    text = text or "A UI reload is recommended.",
-    button1 = okText or "Reload",
-    button2 = cancelText or "Later",
-    OnAccept = function() ReloadUI() end,
-    timeout = 0,
-    whileDead = true,
-    hideOnEscape = true,
-    preferredIndex = 3,
-  }
-  StaticPopup_Show("CCM_RELOAD_FALLBACK")
+  local msg = text or "A UI reload is recommended."
+  if addonTable.Print then
+    addonTable:Print(msg)
+  elseif print then
+    print("|cffffd200CCM:|r " .. msg)
+  end
 end
 local function ResetAllPreviewHighlights()
   if addonTable.noTargetAlertPreviewOnBtn then
@@ -429,54 +508,129 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
       onGlowTypeSelect(idx, value)
     end
   end
-  local hrBox = CreateFrame("EditBox", nil, row, "BackdropTemplate")
+  local hrFrame = CreateFrame("Frame", nil, row)
+  hrFrame:SetSize(148, 20)
+  local hrSlider = CreateFrame("Slider", nil, hrFrame, "BackdropTemplate")
+  hrSlider:SetPoint("LEFT", hrFrame, "LEFT", 0, 0)
+  hrSlider:SetSize(80, 16)
+  hrSlider:SetOrientation("HORIZONTAL")
+  hrSlider:SetMinMaxValues(0, 10)
+  hrSlider:SetValueStep(0.5)
+  hrSlider:SetObeyStepOnDrag(true)
+  hrSlider:EnableMouse(true)
+  hrSlider:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+  hrSlider:SetBackdropColor(0.08, 0.08, 0.10, 1)
+  hrSlider:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
+  local hrThumb = hrSlider:CreateTexture(nil, "ARTWORK")
+  hrThumb:SetSize(10, 18)
+  hrThumb:SetColorTexture(0.4, 0.4, 0.45, 1)
+  hrSlider:SetThumbTexture(hrThumb)
+  hrSlider:SetScript("OnEnter", function() hrThumb:SetColorTexture(0.5, 0.5, 0.55, 1) end)
+  hrSlider:SetScript("OnLeave", function() hrThumb:SetColorTexture(0.4, 0.4, 0.45, 1) end)
+  hrSlider:EnableMouseWheel(false)
+  local hrBox = CreateFrame("EditBox", nil, hrFrame, "BackdropTemplate")
   hrBox:SetSize(40, 20)
+  hrBox:SetPoint("LEFT", hrSlider, "RIGHT", 4, 0)
   hrBox:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  hrBox:SetBackdropColor(0.12, 0.12, 0.14, 1)
-  hrBox:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+  hrBox:SetBackdropColor(0.05, 0.05, 0.07, 1)
+  hrBox:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
   hrBox:SetFontObject("GameFontHighlightSmall")
   hrBox:SetAutoFocus(false)
   hrBox:SetTextInsets(4, 4, 0, 0)
   hrBox:SetJustifyH("CENTER")
   local hrVal = (type(hideRevealThreshold) == "number" and hideRevealThreshold > 0) and hideRevealThreshold or 0
-  hrBox:SetText(hrVal > 0 and string.format("%.1f", hrVal) or "0")
-  hrBox:SetScript("OnEnterPressed", function(s)
-    local val = tonumber(s:GetText()) or 0
-    if addonTable.NormalizeHideRevealThresholdValue then val = addonTable.NormalizeHideRevealThresholdValue(val) end
-    s:SetText(val > 0 and string.format("%.1f", val) or "0")
-    s:ClearFocus()
-    if onHideRevealChange then onHideRevealChange(idx, val) end
+  local hrUpBtn = CreateFrame("Button", nil, hrFrame)
+  hrUpBtn:SetSize(14, 10)
+  hrUpBtn:SetPoint("BOTTOMLEFT", hrBox, "BOTTOMRIGHT", 2, 10)
+  local hrUpTex = hrUpBtn:CreateTexture(nil, "ARTWORK")
+  hrUpTex:SetAllPoints()
+  hrUpTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up.tga")
+  hrUpTex:SetVertexColor(0.7, 0.7, 0.7)
+  hrUpBtn:SetScript("OnClick", function()
+    local cur = hrSlider:GetValue()
+    local newVal = cur + 0.5
+    if newVal > 10 then newVal = 10 end
+    hrSlider:SetValue(newVal)
   end)
+  hrUpBtn:SetScript("OnEnter", function() hrUpTex:SetVertexColor(1, 0.82, 0, 1) end)
+  hrUpBtn:SetScript("OnLeave", function() hrUpTex:SetVertexColor(0.7, 0.7, 0.7) end)
+  local hrDownBtn = CreateFrame("Button", nil, hrFrame)
+  hrDownBtn:SetSize(14, 10)
+  hrDownBtn:SetPoint("TOPLEFT", hrBox, "TOPRIGHT", 2, -10)
+  local hrDownTex = hrDownBtn:CreateTexture(nil, "ARTWORK")
+  hrDownTex:SetAllPoints()
+  hrDownTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
+  hrDownTex:SetVertexColor(0.7, 0.7, 0.7)
+  hrDownBtn:SetScript("OnClick", function()
+    local cur = hrSlider:GetValue()
+    local newVal = cur - 0.5
+    if newVal < 0 then newVal = 0 end
+    hrSlider:SetValue(newVal)
+  end)
+  hrDownBtn:SetScript("OnEnter", function() hrDownTex:SetVertexColor(1, 0.82, 0, 1) end)
+  hrDownBtn:SetScript("OnLeave", function() hrDownTex:SetVertexColor(0.7, 0.7, 0.7) end)
+  local hrUpdating = false
+  local function HRFormatText(val)
+    return val > 0 and string.format("%.1f", val) or "0"
+  end
+  hrSlider:SetValue(hrVal)
+  hrBox:SetText(HRFormatText(hrVal))
+  hrSlider:SetScript("OnValueChanged", function(self, value)
+    if hrUpdating then return end
+    local rounded = math.floor(value * 2 + 0.5) / 2
+    if math.abs(value - rounded) > 0.001 then
+      hrUpdating = true
+      self:SetValue(rounded)
+      hrUpdating = false
+      return
+    end
+    if not hrBox:HasFocus() then
+      hrBox:SetText(HRFormatText(rounded))
+    end
+    if onHideRevealChange then onHideRevealChange(idx, rounded) end
+  end)
+  local function HRApplyEditBox()
+    if hrUpdating then return end
+    local val = tonumber(hrBox:GetText()) or 0
+    if addonTable.NormalizeHideRevealThresholdValue then val = addonTable.NormalizeHideRevealThresholdValue(val) end
+    hrBox:SetText(HRFormatText(val))
+    hrBox:ClearFocus()
+    hrUpdating = true
+    hrSlider:SetValue(val)
+    hrUpdating = false
+    if onHideRevealChange then onHideRevealChange(idx, val) end
+  end
+  hrBox:SetScript("OnEnterPressed", HRApplyEditBox)
   hrBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
-  hrBox:SetScript("OnEditFocusLost", function(s)
-    local val = tonumber(s:GetText()) or 0
-    if addonTable.NormalizeHideRevealThresholdValue then val = addonTable.NormalizeHideRevealThresholdValue(val) end
-    s:SetText(val > 0 and string.format("%.1f", val) or "0")
-    if onHideRevealChange then onHideRevealChange(idx, val) end
-  end)
+  hrBox:SetScript("OnEditFocusLost", HRApplyEditBox)
   local showGlow = isGlobalGlowEnabled == true and not isChargeSpell
   local showHR = useCustomHideReveal == true and not isChargeSpell
   glowDD:SetShown(showGlow)
   glowDD:SetEnabled(showGlow)
-  hrBox:SetShown(showHR)
-  hrBox:SetEnabled(showHR)
+  hrFrame:SetShown(showHR)
   glowDD:ClearAllPoints()
   glowDD:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
   if showHR then
     if showGlow then
-      hrBox:ClearAllPoints()
-      hrBox:SetPoint("RIGHT", glowDD, "LEFT", -4, 0)
-      name:SetPoint("RIGHT", hrBox, "LEFT", -6, 0)
+      hrFrame:ClearAllPoints()
+      hrFrame:SetPoint("RIGHT", glowDD, "LEFT", -4, 0)
+      name:SetPoint("RIGHT", hrFrame, "LEFT", -6, 0)
     else
-      hrBox:ClearAllPoints()
-      hrBox:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
-      name:SetPoint("RIGHT", hrBox, "LEFT", -6, 0)
+      hrFrame:ClearAllPoints()
+      hrFrame:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+      name:SetPoint("RIGHT", hrFrame, "LEFT", -6, 0)
     end
   elseif showGlow then
     name:SetPoint("RIGHT", glowDD, "LEFT", -6, 0)
   else
     name:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
   end
+  local function forwardDrop()
+    local parentHandler = parent:GetScript("OnReceiveDrag")
+    if parentHandler then parentHandler(parent) end
+  end
+  row:SetScript("OnReceiveDrag", forwardDrop)
+  row:HookScript("OnMouseUp", forwardDrop)
   return row
 end
 local function UpdateSpellListHeight(spellChild, count)
@@ -673,10 +827,52 @@ local function SetupDragDrop(tabFrame, getSpellsFunc, setSpellsFunc, refreshFunc
     end
   end
 end
+local function RefreshCB4SpellList()
+  local cb = addonTable.cb4
+  if not cb or not cb.spellChild then return end
+  for _, child in ipairs({cb.spellChild:GetChildren()}) do child:Hide(); child:SetParent(nil) end
+  if not addonTable.GetCustomBar4Spells then return end
+  local spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT = addonTable.GetCustomBar4Spells()
+  if not spellList then return end
+  local profile = GetProfile()
+  local useGlobalGlows = profile and profile.customBar4UseSpellGlows == true
+  local useCustomHR = profile and profile.customBar4UseCustomHideReveal == true
+  local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
+  local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
+  local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end
+  local function onMoveDown(idx) if idx < #spellList then spellList[idx], spellList[idx+1] = spellList[idx+1], spellList[idx]; spellEnabled[idx], spellEnabled[idx+1] = spellEnabled[idx+1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx+1] = spellGlowEnabled[idx+1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx+1] = spellGlowType[idx+1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx+1] = spellHRT[idx+1], spellHRT[idx]; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end
+  local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
+  local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
+  local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  UpdateSpellListHeight(cb.spellChild, #spellList)
+end
+local function RefreshCB5SpellList()
+  local cb = addonTable.cb5
+  if not cb or not cb.spellChild then return end
+  for _, child in ipairs({cb.spellChild:GetChildren()}) do child:Hide(); child:SetParent(nil) end
+  if not addonTable.GetCustomBar5Spells then return end
+  local spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT = addonTable.GetCustomBar5Spells()
+  if not spellList then return end
+  local profile = GetProfile()
+  local useGlobalGlows = profile and profile.customBar5UseSpellGlows == true
+  local useCustomHR = profile and profile.customBar5UseCustomHideReveal == true
+  local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
+  local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
+  local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end
+  local function onMoveDown(idx) if idx < #spellList then spellList[idx], spellList[idx+1] = spellList[idx+1], spellList[idx]; spellEnabled[idx], spellEnabled[idx+1] = spellEnabled[idx+1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx+1] = spellGlowEnabled[idx+1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx+1] = spellGlowType[idx+1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx+1] = spellHRT[idx+1], spellHRT[idx]; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end
+  local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
+  local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
+  local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, useCustomHR, spellHRT[i], onHideRevealChange) end
+  UpdateSpellListHeight(cb.spellChild, #spellList)
+end
 addonTable.RefreshCursorSpellList = RefreshCursorSpellList
 addonTable.RefreshCB1SpellList = RefreshCB1SpellList
 addonTable.RefreshCB2SpellList = RefreshCB2SpellList
 addonTable.RefreshCB3SpellList = RefreshCB3SpellList
+addonTable.RefreshCB4SpellList = RefreshCB4SpellList
+addonTable.RefreshCB5SpellList = RefreshCB5SpellList
 local function UpdateAllControls()
   local profile = GetProfile()
   if not profile then return end
@@ -699,7 +895,15 @@ local function UpdateAllControls()
       addonTable.uiScaleSlider:SetAlpha(0.5)
     end
   end
-  if addonTable.customBarsCountDD then addonTable.customBarsCountDD:SetValue(tostring(math.floor(num(profile.customBarsCount, 0)))) end
+  if addonTable.customBarsCountSlider then
+    local count = math.floor(num(profile.customBarsCount, 0))
+    if count < 0 then count = 0 end
+    if count > 5 then count = 5 end
+    addonTable.customBarsCountSlider._updating = true
+    addonTable.customBarsCountSlider:SetValue(count)
+    addonTable.customBarsCountSlider._updating = false
+    addonTable.customBarsCountSlider.valueText:SetText(count)
+  end
   if addonTable.iconBorderSlider then addonTable.iconBorderSlider:SetValue(num(profile.iconBorderSize, 1)); addonTable.iconBorderSlider.valueText:SetText(math.floor(num(profile.iconBorderSize, 1))) end
   if addonTable.strataDD then addonTable.strataDD:SetValue(profile.iconStrata or "FULLSCREEN") end
   if addonTable.fontDD then addonTable.fontDD:SetValue(NormalizeGlobalFontSelection(profile)) end
@@ -1110,6 +1314,8 @@ local function UpdateAllControls()
     if cur.directionDD then cur.directionDD:SetValue(profile.layoutDirection or "horizontal") end
 	    if cur.stackAnchorDD then cur.stackAnchorDD:SetValue(profile.stackTextPosition or "BOTTOMRIGHT") end
 	    if cur.buffOverlayCB then cur.buffOverlayCB:SetChecked(profile.useBuffOverlay ~= false) end
+	    if cur.trackBuffsCB then cur.trackBuffsCB:SetChecked(profile.trackBuffs ~= false) end
+	    if cur.openBlizzBuffBtn then cur.openBlizzBuffBtn:SetShown(profile.trackBuffs ~= false) end
 	    if cur.useGlowsCB then cur.useGlowsCB:SetChecked(profile.useSpellGlows == true) end
 	    if cur.customHideRevealCB then cur.customHideRevealCB:SetChecked(profile.useCustomHideReveal == true); cur.customHideRevealCB:SetEnabled((profile.cooldownIconMode or "show") == "hide") end
 	    local cursorGlowsEnabled = profile.useSpellGlows == true
@@ -1131,6 +1337,8 @@ local function UpdateAllControls()
     if cb1.combatOnlyCB then cb1.combatOnlyCB:SetChecked(profile.customBarOutOfCombat == false) end
     if cb1.gcdCB then cb1.gcdCB:SetChecked(profile.customBarShowGCD == true) end
     if cb1.buffOverlayCB then cb1.buffOverlayCB:SetChecked(profile.customBarUseBuffOverlay ~= false) end
+    if cb1.trackBuffsCB then cb1.trackBuffsCB:SetChecked(profile.customBarTrackBuffs ~= false) end
+    if cb1.openBlizzBuffBtn then cb1.openBlizzBuffBtn:SetShown(profile.customBarTrackBuffs ~= false) end
     if cb1.centeredCB then cb1.centeredCB:SetChecked(profile.customBarCentered == true) end
     if cb1.iconSizeSlider then cb1.iconSizeSlider:SetValue(num(profile.customBarIconSize, 30)); cb1.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBarIconSize, 30))) end
     if cb1.spacingSlider then cb1.spacingSlider:SetValue(num(profile.customBarSpacing, 2)); cb1.spacingSlider.valueText:SetText(math.floor(num(profile.customBarSpacing, 2))) end
@@ -1170,6 +1378,8 @@ local function UpdateAllControls()
     if cb2.combatOnlyCB then cb2.combatOnlyCB:SetChecked(profile.customBar2OutOfCombat == false) end
     if cb2.gcdCB then cb2.gcdCB:SetChecked(profile.customBar2ShowGCD == true) end
     if cb2.buffOverlayCB then cb2.buffOverlayCB:SetChecked(profile.customBar2UseBuffOverlay ~= false) end
+    if cb2.trackBuffsCB then cb2.trackBuffsCB:SetChecked(profile.customBar2TrackBuffs ~= false) end
+    if cb2.openBlizzBuffBtn then cb2.openBlizzBuffBtn:SetShown(profile.customBar2TrackBuffs ~= false) end
     if cb2.centeredCB then cb2.centeredCB:SetChecked(profile.customBar2Centered == true) end
     if cb2.iconSizeSlider then cb2.iconSizeSlider:SetValue(num(profile.customBar2IconSize, 30)); cb2.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBar2IconSize, 30))) end
     if cb2.spacingSlider then cb2.spacingSlider:SetValue(num(profile.customBar2Spacing, 2)); cb2.spacingSlider.valueText:SetText(math.floor(num(profile.customBar2Spacing, 2))) end
@@ -1209,6 +1419,8 @@ local function UpdateAllControls()
     if cb3.combatOnlyCB then cb3.combatOnlyCB:SetChecked(profile.customBar3OutOfCombat == false) end
     if cb3.gcdCB then cb3.gcdCB:SetChecked(profile.customBar3ShowGCD == true) end
     if cb3.buffOverlayCB then cb3.buffOverlayCB:SetChecked(profile.customBar3UseBuffOverlay ~= false) end
+    if cb3.trackBuffsCB then cb3.trackBuffsCB:SetChecked(profile.customBar3TrackBuffs ~= false) end
+    if cb3.openBlizzBuffBtn then cb3.openBlizzBuffBtn:SetShown(profile.customBar3TrackBuffs ~= false) end
     if cb3.centeredCB then cb3.centeredCB:SetChecked(profile.customBar3Centered == true) end
     if cb3.iconSizeSlider then cb3.iconSizeSlider:SetValue(num(profile.customBar3IconSize, 30)); cb3.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBar3IconSize, 30))) end
     if cb3.spacingSlider then cb3.spacingSlider:SetValue(num(profile.customBar3Spacing, 2)); cb3.spacingSlider.valueText:SetText(math.floor(num(profile.customBar3Spacing, 2))) end
@@ -1242,6 +1454,88 @@ local function UpdateAllControls()
     if cb3.stackAnchorDD then cb3.stackAnchorDD:SetValue(profile.customBar3StackTextPosition or "BOTTOMRIGHT") end
     if cb3.stackXSlider then cb3.stackXSlider:SetValue(num(profile.customBar3StackTextOffsetX, 0)); cb3.stackXSlider.valueText:SetText(math.floor(num(profile.customBar3StackTextOffsetX, 0))) end
     if cb3.stackYSlider then cb3.stackYSlider:SetValue(num(profile.customBar3StackTextOffsetY, 0)); cb3.stackYSlider.valueText:SetText(math.floor(num(profile.customBar3StackTextOffsetY, 0))) end
+  end
+  local cb4 = addonTable.cb4
+  if cb4 then
+    if cb4.combatOnlyCB then cb4.combatOnlyCB:SetChecked(profile.customBar4OutOfCombat == false) end
+    if cb4.gcdCB then cb4.gcdCB:SetChecked(profile.customBar4ShowGCD == true) end
+    if cb4.buffOverlayCB then cb4.buffOverlayCB:SetChecked(profile.customBar4UseBuffOverlay ~= false) end
+    if cb4.trackBuffsCB then cb4.trackBuffsCB:SetChecked(profile.customBar4TrackBuffs ~= false) end
+    if cb4.openBlizzBuffBtn then cb4.openBlizzBuffBtn:SetShown(profile.customBar4TrackBuffs ~= false) end
+    if cb4.centeredCB then cb4.centeredCB:SetChecked(profile.customBar4Centered == true) end
+    if cb4.iconSizeSlider then cb4.iconSizeSlider:SetValue(num(profile.customBar4IconSize, 30)); cb4.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBar4IconSize, 30))) end
+    if cb4.spacingSlider then cb4.spacingSlider:SetValue(num(profile.customBar4Spacing, 2)); cb4.spacingSlider.valueText:SetText(math.floor(num(profile.customBar4Spacing, 2))) end
+    if cb4.cdTextSlider then cb4.cdTextSlider:SetValue(num(profile.customBar4CdTextScale, 1.0)); cb4.cdTextSlider.valueText:SetText(string.format("%.1f", num(profile.customBar4CdTextScale, 1.0))) end
+    if cb4.cdGradientSlider then local gv = num(profile.customBar4CdGradientThreshold, 0); cb4.cdGradientSlider:SetValue(gv); cb4.cdGradientSlider.valueText:SetText(gv > 0 and math.floor(gv) or "Off") end
+    if cb4.cdGradientColorSwatch then cb4.cdGradientColorSwatch:SetBackdropColor(num(profile.customBar4CdGradientR, 1), num(profile.customBar4CdGradientG, 0), num(profile.customBar4CdGradientB, 0), 1); cb4.cdGradientColorSwatch:SetShown(num(profile.customBar4CdGradientThreshold, 0) > 0) end
+    if cb4.stackTextSlider then cb4.stackTextSlider:SetValue(num(profile.customBar4StackTextScale, 1.0)); cb4.stackTextSlider.valueText:SetText(string.format("%.1f", num(profile.customBar4StackTextScale, 1.0))) end
+    if cb4.iconsPerRowSlider then cb4.iconsPerRowSlider:SetValue(num(profile.customBar4IconsPerRow, 20)); cb4.iconsPerRowSlider.valueText:SetText(math.floor(num(profile.customBar4IconsPerRow, 20))) end
+    if cb4.cdModeDD then cb4.cdModeDD:SetValue(profile.customBar4CooldownMode or "show") end
+    if cb4.showModeDD then cb4.showModeDD:SetValue(profile.customBar4ShowMode or "always") end
+    if cb4.xSlider then cb4.xSlider:SetValue(num(profile.customBar4X, 0)); cb4.xSlider.valueText:SetText(math.floor(num(profile.customBar4X, 0))) end
+    if cb4.ySlider then cb4.ySlider:SetValue(num(profile.customBar4Y, -350)); cb4.ySlider.valueText:SetText(math.floor(num(profile.customBar4Y, -350))) end
+    if cb4.directionDD then cb4.directionDD:SetValue(profile.customBar4Direction or "horizontal") end
+    if cb4.anchorDD then cb4.anchorDD:SetValue(profile.customBar4AnchorPoint or "LEFT") end
+    if cb4.growthDD then cb4.growthDD:SetValue(profile.customBar4Growth or "DOWN") end
+    if cb4.useGlowsCB then cb4.useGlowsCB:SetChecked(profile.customBar4UseSpellGlows == true) end
+    if cb4.customHideRevealCB then cb4.customHideRevealCB:SetChecked(profile.customBar4UseCustomHideReveal == true); cb4.customHideRevealCB:SetEnabled((profile.customBar4CooldownMode or "show") == "hide") end
+    local cb4GlowsEnabled = profile.customBar4UseSpellGlows == true
+    if cb4.glowSpeedSlider then
+      cb4.glowSpeedSlider:SetValue(num(profile.spellGlowSpeed, 0.0))
+      cb4.glowSpeedSlider.valueText:SetText(string.format("%.1f", num(profile.spellGlowSpeed, 0.0)))
+      SetStyledSliderShown(cb4.glowSpeedSlider, cb4GlowsEnabled)
+    end
+    if cb4.glowThicknessSlider then
+      cb4.glowThicknessSlider:SetValue(num(profile.spellGlowThickness, 2.0))
+      cb4.glowThicknessSlider.valueText:SetText(string.format("%.1f", num(profile.spellGlowThickness, 2.0)))
+      SetStyledSliderShown(cb4.glowThicknessSlider, cb4GlowsEnabled)
+    end
+    if cb4.anchorTargetDD then if addonTable.GetAnchorFrameOptions then cb4.anchorTargetDD:SetOptions(addonTable.GetAnchorFrameOptions(4)) end; cb4.anchorTargetDD:SetValue(profile.customBar4AnchorFrame or "UIParent") end
+    if cb4.anchorToPointDD then cb4.anchorToPointDD:SetValue(profile.customBar4AnchorToPoint or "CENTER"); cb4.anchorToPointDD:SetEnabled((profile.customBar4AnchorFrame or "UIParent") ~= "UIParent") end
+    if cb4.stackAnchorDD then cb4.stackAnchorDD:SetValue(profile.customBar4StackTextPosition or "BOTTOMRIGHT") end
+    if cb4.stackXSlider then cb4.stackXSlider:SetValue(num(profile.customBar4StackTextOffsetX, 0)); cb4.stackXSlider.valueText:SetText(math.floor(num(profile.customBar4StackTextOffsetX, 0))) end
+    if cb4.stackYSlider then cb4.stackYSlider:SetValue(num(profile.customBar4StackTextOffsetY, 0)); cb4.stackYSlider.valueText:SetText(math.floor(num(profile.customBar4StackTextOffsetY, 0))) end
+  end
+  local cb5 = addonTable.cb5
+  if cb5 then
+    if cb5.combatOnlyCB then cb5.combatOnlyCB:SetChecked(profile.customBar5OutOfCombat == false) end
+    if cb5.gcdCB then cb5.gcdCB:SetChecked(profile.customBar5ShowGCD == true) end
+    if cb5.buffOverlayCB then cb5.buffOverlayCB:SetChecked(profile.customBar5UseBuffOverlay ~= false) end
+    if cb5.trackBuffsCB then cb5.trackBuffsCB:SetChecked(profile.customBar5TrackBuffs ~= false) end
+    if cb5.openBlizzBuffBtn then cb5.openBlizzBuffBtn:SetShown(profile.customBar5TrackBuffs ~= false) end
+    if cb5.centeredCB then cb5.centeredCB:SetChecked(profile.customBar5Centered == true) end
+    if cb5.iconSizeSlider then cb5.iconSizeSlider:SetValue(num(profile.customBar5IconSize, 30)); cb5.iconSizeSlider.valueText:SetText(math.floor(num(profile.customBar5IconSize, 30))) end
+    if cb5.spacingSlider then cb5.spacingSlider:SetValue(num(profile.customBar5Spacing, 2)); cb5.spacingSlider.valueText:SetText(math.floor(num(profile.customBar5Spacing, 2))) end
+    if cb5.cdTextSlider then cb5.cdTextSlider:SetValue(num(profile.customBar5CdTextScale, 1.0)); cb5.cdTextSlider.valueText:SetText(string.format("%.1f", num(profile.customBar5CdTextScale, 1.0))) end
+    if cb5.cdGradientSlider then local gv = num(profile.customBar5CdGradientThreshold, 0); cb5.cdGradientSlider:SetValue(gv); cb5.cdGradientSlider.valueText:SetText(gv > 0 and math.floor(gv) or "Off") end
+    if cb5.cdGradientColorSwatch then cb5.cdGradientColorSwatch:SetBackdropColor(num(profile.customBar5CdGradientR, 1), num(profile.customBar5CdGradientG, 0), num(profile.customBar5CdGradientB, 0), 1); cb5.cdGradientColorSwatch:SetShown(num(profile.customBar5CdGradientThreshold, 0) > 0) end
+    if cb5.stackTextSlider then cb5.stackTextSlider:SetValue(num(profile.customBar5StackTextScale, 1.0)); cb5.stackTextSlider.valueText:SetText(string.format("%.1f", num(profile.customBar5StackTextScale, 1.0))) end
+    if cb5.iconsPerRowSlider then cb5.iconsPerRowSlider:SetValue(num(profile.customBar5IconsPerRow, 20)); cb5.iconsPerRowSlider.valueText:SetText(math.floor(num(profile.customBar5IconsPerRow, 20))) end
+    if cb5.cdModeDD then cb5.cdModeDD:SetValue(profile.customBar5CooldownMode or "show") end
+    if cb5.showModeDD then cb5.showModeDD:SetValue(profile.customBar5ShowMode or "always") end
+    if cb5.xSlider then cb5.xSlider:SetValue(num(profile.customBar5X, 0)); cb5.xSlider.valueText:SetText(math.floor(num(profile.customBar5X, 0))) end
+    if cb5.ySlider then cb5.ySlider:SetValue(num(profile.customBar5Y, -400)); cb5.ySlider.valueText:SetText(math.floor(num(profile.customBar5Y, -400))) end
+    if cb5.directionDD then cb5.directionDD:SetValue(profile.customBar5Direction or "horizontal") end
+    if cb5.anchorDD then cb5.anchorDD:SetValue(profile.customBar5AnchorPoint or "LEFT") end
+    if cb5.growthDD then cb5.growthDD:SetValue(profile.customBar5Growth or "DOWN") end
+    if cb5.useGlowsCB then cb5.useGlowsCB:SetChecked(profile.customBar5UseSpellGlows == true) end
+    if cb5.customHideRevealCB then cb5.customHideRevealCB:SetChecked(profile.customBar5UseCustomHideReveal == true); cb5.customHideRevealCB:SetEnabled((profile.customBar5CooldownMode or "show") == "hide") end
+    local cb5GlowsEnabled = profile.customBar5UseSpellGlows == true
+    if cb5.glowSpeedSlider then
+      cb5.glowSpeedSlider:SetValue(num(profile.spellGlowSpeed, 0.0))
+      cb5.glowSpeedSlider.valueText:SetText(string.format("%.1f", num(profile.spellGlowSpeed, 0.0)))
+      SetStyledSliderShown(cb5.glowSpeedSlider, cb5GlowsEnabled)
+    end
+    if cb5.glowThicknessSlider then
+      cb5.glowThicknessSlider:SetValue(num(profile.spellGlowThickness, 2.0))
+      cb5.glowThicknessSlider.valueText:SetText(string.format("%.1f", num(profile.spellGlowThickness, 2.0)))
+      SetStyledSliderShown(cb5.glowThicknessSlider, cb5GlowsEnabled)
+    end
+    if cb5.anchorTargetDD then if addonTable.GetAnchorFrameOptions then cb5.anchorTargetDD:SetOptions(addonTable.GetAnchorFrameOptions(5)) end; cb5.anchorTargetDD:SetValue(profile.customBar5AnchorFrame or "UIParent") end
+    if cb5.anchorToPointDD then cb5.anchorToPointDD:SetValue(profile.customBar5AnchorToPoint or "CENTER"); cb5.anchorToPointDD:SetEnabled((profile.customBar5AnchorFrame or "UIParent") ~= "UIParent") end
+    if cb5.stackAnchorDD then cb5.stackAnchorDD:SetValue(profile.customBar5StackTextPosition or "BOTTOMRIGHT") end
+    if cb5.stackXSlider then cb5.stackXSlider:SetValue(num(profile.customBar5StackTextOffsetX, 0)); cb5.stackXSlider.valueText:SetText(math.floor(num(profile.customBar5StackTextOffsetX, 0))) end
+    if cb5.stackYSlider then cb5.stackYSlider:SetValue(num(profile.customBar5StackTextOffsetY, 0)); cb5.stackYSlider.valueText:SetText(math.floor(num(profile.customBar5StackTextOffsetY, 0))) end
   end
   if addonTable.skinningModeDD then
     local skinMode = "none"
@@ -1300,6 +1594,8 @@ local function UpdateAllControls()
   RefreshCB1SpellList()
   RefreshCB2SpellList()
   RefreshCB3SpellList()
+  RefreshCB4SpellList()
+  RefreshCB5SpellList()
   if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
 end
 local function UpdateProfileDisplay()
@@ -1349,9 +1645,13 @@ local function UpdateProfileList()
         if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
         if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
         if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+        if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+        if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
         if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
         if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
         if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
         ShowReloadPrompt("Profile switched to '" .. name .. "'.\n\nA UI reload is recommended for all changes to take effect. Reload now?", "Reload", "Later")
       end)
       yOff = yOff + 22
@@ -1397,10 +1697,14 @@ local function InitHandlers()
     if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
     if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
     if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+    if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+    if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
     if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
     if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
     if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
     if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+    if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+    if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
     if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
   end
   local function ApplyUIScale(scale)
@@ -1483,18 +1787,33 @@ local function InitHandlers()
       end
     end)
   end
-  if addonTable.customBarsCountDD then
-    addonTable.customBarsCountDD.onSelect = function(v)
+  if addonTable.customBarsCountSlider then
+    addonTable.customBarsCountSlider:SetScript("OnValueChanged", function(s, v)
+      if s._updating then return end
       local p = GetProfile()
       if p then
-        local count = tonumber(v) or 0
+        local count = math.floor((tonumber(v) or 0) + 0.5)
+        if count < 0 then count = 0 end
+        if count > 5 then count = 5 end
+        if p.customBarsCount == count then
+          s.valueText:SetText(count)
+          return
+        end
+        s._updating = true
+        s:SetValue(count)
+        s._updating = false
+        s.valueText:SetText(count)
         p.customBarsCount = count
         local wasBar1Enabled = p.customBarEnabled
         local wasBar2Enabled = p.customBar2Enabled
         local wasBar3Enabled = p.customBar3Enabled
+        local wasBar4Enabled = p.customBar4Enabled
+        local wasBar5Enabled = p.customBar5Enabled
         p.customBarEnabled = (count >= 1)
         p.customBar2Enabled = (count >= 2)
         p.customBar3Enabled = (count >= 3)
+        p.customBar4Enabled = (count >= 4)
+        p.customBar5Enabled = (count >= 5)
         if p.customBarEnabled and not wasBar1Enabled then
           if p.customBarCentered == nil then p.customBarCentered = true end
           if p.customBarX == nil then p.customBarX = 0 end
@@ -1507,19 +1826,33 @@ local function InitHandlers()
           if p.customBar3Centered == nil then p.customBar3Centered = true end
           if p.customBar3X == nil then p.customBar3X = 0 end
         end
+        if p.customBar4Enabled and not wasBar4Enabled then
+          if p.customBar4Centered == nil then p.customBar4Centered = true end
+          if p.customBar4X == nil then p.customBar4X = 0 end
+        end
+        if p.customBar5Enabled and not wasBar5Enabled then
+          if p.customBar5Centered == nil then p.customBar5Centered = true end
+          if p.customBar5X == nil then p.customBar5X = 0 end
+        end
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
         if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
         if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+        if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+        if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
         if addonTable.UpdateCustomBarPosition then addonTable.UpdateCustomBarPosition() end
         if addonTable.UpdateCustomBar2Position then addonTable.UpdateCustomBar2Position() end
         if addonTable.UpdateCustomBar3Position then addonTable.UpdateCustomBar3Position() end
+        if addonTable.UpdateCustomBar4Position then addonTable.UpdateCustomBar4Position() end
+        if addonTable.UpdateCustomBar5Position then addonTable.UpdateCustomBar5Position() end
         if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
         if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
         if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
         if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
       end
-    end
+    end)
   end
   if addonTable.iconBorderSlider then
     addonTable.iconBorderSlider:SetScript("OnValueChanged", function(s, v)
@@ -2426,6 +2759,8 @@ local function InitHandlers()
       SetButtonHighlighted(addonTable.lowHealthWarningPreviewOnBtn, false)
     end)
   end
+  local ApplySerializedDataToProfile
+  local EXAMPLE_IMPORT_DATA_DPS_TANK
   local function CreateExampleProfile(role, profileName)
     local exampleProfiles = CCM and CCM.Defaults and CCM.Defaults.exampleProfiles
     if not exampleProfiles or not exampleProfiles[role] then
@@ -2449,8 +2784,12 @@ local function InitHandlers()
         end
       end
     end
-    for key, value in pairs(exampleProfiles[role]) do
-      newProfile[key] = value
+    if (role == "DPS" or role == "Tank") and EXAMPLE_IMPORT_DATA_DPS_TANK ~= "" then
+      ApplySerializedDataToProfile(newProfile, EXAMPLE_IMPORT_DATA_DPS_TANK)
+    else
+      for key, value in pairs(exampleProfiles[role]) do
+        newProfile[key] = value
+      end
     end
     CooldownCursorManagerDB.profileClasses = CooldownCursorManagerDB.profileClasses or {}
     CooldownCursorManagerDB.profileClasses[profileName] = nil
@@ -2465,9 +2804,13 @@ local function InitHandlers()
     if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
     if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
     if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+    if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+    if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
     if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
     if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
     if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+    if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+    if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
     if addonTable.UpdatePRB then addonTable.UpdatePRB() end
     if addonTable.UpdateCastbar then addonTable.UpdateCastbar() end
     if addonTable.UpdateSelfHighlight then addonTable.UpdateSelfHighlight() end
@@ -2650,6 +2993,28 @@ local function InitHandlers()
     end
     if cur.stackAnchorDD then cur.stackAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.stackTextPosition = v; if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end end end end
     if cur.buffOverlayCB then cur.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.useBuffOverlay = s:GetChecked(); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end end end
+    AttachCheckboxTooltip(cur.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cur.trackBuffsCB then cur.trackBuffsCB.customOnClick = function(s)
+      local p = GetProfile(); if not p then return end
+      p.trackBuffs = s:GetChecked()
+      if cur.openBlizzBuffBtn then cur.openBlizzBuffBtn:SetShown(s:GetChecked()) end
+      if s:GetChecked() == true then
+        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff then
+          ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        end
+      end
+      if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+      if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+      if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+      if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+      if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
+      if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+      if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+    end end
+    AttachCheckboxTooltip(cur.trackBuffsCB, TRACK_BUFFS_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 360})
     if cur.useGlowsCB then cur.useGlowsCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2668,8 +3033,8 @@ local function InitHandlers()
         RefreshCursorSpellList()
       end
     end end
-    if cur.glowSpeedSlider then cur.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); UpdateAllIcons(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
-    if cur.glowThicknessSlider then cur.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); UpdateAllIcons(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cur.glowSpeedSlider then cur.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); UpdateAllIcons(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cur.glowThicknessSlider then cur.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); UpdateAllIcons(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
     if cur.stackXSlider then cur.stackXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.stackTextOffsetX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end; if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
     if cur.stackYSlider then cur.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.stackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStackTextPositions then addonTable.UpdateStackTextPositions() end; if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
     if tabFrames and tabFrames[2] then
@@ -2681,6 +3046,28 @@ local function InitHandlers()
     if cb1.combatOnlyCB then cb1.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarOutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
     if cb1.gcdCB then cb1.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
     if cb1.buffOverlayCB then cb1.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBarUseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end end
+    AttachCheckboxTooltip(cb1.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb1.trackBuffsCB then cb1.trackBuffsCB.customOnClick = function(s)
+      local p = GetProfile(); if not p then return end
+      p.customBarTrackBuffs = s:GetChecked()
+      if cb1.openBlizzBuffBtn then cb1.openBlizzBuffBtn:SetShown(s:GetChecked()) end
+      if s:GetChecked() == true then
+        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff then
+          ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        end
+      end
+      if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+      if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+      if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+      if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+      if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
+      if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+      if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+    end end
+    AttachCheckboxTooltip(cb1.trackBuffsCB, TRACK_BUFFS_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 360})
     if cb1.useGlowsCB then cb1.useGlowsCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2700,8 +3087,8 @@ local function InitHandlers()
         if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
       end
     end end
-    if cb1.glowSpeedSlider then cb1.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
-    if cb1.glowThicknessSlider then cb1.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb1.glowSpeedSlider then cb1.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb1.glowThicknessSlider then cb1.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
     if cb1.centeredCB then cb1.centeredCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2750,6 +3137,28 @@ local function InitHandlers()
     if cb2.combatOnlyCB then cb2.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
     if cb2.gcdCB then cb2.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
     if cb2.buffOverlayCB then cb2.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar2UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end end
+    AttachCheckboxTooltip(cb2.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb2.trackBuffsCB then cb2.trackBuffsCB.customOnClick = function(s)
+      local p = GetProfile(); if not p then return end
+      p.customBar2TrackBuffs = s:GetChecked()
+      if cb2.openBlizzBuffBtn then cb2.openBlizzBuffBtn:SetShown(s:GetChecked()) end
+      if s:GetChecked() == true then
+        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff then
+          ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        end
+      end
+      if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+      if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+      if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+      if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+      if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
+      if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+      if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+    end end
+    AttachCheckboxTooltip(cb2.trackBuffsCB, TRACK_BUFFS_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 360})
     if cb2.useGlowsCB then cb2.useGlowsCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2769,8 +3178,8 @@ local function InitHandlers()
         if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
       end
     end end
-    if cb2.glowSpeedSlider then cb2.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
-    if cb2.glowThicknessSlider then cb2.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb2.glowSpeedSlider then cb2.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb2.glowThicknessSlider then cb2.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
     if cb2.centeredCB then cb2.centeredCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2819,6 +3228,28 @@ local function InitHandlers()
     if cb3.combatOnlyCB then cb3.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
     if cb3.gcdCB then cb3.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
     if cb3.buffOverlayCB then cb3.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar3UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end
+    AttachCheckboxTooltip(cb3.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb3.trackBuffsCB then cb3.trackBuffsCB.customOnClick = function(s)
+      local p = GetProfile(); if not p then return end
+      p.customBar3TrackBuffs = s:GetChecked()
+      if cb3.openBlizzBuffBtn then cb3.openBlizzBuffBtn:SetShown(s:GetChecked()) end
+      if s:GetChecked() == true then
+        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff then
+          ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        end
+      end
+      if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+      if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+      if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+      if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+      if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
+      if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+      if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+    end end
+    AttachCheckboxTooltip(cb3.trackBuffsCB, TRACK_BUFFS_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 360})
     if cb3.useGlowsCB then cb3.useGlowsCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2838,8 +3269,8 @@ local function InitHandlers()
         if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
       end
     end end
-    if cb3.glowSpeedSlider then cb3.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
-    if cb3.glowThicknessSlider then cb3.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end) end
+    if cb3.glowSpeedSlider then cb3.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb3.glowThicknessSlider then cb3.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
     if cb3.centeredCB then cb3.centeredCB.customOnClick = function(s)
       local p = GetProfile()
       if p then
@@ -2882,6 +3313,204 @@ local function InitHandlers()
     if cb3.addGCSBtn then cb3.addGCSBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar3Spells then return end; local s,e = addonTable.GetCustomBar3Spells(); local gcsID = 188152; local found = false; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID == gcsID then found = true; break end end; if found then break end end; if found then local exists = false; for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end; if not exists then table.insert(s, -gcsID); table.insert(e, true); addonTable.SetCustomBar3Spells(s,e); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end end) end
     if cb3.addBox then cb3.addBox:SetScript("OnEnterPressed", function() if cb3.addSpellBtn then cb3.addSpellBtn:Click() end; cb3.addBox:ClearFocus() end) end
     if tabFrames and tabFrames[5] then SetupDragDrop(tabFrames[5], addonTable.GetCustomBar3Spells, addonTable.SetCustomBar3Spells, RefreshCB3SpellList, addonTable.CreateCustomBar3Icons, addonTable.UpdateCustomBar3, {cb3.spellBg, cb3.spellScroll, cb3.spellChild}) end
+  end
+  local cb4 = addonTable.cb4
+  if cb4 then
+    if cb4.combatOnlyCB then cb4.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar4OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.gcdCB then cb4.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar4ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.buffOverlayCB then cb4.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar4UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    AttachCheckboxTooltip(cb4.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb4.trackBuffsCB then cb4.trackBuffsCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        p.customBar4TrackBuffs = s:GetChecked()
+        if cb4.openBlizzBuffBtn then cb4.openBlizzBuffBtn:SetShown(p.customBar4TrackBuffs ~= false) end
+        if p.customBar4TrackBuffs then
+          if EnsureDisableBlizzCDMCompatible(p) then
+            if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+          end
+        end
+        if p.disableBlizzCDM == true then
+          if EnsureTrackBuffsCompatible(p) then
+            SyncTrackBuffsCheckboxesFromProfile(p)
+            ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+          end
+        end
+        if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+        if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+        if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+        if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+        if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+        if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
+        if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+        if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+      end end
+    end
+    AttachCheckboxTooltip(cb4.trackBuffsCB, TRACK_BUFFS_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 360})
+    if cb4.useGlowsCB then cb4.useGlowsCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        local enabled = s:GetChecked() == true
+        p.customBar4UseSpellGlows = enabled
+        if cb4.glowSpeedSlider then SetStyledSliderShown(cb4.glowSpeedSlider, enabled) end
+        if cb4.glowThicknessSlider then SetStyledSliderShown(cb4.glowThicknessSlider, enabled) end
+        RefreshCB4SpellList()
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+      end
+    end end
+    if cb4.customHideRevealCB then cb4.customHideRevealCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        p.customBar4UseCustomHideReveal = s:GetChecked() == true
+        RefreshCB4SpellList()
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+      end
+    end end
+    if cb4.glowSpeedSlider then cb4.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb4.glowThicknessSlider then cb4.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb4.centeredCB then cb4.centeredCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        p.customBar4Centered = s:GetChecked()
+        if s:GetChecked() then
+          p.customBar4X = 0
+          if cb4.xSlider then cb4.xSlider:SetValue(0); cb4.xSlider.valueText:SetText("0") end
+        end
+        if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+      end
+    end end
+    if cb4.iconSizeSlider then cb4.iconSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4IconSize = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.spacingSlider then cb4.spacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4Spacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.cdTextSlider then cb4.cdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4CdTextScale = v; s.valueText:SetText(string.format("%.1f", v)); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.cdGradientSlider then cb4.cdGradientSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then local fv = math.floor(v); p.customBar4CdGradientThreshold = fv; s.valueText:SetText(fv > 0 and fv or "Off"); if cb4.cdGradientColorSwatch then cb4.cdGradientColorSwatch:SetShown(fv > 0) end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.cdGradientColorSwatch then cb4.cdGradientColorSwatch:SetScript("OnMouseDown", function() local p = GetProfile(); if not p then return end; local r = p.customBar4CdGradientR or 1; local g = p.customBar4CdGradientG or 0; local b = p.customBar4CdGradientB or 0; local function OnColorChanged() local nr, ng, nb = ColorPickerFrame:GetColorRGB(); p.customBar4CdGradientR = nr; p.customBar4CdGradientG = ng; p.customBar4CdGradientB = nb; if cb4.cdGradientColorSwatch then cb4.cdGradientColorSwatch:SetBackdropColor(nr, ng, nb, 1) end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end; local function OnCancel(prev) p.customBar4CdGradientR = prev.r; p.customBar4CdGradientG = prev.g; p.customBar4CdGradientB = prev.b; if cb4.cdGradientColorSwatch then cb4.cdGradientColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end; ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel}) end) end
+    if cb4.stackTextSlider then cb4.stackTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4StackTextScale = v; s.valueText:SetText(string.format("%.1f", v)); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.iconsPerRowSlider then cb4.iconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4IconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.cdModeDD then cb4.cdModeDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4CooldownMode = v; if cb4.customHideRevealCB then cb4.customHideRevealCB:SetEnabled(v == "hide"); if v ~= "hide" then cb4.customHideRevealCB:SetChecked(false); p.customBar4UseCustomHideReveal = false end end; if addonTable.RefreshCB4SpellList then addonTable.RefreshCB4SpellList() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.showModeDD then cb4.showModeDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4ShowMode = v; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.xSlider then cb4.xSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4X = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4Position then addonTable.UpdateCustomBar4Position() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.ySlider then cb4.ySlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4Y = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4Position then addonTable.UpdateCustomBar4Position() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.directionDD then cb4.directionDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4Direction = v; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.anchorDD then cb4.anchorDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4AnchorPoint = v; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.growthDD then cb4.growthDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4Growth = v; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.anchorTargetDD then
+      cb4.anchorTargetDD.refreshOptions = function(dd) if addonTable.GetAnchorFrameOptions then dd:SetOptions(addonTable.GetAnchorFrameOptions(4)) end end
+      cb4.anchorTargetDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4AnchorFrame = v; p.customBar4X = 0; p.customBar4Y = 0; if cb4.xSlider then cb4.xSlider:SetValue(0); cb4.xSlider.valueText:SetText("0") end; if cb4.ySlider then cb4.ySlider:SetValue(0); cb4.ySlider.valueText:SetText("0") end; if v == "UIParent" then p.customBar4AnchorToPoint = "CENTER"; if cb4.anchorToPointDD then cb4.anchorToPointDD:SetValue("CENTER") end end; if cb4.anchorToPointDD then cb4.anchorToPointDD:SetEnabled(v ~= "UIParent") end; if addonTable.UpdateCustomBar4Position then addonTable.UpdateCustomBar4Position() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end
+    end
+    if cb4.anchorToPointDD then cb4.anchorToPointDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4AnchorToPoint = v; if addonTable.UpdateCustomBar4Position then addonTable.UpdateCustomBar4Position() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end
+    if cb4.stackAnchorDD then cb4.stackAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar4StackTextPosition = v; if addonTable.UpdateCustomBar4StackTextPositions then addonTable.UpdateCustomBar4StackTextPositions() end end end end
+    if cb4.stackXSlider then cb4.stackXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4StackTextOffsetX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4StackTextPositions then addonTable.UpdateCustomBar4StackTextPositions() end end end) end
+    if cb4.stackYSlider then cb4.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar4StackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar4StackTextPositions then addonTable.UpdateCustomBar4StackTextPositions() end end end) end
+    if cb4.addSpellBtn then cb4.addSpellBtn:SetScript("OnClick", function() local id = tonumber(cb4.addBox:GetText()); if id and addonTable.GetCustomBar4Spells then local s,e = addonTable.GetCustomBar4Spells(); table.insert(s, id); table.insert(e, true); addonTable.SetCustomBar4Spells(s,e); cb4.addBox:SetText(""); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.addItemBtn then cb4.addItemBtn:SetScript("OnClick", function() local id = tonumber(cb4.addBox:GetText()); if id and addonTable.GetCustomBar4Spells then local s,e = addonTable.GetCustomBar4Spells(); table.insert(s, -id); table.insert(e, true); addonTable.SetCustomBar4Spells(s,e); cb4.addBox:SetText(""); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.addTrinketsBtn then cb4.addTrinketsBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar4Spells then return end; local s,e = addonTable.GetCustomBar4Spells(); local added = 0; for _, slot in ipairs({13, 14}) do local trinketID = GetInventoryItemID("player", slot); if trinketID then local spellName = C_Item.GetItemSpell(trinketID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -trinketID then exists = true; break end end; if not exists then table.insert(s, -trinketID); table.insert(e, true); added = added + 1 end end end end; if added > 0 then addonTable.SetCustomBar4Spells(s,e); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.addRacialBtn then cb4.addRacialBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar4Spells then return end; local s,e = addonTable.GetCustomBar4Spells(); local added = 0; local racialSpells = {59752,20594,58984,20589,28880,68992,256948,255647,265221,287712,312924,20572,33697,33702,7744,20577,20549,26297,28730,25046,50613,69179,80483,129597,155145,202719,232633,69041,69070,107079,260364,255654,274738,291944,281954,312411,368970,357214,436717}; for _, spellID in ipairs(racialSpells) do if C_SpellBook.IsSpellKnown(spellID) then local exists = false; for _, id in ipairs(s) do if id == spellID then exists = true; break end end; if not exists then table.insert(s, spellID); table.insert(e, true); added = added + 1 end end end; if added > 0 then addonTable.SetCustomBar4Spells(s,e); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.addPotionBtn then cb4.addPotionBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar4Spells then return end; local s,e = addonTable.GetCustomBar4Spells(); local added = 0; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID then local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(itemID); if classID == 0 and subClassID == 1 then local spellName = C_Item.GetItemSpell(itemID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -itemID then exists = true; break end end; if not exists then table.insert(s, -itemID); table.insert(e, true); added = added + 1 end end end end end end; local _, _, pClassID = UnitClass("player"); local hsID = pClassID == 9 and 224464 or 5512; local hsExists = false; for _, id in ipairs(s) do if id == -hsID then hsExists = true; break end end; if not hsExists then table.insert(s, -hsID); table.insert(e, true); added = added + 1 end; if added > 0 then addonTable.SetCustomBar4Spells(s,e); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end) end
+    if cb4.addGCSBtn then cb4.addGCSBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar4Spells then return end; local s,e = addonTable.GetCustomBar4Spells(); local gcsID = 188152; local found = false; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID == gcsID then found = true; break end end; if found then break end end; if found then local exists = false; for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end; if not exists then table.insert(s, -gcsID); table.insert(e, true); addonTable.SetCustomBar4Spells(s,e); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end end) end
+    if cb4.addBox then cb4.addBox:SetScript("OnEnterPressed", function() if cb4.addSpellBtn then cb4.addSpellBtn:Click() end; cb4.addBox:ClearFocus() end) end
+    if tabFrames and tabFrames[20] then SetupDragDrop(tabFrames[20], addonTable.GetCustomBar4Spells, addonTable.SetCustomBar4Spells, RefreshCB4SpellList, addonTable.CreateCustomBar4Icons, addonTable.UpdateCustomBar4, {cb4.spellBg, cb4.spellScroll, cb4.spellChild}) end
+  end
+  local cb5 = addonTable.cb5
+  if cb5 then
+    if cb5.combatOnlyCB then cb5.combatOnlyCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar5OutOfCombat = not s:GetChecked(); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.gcdCB then cb5.gcdCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar5ShowGCD = s:GetChecked(); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.buffOverlayCB then cb5.buffOverlayCB.customOnClick = function(s) local p = GetProfile(); if p then p.customBar5UseBuffOverlay = s:GetChecked(); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    AttachCheckboxTooltip(cb5.buffOverlayCB, BUFF_OVERLAY_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 320})
+    if cb5.trackBuffsCB then cb5.trackBuffsCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        p.customBar5TrackBuffs = s:GetChecked()
+        if cb5.openBlizzBuffBtn then cb5.openBlizzBuffBtn:SetShown(p.customBar5TrackBuffs ~= false) end
+        if p.customBar5TrackBuffs then
+          if EnsureDisableBlizzCDMCompatible(p) then
+            if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+          end
+        end
+        if p.disableBlizzCDM == true then
+          if EnsureTrackBuffsCompatible(p) then
+            SyncTrackBuffsCheckboxesFromProfile(p)
+            ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+          end
+        end
+        if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+        if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+        if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+        if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+        if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+        if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
+        if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
+        if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+        if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+      end end
+    end
+    AttachCheckboxTooltip(cb5.trackBuffsCB, TRACK_BUFFS_TOOLTIP_TEXT, {anchor = "ANCHOR_LEFT", minWidth = 360})
+    if cb5.useGlowsCB then cb5.useGlowsCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        local enabled = s:GetChecked() == true
+        p.customBar5UseSpellGlows = enabled
+        if cb5.glowSpeedSlider then SetStyledSliderShown(cb5.glowSpeedSlider, enabled) end
+        if cb5.glowThicknessSlider then SetStyledSliderShown(cb5.glowThicknessSlider, enabled) end
+        RefreshCB5SpellList()
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+      end
+    end end
+    if cb5.customHideRevealCB then cb5.customHideRevealCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        p.customBar5UseCustomHideReveal = s:GetChecked() == true
+        RefreshCB5SpellList()
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+      end
+    end end
+    if cb5.glowSpeedSlider then cb5.glowSpeedSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowSpeed = tonumber(string.format("%.1f", v)) or 0.0; s.valueText:SetText(string.format("%.1f", p.spellGlowSpeed)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.glowThicknessSlider then cb5.glowThicknessSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.spellGlowThickness = tonumber(string.format("%.1f", v)) or 2.0; s.valueText:SetText(string.format("%.1f", p.spellGlowThickness)); if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.centeredCB then cb5.centeredCB.customOnClick = function(s)
+      local p = GetProfile()
+      if p then
+        p.customBar5Centered = s:GetChecked()
+        if s:GetChecked() then
+          p.customBar5X = 0
+          if cb5.xSlider then cb5.xSlider:SetValue(0); cb5.xSlider.valueText:SetText("0") end
+        end
+        if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
+        if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+      end
+    end end
+    if cb5.iconSizeSlider then cb5.iconSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5IconSize = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.spacingSlider then cb5.spacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5Spacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.cdTextSlider then cb5.cdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5CdTextScale = v; s.valueText:SetText(string.format("%.1f", v)); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.cdGradientSlider then cb5.cdGradientSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then local fv = math.floor(v); p.customBar5CdGradientThreshold = fv; s.valueText:SetText(fv > 0 and fv or "Off"); if cb5.cdGradientColorSwatch then cb5.cdGradientColorSwatch:SetShown(fv > 0) end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.cdGradientColorSwatch then cb5.cdGradientColorSwatch:SetScript("OnMouseDown", function() local p = GetProfile(); if not p then return end; local r = p.customBar5CdGradientR or 1; local g = p.customBar5CdGradientG or 0; local b = p.customBar5CdGradientB or 0; local function OnColorChanged() local nr, ng, nb = ColorPickerFrame:GetColorRGB(); p.customBar5CdGradientR = nr; p.customBar5CdGradientG = ng; p.customBar5CdGradientB = nb; if cb5.cdGradientColorSwatch then cb5.cdGradientColorSwatch:SetBackdropColor(nr, ng, nb, 1) end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end; local function OnCancel(prev) p.customBar5CdGradientR = prev.r; p.customBar5CdGradientG = prev.g; p.customBar5CdGradientB = prev.b; if cb5.cdGradientColorSwatch then cb5.cdGradientColorSwatch:SetBackdropColor(prev.r, prev.g, prev.b, 1) end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end; ShowColorPicker({r = r, g = g, b = b, hasOpacity = false, swatchFunc = OnColorChanged, cancelFunc = OnCancel}) end) end
+    if cb5.stackTextSlider then cb5.stackTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5StackTextScale = v; s.valueText:SetText(string.format("%.1f", v)); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.iconsPerRowSlider then cb5.iconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5IconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.cdModeDD then cb5.cdModeDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5CooldownMode = v; if cb5.customHideRevealCB then cb5.customHideRevealCB:SetEnabled(v == "hide"); if v ~= "hide" then cb5.customHideRevealCB:SetChecked(false); p.customBar5UseCustomHideReveal = false end end; if addonTable.RefreshCB5SpellList then addonTable.RefreshCB5SpellList() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.showModeDD then cb5.showModeDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5ShowMode = v; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.xSlider then cb5.xSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5X = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5Position then addonTable.UpdateCustomBar5Position() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.ySlider then cb5.ySlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5Y = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5Position then addonTable.UpdateCustomBar5Position() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.directionDD then cb5.directionDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5Direction = v; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.anchorDD then cb5.anchorDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5AnchorPoint = v; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.growthDD then cb5.growthDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5Growth = v; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.anchorTargetDD then
+      cb5.anchorTargetDD.refreshOptions = function(dd) if addonTable.GetAnchorFrameOptions then dd:SetOptions(addonTable.GetAnchorFrameOptions(5)) end end
+      cb5.anchorTargetDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5AnchorFrame = v; p.customBar5X = 0; p.customBar5Y = 0; if cb5.xSlider then cb5.xSlider:SetValue(0); cb5.xSlider.valueText:SetText("0") end; if cb5.ySlider then cb5.ySlider:SetValue(0); cb5.ySlider.valueText:SetText("0") end; if v == "UIParent" then p.customBar5AnchorToPoint = "CENTER"; if cb5.anchorToPointDD then cb5.anchorToPointDD:SetValue("CENTER") end end; if cb5.anchorToPointDD then cb5.anchorToPointDD:SetEnabled(v ~= "UIParent") end; if addonTable.UpdateCustomBar5Position then addonTable.UpdateCustomBar5Position() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end
+    end
+    if cb5.anchorToPointDD then cb5.anchorToPointDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5AnchorToPoint = v; if addonTable.UpdateCustomBar5Position then addonTable.UpdateCustomBar5Position() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end
+    if cb5.stackAnchorDD then cb5.stackAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.customBar5StackTextPosition = v; if addonTable.UpdateCustomBar5StackTextPositions then addonTable.UpdateCustomBar5StackTextPositions() end end end end
+    if cb5.stackXSlider then cb5.stackXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5StackTextOffsetX = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5StackTextPositions then addonTable.UpdateCustomBar5StackTextPositions() end end end) end
+    if cb5.stackYSlider then cb5.stackYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.customBar5StackTextOffsetY = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateCustomBar5StackTextPositions then addonTable.UpdateCustomBar5StackTextPositions() end end end) end
+    if cb5.addSpellBtn then cb5.addSpellBtn:SetScript("OnClick", function() local id = tonumber(cb5.addBox:GetText()); if id and addonTable.GetCustomBar5Spells then local s,e = addonTable.GetCustomBar5Spells(); table.insert(s, id); table.insert(e, true); addonTable.SetCustomBar5Spells(s,e); cb5.addBox:SetText(""); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.addItemBtn then cb5.addItemBtn:SetScript("OnClick", function() local id = tonumber(cb5.addBox:GetText()); if id and addonTable.GetCustomBar5Spells then local s,e = addonTable.GetCustomBar5Spells(); table.insert(s, -id); table.insert(e, true); addonTable.SetCustomBar5Spells(s,e); cb5.addBox:SetText(""); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.addTrinketsBtn then cb5.addTrinketsBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar5Spells then return end; local s,e = addonTable.GetCustomBar5Spells(); local added = 0; for _, slot in ipairs({13, 14}) do local trinketID = GetInventoryItemID("player", slot); if trinketID then local spellName = C_Item.GetItemSpell(trinketID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -trinketID then exists = true; break end end; if not exists then table.insert(s, -trinketID); table.insert(e, true); added = added + 1 end end end end; if added > 0 then addonTable.SetCustomBar5Spells(s,e); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.addRacialBtn then cb5.addRacialBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar5Spells then return end; local s,e = addonTable.GetCustomBar5Spells(); local added = 0; local racialSpells = {59752,20594,58984,20589,28880,68992,256948,255647,265221,287712,312924,20572,33697,33702,7744,20577,20549,26297,28730,25046,50613,69179,80483,129597,155145,202719,232633,69041,69070,107079,260364,255654,274738,291944,281954,312411,368970,357214,436717}; for _, spellID in ipairs(racialSpells) do if C_SpellBook.IsSpellKnown(spellID) then local exists = false; for _, id in ipairs(s) do if id == spellID then exists = true; break end end; if not exists then table.insert(s, spellID); table.insert(e, true); added = added + 1 end end end; if added > 0 then addonTable.SetCustomBar5Spells(s,e); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.addPotionBtn then cb5.addPotionBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar5Spells then return end; local s,e = addonTable.GetCustomBar5Spells(); local added = 0; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID then local _, _, _, _, _, classID, subClassID = C_Item.GetItemInfoInstant(itemID); if classID == 0 and subClassID == 1 then local spellName = C_Item.GetItemSpell(itemID); if spellName then local exists = false; for _, id in ipairs(s) do if id == -itemID then exists = true; break end end; if not exists then table.insert(s, -itemID); table.insert(e, true); added = added + 1 end end end end end end; local _, _, pClassID = UnitClass("player"); local hsID = pClassID == 9 and 224464 or 5512; local hsExists = false; for _, id in ipairs(s) do if id == -hsID then hsExists = true; break end end; if not hsExists then table.insert(s, -hsID); table.insert(e, true); added = added + 1 end; if added > 0 then addonTable.SetCustomBar5Spells(s,e); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end) end
+    if cb5.addGCSBtn then cb5.addGCSBtn:SetScript("OnClick", function() if not addonTable.GetCustomBar5Spells then return end; local s,e = addonTable.GetCustomBar5Spells(); local gcsID = 188152; local found = false; for bag = 0, 4 do local numSlots = C_Container.GetContainerNumSlots(bag); for slot = 1, numSlots do local itemID = C_Container.GetContainerItemID(bag, slot); if itemID == gcsID then found = true; break end end; if found then break end end; if found then local exists = false; for _, id in ipairs(s) do if id == -gcsID then exists = true; break end end; if not exists then table.insert(s, -gcsID); table.insert(e, true); addonTable.SetCustomBar5Spells(s,e); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end end) end
+    if cb5.addBox then cb5.addBox:SetScript("OnEnterPressed", function() if cb5.addSpellBtn then cb5.addSpellBtn:Click() end; cb5.addBox:ClearFocus() end) end
+    if tabFrames and tabFrames[21] then SetupDragDrop(tabFrames[21], addonTable.GetCustomBar5Spells, addonTable.SetCustomBar5Spells, RefreshCB5SpellList, addonTable.CreateCustomBar5Icons, addonTable.UpdateCustomBar5, {cb5.spellBg, cb5.spellScroll, cb5.spellChild}) end
   end
   local function UpdateStandaloneControlsState()
     local p = GetProfile()
@@ -3056,12 +3685,23 @@ local function InitHandlers()
     addonTable.disableBlizzCDMCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
       local wasDisabled = p.disableBlizzCDM == true
+      local changedTrackBuffs = false
       p.disableBlizzCDM = not s:GetChecked()
+      if p.disableBlizzCDM then
+        changedTrackBuffs = EnsureTrackBuffsCompatible(p)
+        if changedTrackBuffs then
+          SyncTrackBuffsCheckboxesFromProfile(p)
+        end
+      end
       if p.disableBlizzCDM then
         if addonTable.ResetBlizzardBarSkinning then addonTable.ResetBlizzardBarSkinning() end
         if addonTable.RestoreBuffBarPosition then addonTable.RestoreBuffBarPosition() end
         if addonTable.RestoreEssentialBarPosition then addonTable.RestoreEssentialBarPosition() end
       end
+      if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+      if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+      if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
       if addonTable.State then addonTable.State.standaloneNeedsSkinning = true end
       if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end
       if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
@@ -3069,9 +3709,14 @@ local function InitHandlers()
       if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
       if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
       if p.disableBlizzCDM and not wasDisabled then
-        ShowReloadPrompt("Disabling Blizz CDM is safest after a UI reload. Reload now?", "Reload", "Later")
+        if changedTrackBuffs then
+          ShowReloadPrompt("Disabling Blizz CDM turns off all Track Buffs. Reload now?", "Reload", "Later")
+        else
+          ShowReloadPrompt("Disabling Blizz CDM is safest after a UI reload. Reload now?", "Reload", "Later")
+        end
       end
     end
+    AttachCheckboxTooltip(addonTable.disableBlizzCDMCB, DISABLE_BLIZZ_CDM_TOOLTIP_TEXT)
   end
   if addonTable.openBlizzCDMBtn then
     addonTable.openBlizzCDMBtn:SetScript("OnClick", function()
@@ -3194,20 +3839,32 @@ local function InitHandlers()
                "customBarCdGradientThreshold", "customBarCdGradientR", "customBarCdGradientG", "customBarCdGradientB",
                "customBarStackTextScale", "customBarDirection", "customBarGrowth", "customBarAnchorPoint", "customBarAnchorFrame", "customBarAnchorToPoint",
                "customBarX", "customBarY", "customBarCentered", "customBarCooldownMode", "customBarShowMode", "customBarIconsPerRow",
-               "customBarOutOfCombat", "customBarShowGCD", "customBarUseBuffOverlay", "customBarUseSpellGlows", "customBarSpellGlowDefaultType", "customBarStackTextPosition",
+               "customBarOutOfCombat", "customBarShowGCD", "customBarUseBuffOverlay", "customBarTrackBuffs", "customBarUseSpellGlows", "customBarSpellGlowDefaultType", "customBarStackTextPosition",
                "customBarStackTextOffsetX", "customBarStackTextOffsetY",
                "customBar2IconSize", "customBar2Spacing", "customBar2CdTextScale",
                "customBar2CdGradientThreshold", "customBar2CdGradientR", "customBar2CdGradientG", "customBar2CdGradientB",
                "customBar2StackTextScale", "customBar2Direction", "customBar2Growth", "customBar2AnchorPoint", "customBar2AnchorFrame", "customBar2AnchorToPoint",
                "customBar2X", "customBar2Y", "customBar2Centered", "customBar2CooldownMode", "customBar2ShowMode", "customBar2IconsPerRow",
-               "customBar2OutOfCombat", "customBar2ShowGCD", "customBar2UseBuffOverlay", "customBar2UseSpellGlows", "customBar2SpellGlowDefaultType", "customBar2StackTextPosition",
+               "customBar2OutOfCombat", "customBar2ShowGCD", "customBar2UseBuffOverlay", "customBar2TrackBuffs", "customBar2UseSpellGlows", "customBar2SpellGlowDefaultType", "customBar2StackTextPosition",
                "customBar2StackTextOffsetX", "customBar2StackTextOffsetY",
                "customBar3IconSize", "customBar3Spacing", "customBar3CdTextScale",
                "customBar3CdGradientThreshold", "customBar3CdGradientR", "customBar3CdGradientG", "customBar3CdGradientB",
                "customBar3StackTextScale", "customBar3Direction", "customBar3Growth", "customBar3AnchorPoint", "customBar3AnchorFrame", "customBar3AnchorToPoint",
                "customBar3X", "customBar3Y", "customBar3Centered", "customBar3CooldownMode", "customBar3ShowMode", "customBar3IconsPerRow",
-               "customBar3OutOfCombat", "customBar3ShowGCD", "customBar3UseBuffOverlay", "customBar3UseSpellGlows", "customBar3SpellGlowDefaultType", "customBar3StackTextPosition",
-               "customBar3StackTextOffsetX", "customBar3StackTextOffsetY"},
+               "customBar3OutOfCombat", "customBar3ShowGCD", "customBar3UseBuffOverlay", "customBar3TrackBuffs", "customBar3UseSpellGlows", "customBar3SpellGlowDefaultType", "customBar3StackTextPosition",
+               "customBar3StackTextOffsetX", "customBar3StackTextOffsetY",
+               "customBar4IconSize", "customBar4Spacing", "customBar4CdTextScale",
+               "customBar4CdGradientThreshold", "customBar4CdGradientR", "customBar4CdGradientG", "customBar4CdGradientB",
+               "customBar4StackTextScale", "customBar4Direction", "customBar4Growth", "customBar4AnchorPoint", "customBar4AnchorFrame", "customBar4AnchorToPoint",
+               "customBar4X", "customBar4Y", "customBar4Centered", "customBar4CooldownMode", "customBar4ShowMode", "customBar4IconsPerRow",
+               "customBar4OutOfCombat", "customBar4ShowGCD", "customBar4UseBuffOverlay", "customBar4TrackBuffs", "customBar4UseSpellGlows", "customBar4SpellGlowDefaultType", "customBar4StackTextPosition",
+               "customBar4StackTextOffsetX", "customBar4StackTextOffsetY",
+               "customBar5IconSize", "customBar5Spacing", "customBar5CdTextScale",
+               "customBar5CdGradientThreshold", "customBar5CdGradientR", "customBar5CdGradientG", "customBar5CdGradientB",
+               "customBar5StackTextScale", "customBar5Direction", "customBar5Growth", "customBar5AnchorPoint", "customBar5AnchorFrame", "customBar5AnchorToPoint",
+               "customBar5X", "customBar5Y", "customBar5Centered", "customBar5CooldownMode", "customBar5ShowMode", "customBar5IconsPerRow",
+               "customBar5OutOfCombat", "customBar5ShowGCD", "customBar5UseBuffOverlay", "customBar5TrackBuffs", "customBar5UseSpellGlows", "customBar5SpellGlowDefaultType", "customBar5StackTextPosition",
+               "customBar5StackTextOffsetX", "customBar5StackTextOffsetY"},
     qol = {"selfHighlightShape", "selfHighlightVisibility", "selfHighlightSize", "selfHighlightY",
            "selfHighlightThickness", "selfHighlightOutline", "selfHighlightColorR", "selfHighlightColorG", "selfHighlightColorB",
            "noTargetAlertEnabled", "noTargetAlertFlash", "noTargetAlertX", "noTargetAlertY", "noTargetAlertFontSize",
@@ -3253,9 +3910,9 @@ local function InitHandlers()
 	    cursor = {"iconSize", "iconSpacing", "offsetX", "offsetY", "cdTextScale", "cdTextGradientThreshold", "cdTextGradientR", "cdTextGradientG", "cdTextGradientB", "stackTextScale",
 	              "layoutDirection", "growDirection", "iconsPerRow",
 	              "numColumns", "showGCD", "cursorShowGCD", "iconsCombatOnly", "cursorCombatOnly",
-	              "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "useBuffOverlay", "useSpellGlows", "spellGlowDefaultType", "spellGlowSpeed", "spellGlowThickness", "cooldownIconMode",
+	              "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "useBuffOverlay", "trackBuffs", "useSpellGlows", "spellGlowDefaultType", "spellGlowSpeed", "spellGlowThickness", "cooldownIconMode",
 	              "glowWhenReady", "showInCombatOnly", "alwaysShowInEnabled", "alwaysShowInMode"},
-    blizzcdm = {"disableBlizzCDM", "useBuffBar", "useEssentialBar",
+    blizzcdm = {"disableBlizzCDM", "hideTrackedBlizzBuffIcons", "useBuffBar", "useEssentialBar",
                 "essentialBarSpacing", "standaloneIconBorderSize", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
                 "standaloneCentered", "standaloneBuffCentered", "standaloneEssentialCentered", "standaloneUtilityCentered",
                 "standaloneSpacing", "standaloneBuffSize", "standaloneBuffIconsPerRow", "standaloneBuffMaxRows", "standaloneBuffGrowDirection", "standaloneBuffRowGrowDirection", "standaloneBuffY", "standaloneBuffX",
@@ -3344,6 +4001,88 @@ local function InitHandlers()
       keyToCategory[k] = cat
     end
   end
+  local serializedBoolKeys = {
+    showRadialCircle = true, showGCD = true, cursorShowGCD = true, showInCombatOnly = true,
+    iconsCombatOnly = true, cursorCombatOnly = true, glowWhenReady = true,
+    customBarOutOfCombat = true, customBarShowGCD = true, customBarCentered = true,
+    customBar2OutOfCombat = true, customBar2ShowGCD = true, customBar2Centered = true,
+    customBar3OutOfCombat = true, customBar3ShowGCD = true, customBar3Centered = true,
+    useBuffBar = true, useEssentialBar = true, blizzardBarSkinning = true, enableMasque = true, showMinimapButton = true,
+    standaloneSkinBuff = true, standaloneSkinEssential = true, standaloneSkinUtility = true,
+    standaloneCentered = true, standaloneBuffCentered = true, standaloneEssentialCentered = true, standaloneUtilityCentered = true,
+    usePersonalResourceBar = true, prbCentered = true, prbShowHealth = true, prbShowPower = true,
+    prbShowClassPower = true, prbUseClassColor = true, prbUsePowerTypeColor = true, prbShowManaBar = true, prbClampBars = true,
+    hideActionBar1InCombat = true, hideActionBar1Mouseover = true, hideActionBar1Always = true,
+    hideAB2InCombat = true, hideAB2Mouseover = true, hideAB2Always = true,
+    hideAB3InCombat = true, hideAB3Mouseover = true, hideAB3Always = true,
+    hideAB4InCombat = true, hideAB4Mouseover = true, hideAB4Always = true,
+    hideAB5InCombat = true, hideAB5Mouseover = true, hideAB5Always = true,
+    hideAB6InCombat = true, hideAB6Mouseover = true, hideAB6Always = true,
+    hideAB7InCombat = true, hideAB7Mouseover = true, hideAB7Always = true,
+    hideAB8InCombat = true, hideAB8Mouseover = true, hideAB8Always = true,
+    hideStanceBarInCombat = true, hideStanceBarMouseover = true, hideStanceBarAlways = true,
+    hidePetBarInCombat = true, hidePetBarMouseover = true, hidePetBarAlways = true,
+    fadeMicroMenu = true, hideActionBarBorders = true, hideActionBarGlows = true, fadeObjectiveTracker = true, fadeBagBar = true, betterItemLevel = true, showEquipmentDetails = true,
+    chatClassColorNames = true, chatTimestamps = true, chatCopyButton = true, chatUrlDetection = true, chatBackground = true, chatHideButtons = true, chatFadeToggle = true, chatEditBoxStyled = true, chatTabFlash = true,
+    skyridingEnabled = true, skyridingHideCDM = true, skyridingVigorBar = true, skyridingCooldowns = true, skyridingCentered = true,
+    autoRepair = true, showTooltipIDs = true, compactMinimapIcons = true, enhancedTooltip = true,
+    autoQuest = true, autoQuestExcludeDaily = true, autoQuestExcludeWeekly = true, autoQuestExcludeTrivial = true, autoQuestExcludeCompleted = true,
+    autoSellJunk = true, autoFillDelete = true, quickRoleSignup = true,
+    combatTimerEnabled = true, combatTimerCentered = true, crTimerEnabled = true, crTimerMode = "combat",
+    crTimerCentered = true, combatStatusEnabled = true, combatStatusCentered = true,
+    useCastbar = true, useFocusCastbar = true,
+    useCustomHideReveal = true, customBarUseCustomHideReveal = true, customBar2UseCustomHideReveal = true, customBar3UseCustomHideReveal = true,
+    castbarCentered = true, castbarUseClassColor = true,
+    castbarShowIcon = true, castbarShowTime = true, castbarShowSpellName = true,
+    focusCastbarCentered = true,
+    focusCastbarShowIcon = true, focusCastbarShowTime = true, focusCastbarShowSpellName = true, focusCastbarShowTicks = true,
+    enablePlayerDebuffs = true,
+    ufClassColor = true, ufUseCustomTextures = true, ufUseCustomNameColor = true, ufDisableGlows = true, ufDisableCombatText = true, ufHideGroupIndicator = true,
+    disableTargetBuffs = true, hideEliteTexture = true, useCustomBorderColor = true,
+    ufBigHBPlayerEnabled = true, ufBigHBTargetEnabled = true, ufBigHBFocusEnabled = true,
+    ufBigHBHidePlayerName = true, ufBigHBHideTargetName = true, ufBigHBHideFocusName = true, ufBigHBHideRealm = true,
+    ufBigHBPlayerAbsorbStripes = true, ufBigHBTargetAbsorbStripes = true, ufBigHBFocusAbsorbStripes = true,
+    useBiggerPlayerHealthframe = true, useBiggerPlayerHealthframeClassColor = true,
+    useBiggerPlayerHealthframeDisableGlows = true, useBiggerPlayerHealthframeDisableCombatText = true,
+  }
+  local serializedRenamedKeys = {
+    useBiggerPlayerHealthframeClassColor = "ufClassColor",
+    useBiggerPlayerHealthframeTexture = "ufHealthTexture",
+    useBiggerPlayerHealthframeDisableGlows = "ufDisableGlows",
+    useBiggerPlayerHealthframeDisableCombatText = "ufDisableCombatText",
+  }
+  ApplySerializedDataToProfile = function(profile, data)
+    if type(profile) ~= "table" or type(data) ~= "string" then return end
+    for k, v in data:gmatch("([%w_]+)=([^;]+);") do
+      if v:match("^\"(.*)\"$") then
+        profile[k] = v:match("^\"(.*)\"$")
+      elseif tonumber(v) then
+        local num = tonumber(v)
+        if num == 0 or num == 1 then
+          if serializedBoolKeys[k] then
+            profile[k] = (num == 1)
+          else
+            profile[k] = num
+          end
+        else
+          profile[k] = num
+        end
+      end
+    end
+    for oldK, newK in pairs(serializedRenamedKeys) do
+      if profile[oldK] ~= nil and profile[newK] == nil then
+        profile[newK] = profile[oldK]
+      end
+      profile[oldK] = nil
+    end
+    local count = profile.customBarsCount or 0
+    profile.customBarEnabled = (count >= 1)
+    profile.customBar2Enabled = (count >= 2)
+    profile.customBar3Enabled = (count >= 3)
+    profile.customBar4Enabled = (count >= 4)
+    profile.customBar5Enabled = (count >= 5)
+  end
+  EXAMPLE_IMPORT_DATA_DPS_TANK = [[customBarOutOfCombat=1;customBarAnchorPoint="RIGHT";hideAB4InCombat=1;hideAB5Mouseover=1;ufBigHBTargetLevelTextScale=0.95;enableMasque=0;customBarCdGradientR=0;chatBackgroundColorG=0;blizzBarUtilityY=-352.5;prbUseLowPowerColor=1;compactMinimapIcons=0;combatTimerStyle="boxed";selfHighlightColorB=0.0078431377187371;prbLowPowerThreshold=20;prbClassPowerY=-99;ufBigHBTargetNameX=6;chatCopyButton=1;prbDmgAbsorb="bar";combatTimerBgColorB=0.12;chatBackgroundAlpha=40;combatTimerBgAlpha=0.85;skyridingVigorEmptyColorR=0.14901961386204;prbX=2;cursorShowGCD=0;prbShowHealth=0;ufUseCustomNameColor=1;standaloneEssentialIconsPerRow=5;combatStatusEnabled=1;prbPowerTextScale=1.3;ufBigHBPlayerNameX=0;customBar3AnchorFrame="UIParent";castbarTimeScale=1.2;customBar3IconsPerRow=20;standaloneBuffRowGrowDirection="up";skyridingVigorColorR=0;lowHealthWarningColorR=1;hideAB2InCombat=1;ufCustomBorderColorG=0;standaloneUtilityMaxRows=2;ufBigHBNameMaxChars=18;combatTimerScale=0.89999997615814;hidePetBarAlways=0;stackTextOffsetY=0;offsetX=20;combatTimerY=-536;combatTimerX=828;crTimerY=-537;crTimerLayout="horizontal";useCustomBorderColor=1;ufBigHBTargetNameTextScale=1.05;prbLowHealthColorB=0;autoQuestRewardMode="skip";autoRepair=1;ufBigHBTargetNameY=1;castbarBgColorB=0.13333334028721;customBarUseBuffOverlay=0;playerDebuffSortDirection="right";customBar2IconsPerRow=20;hideAB2Always=0;prbAutoWidthSource="essential";noTargetAlertColorR=1;hideEliteTexture=0;fadeBagBar=1;noTargetAlertY=95;iconsCombatOnly=0;castbarBgColorR=0.13333334028721;standaloneEssentialSecondRowSize=39.5;ufNameColorR=1;selfHighlightShape="cross";prbY=-271;playerDebuffY=231;skyridingWhirlingSurgeColorG=0.23921570181847;selfHighlightThickness="thin";lowHealthWarningEnabled=1;crTimerScale=1.1000000238419;lowHealthWarningX=0;iconBorderSize=1;showTooltipIDs=1;prbAbsorbStripes=1;standaloneUtilitySize=42.5;spellGlowThickness=2.8;blizzBarUtilityX=0;chatTabFlash=1;castbarY=-291;customBar2CdGradientR=0;prbHealthColorR=0;combatStatusLeaveColorG=1;hideAB4Mouseover=1;focusCastbarCentered=1;customBar2AnchorPoint="RIGHT";prbCentered=1;noTargetAlertFontSize=37;customBar2CdGradientB=0;skyridingHideCDM=1;abSkinSpacing=0;radialAlpha=1;skyridingY=-205;customBar3X=-188;standaloneIconBorderSize=1;prbLowHealthThreshold=40;customBarY=0;ufBigHBPlayerNameY=12;customBarCdGradientThreshold=5;prbBorderSize=1;quickRoleSignup=1;noTargetAlertColorG=0;ufBigHBFocusNameAnchor="left";cdTextGradientG=1;skyridingTexture="lsm:Solid";iconSize=45;focusCastbarY=106;ufBigHBHideTargetName=0;customBar3IconSize=55;hidePetBarInCombat=1;standaloneUtilityCentered=1;skyridingVigorBar=1;standaloneUtilityIconsPerRow=6;prbOverAbsorbBar=1;focusCastbarColorB=0.023529414087534;standaloneBuffCentered=1;standaloneEssentialCentered=1;focusCastbarWidth=300;castbarColorB=0;standaloneEssentialSize=50;skyridingWhirlingSurgeColorB=0.96862751245499;focusCastbarColorR=1;customBar3Y=-118;prbHealthYOffset=9;skyridingVigorEmptyColorG=0.14901961386204;castbarSpellNameScale=1.2;enhancedTooltip=1;customBar3TrackBuffs=0;chatHideButtons=1;prbHealPred="on";showGCD=0;standaloneEssentialY=-218;castbarBorderSize=1;hideAB6Mouseover=1;focusCastbarX=0;hideAB6InCombat=1;blizzBarBuffX=0;ufBigHBFocusNameY=0;hideStanceBarMouseover=1;prbManaYOffset=-23;blizzBarEssentialY=-218;hideActionBar1InCombat=1;ufHideGroupIndicator=1;focusCastbarShowIcon=1;radialColorR=0;selfHighlightColorG=1;customBarGrowth="UP";customBarUseSpellGlows=1;customBar2X=-41;selfHighlightY=0;customBarCdGradientB=0.1843137294054;usePersonalResourceBar=1;autoQuestExcludeCompleted=1;customBar2CdGradientG=1;skyridingSecondWindColorB=0.23529413342476;skyridingVigorColorG=1;prbShowManaBar=0;combatStatusY=59;lowHealthWarningSound="Details Horn";customBar3ShowMode="always";ufBigHBTargetNameAnchor="left";chatEditBoxStyled=1;prbBgColorB=0;castbarCentered=1;ufBigHBPlayerHealAbsorb="on";ufBigHBFocusLevelMode="hidemax";fadeMicroMenu=1;ufBigHBPlayerNameAnchor="center";useCastbar=1;hidePetBarMouseover=1;customBar2IconSize=40;hideAB4Always=0;stackTextScale=1.1000000238419;prbHealthTextMode="percent";skyridingVigorRechargeColorR=0.68627452850342;cooldownIconMode="show";castbarColorG=0;customBar2CdTextScale=1;customBar2Spacing=0;standaloneUtilitySecondRowSize=45;castbarShowIcon=0;skyridingEnabled=1;castbarX=0;standaloneEssentialMaxRows=2;customBar2CdGradientThreshold=10;selfHighlightColorR=0;castbarAutoWidthSource="utility";prbLowPowerColorR=1;prbBackgroundAlpha=100;ufBigHBFocusEnabled=1;cursorCombatOnly=1;spellGlowSpeed=0;prbPowerTextMode="percentnumber";disableBlizzCDM=0;autoQuestExcludeDaily=1;skyridingScale=110;autoQuest=1;customBarAnchorToPoint="TOPRIGHT";customBar2Y=20;ufBigHBFocusLevelY=0;showMinimapButton=1;skyridingVigorColorB=0.59607845544815;crTimerMode="always";prbLowHealthColorR=1;cdTextScale=1;skyridingSecondWindColorG=0;standaloneUtilityGrowDirection="right";disableTargetBuffs=1;hideAB3InCombat=1;castbarTexture="lsm:Solid";standaloneCdTextScale=1.7;noTargetAlertFlash=1;combatTimerMode="always";skyridingCooldowns=1;alwaysShowInEnabled=0;standaloneUtilityRowGrowDirection="down";standaloneBuffMaxRows=2;hideActionBarBorders=1;customBar3Centered=1;useBuffOverlay=0;customBar3StackTextOffsetX=0;blizzBarBuffY=-170;standaloneBuffIconsPerRow=10;combatStatusX=0;noTargetAlertEnabled=1;chatUrlDetection=1;focusCastbarTexture="lsm:Solid";customBar3Spacing=2;customBarIconSize=40;ufBigHBPlayerAbsorbStripes=1;customBarAnchorFrame="PlayerFrame";ufCustomBorderColorB=0;skyridingX=0;customBarIconsPerRow=4;playerDebuffRowGrowDirection="up";ufClassColor=1;skyridingCentered=1;ufBigHBPlayerLevelMode="hidemax";ufBigHBPlayerEnabled=1;customBar2UseSpellGlows=1;ufDisableGlows=1;hideStanceBarAlways=0;actionBarGlobalMode="combat_mouseover";selfHighlightSize=23;useFocusCastbar=1;customBarStackTextScale=1;hideActionBar1Mouseover=1;stackTextOffsetX=0;combatTimerTextColorR=1;ufBigHBTargetLevelX=-1;ufUseCustomTextures=1;prbShowClassPower=1;hideAB7Mouseover=1;combatStatusEnterColorR=1;trackBuffs=0;chatClassColorNames=1;layoutDirection="horizontal";hideAB8Mouseover=1;hideAB6Always=0;customBarTrackBuffs=0;combatTimerTextColorG=1;playerDebuffIconsPerRow=5;radialColorB=0.61568629741669;hideAB5Always=0;ufBigHBPlayerLevelX=-106;globalFont="lsm:Expressway";hideAB2Mouseover=1;cdTextGradientThreshold=7;customBar2UseBuffOverlay=0;prbClampBars=1;autoSellJunk=1;crTimerEnabled=1;customBarShowMode="always";prbLowHealthColorG=0;standaloneEssentialCdTextScale=2;radialRadius=20;customBarCdTextScale=1;blizzBarEssentialX=0;standaloneSkinEssential=1;customBar4X=0;hideAB3Always=0;useEssentialBar=0;prbHealthColorG=1;customBarShowGCD=1;chatTimestamps=1;prbBgColorG=0;prbSpacing=-1;chatBackgroundColorB=0;ufBigHBTargetLevelMode="hidemax";ufNameColorG=1;ufBigHBFocusLevelX=107;skyridingWhirlingSurgeColorR=0;customBar4Centered=1;cdTextGradientB=0;prbLowPowerColorG=0.17254902422428;customBarStackTextOffsetY=0;combatStatusEnterColorB=0;prbPowerTexture="lsm:Solid";crTimerX=997;combatTimerBgColorR=0.12;standaloneBuffCdTextScale=1.2;cdTextGradientR=0.062745101749897;standaloneUtilityCdTextScale=2.3;customBar2AnchorFrame="CCMCustomBar";betterItemLevel=1;customBar2OutOfCombat=1;cdFont="lsm:Expressway";hideAB8Always=0;customBarCdGradientG=1;stackTextPosition="BOTTOMRIGHT";hideTrackedBlizzBuffIcons=1;prbUseClassColor=0;standaloneBuffY=-170;focusCastbarHeight=35;growDirection="right";ufBigHBHidePlayerName=0;ufBigHBHideRealm=1;lowHealthWarningColorG=0;chatBackground=1;ufBigHBPlayerLevelY=1;prbPowerYOffset=-38;prbClassPowerHeight=12;skyridingVigorRechargeColorG=0;globalOutline="OUTLINE";combatStatusScale=1.1000000238419;offsetY=20;standaloneSpacing=0;autoQuestExcludeTrivial=1;crTimerCentered=0;customBar3OutOfCombat=1;autoQuestExcludeWeekly=1;standaloneEssentialRowGrowDirection="up";customBarStackTextOffsetX=2;customBarCooldownMode="hide";customBar2AnchorToPoint="TOPRIGHT";prbPowerHeight=15;combatTimerBgColorG=0.12;standaloneUtilityY=-352.5;prbShowPower=1;combatTimerTextColorB=1;ufCustomBorderColorR=0;customBar3CdTextScale=1;prbLowPowerColorB=0;ufBigHBTargetLevelY=0;lowHealthWarningFontSize=45;chatFadeToggle=1;combatTimerEnabled=1;fadeObjectiveTracker=1;focusCastbarColorG=0;standaloneSkinBuff=1;skyridingSecondWindColorR=0.50588238239288;noTargetAlertColorB=0.031372550874949;customBar2Centered=1;prbHealAbsorb="on";customBar2ShowMode="raid";chatFadeDelay=20;iconsPerRow=5;skyridingVigorRechargeColorB=0.0078431377187371;radialThickness=3;radialColorG=1;customBarsCount=2;crTimerDisplay="timer";prbPowerTextY=0;useBuffBar=0;ufBigHBTargetHealPred="off";ufBigHBFocusHealPred="off";iconSpacing=0;lowHealthWarningY=-33;chatEditBoxPosition="bottom";lowHealthWarningColorB=0;castbarUseClassColor=0;castbarBgAlpha=80;prbHealthColorB=0.21960785984993;skyridingVigorEmptyColorB=0.14901961386204;useSpellGlows=0;prbBgColorR=0;playerDebuffX=581;prbUsePowerTypeColor=1;playerDebuffSize=63;hideActionBar1Always=0;customBar2CooldownMode="hide";ufBigHBTargetAbsorbStripes=1;autoFillDelete=1;customBarX=-92;chatHideTabs="mouseover";castbarColorR=0.40000003576279;enablePlayerDebuffs=1;hideAB3Mouseover=1;prbUseLowHealthColor=1;customBarSpacing=0;playerDebuffSpacing=0;uiScale=0.53333;hideStanceBarInCombat=1;blizzardBarSkinning=1;showInCombatOnly=0;combatStatusLeaveColorB=0;playerDebuffBorderSize=2;ufHealthTexture="lsm:Solid";ufBigHBTargetEnabled=1;ufBigHBHideFocusName=0;hideAB8InCombat=1;chatBackgroundColorR=0;ufDisableCombatText=1;castbarBgColorG=0.13333334028721;castbarHeight=35;showRadialCircle=1;hideAB5InCombat=1;lowHealthWarningFlash=1;hideAB7Always=0;combatStatusEnterColorG=0.094117656350136;hideAB7InCombat=1;standaloneEssentialGrowDirection="right";ufBigHBPlayerLevelTextScale=0.95;standaloneSkinUtility=1;focusCastbarTimePrecision="1";combatTimerCentered=0;customBarCentered=1;chatCopyButtonCorner="TOPRIGHT";prbClampAnchor="top";ufBigHBFocusNameX=0;combatStatusCentered=1;standaloneUtilityAutoWidth="off";ufNameColorB=1;customBar3StackTextOffsetY=0;audioChannel="Master";standaloneBuffSize=40;showEquipmentDetails=1;combatStatusLeaveColorR=0.13333334028721;customBar2StackTextPosition="BOTTOMRIGHT";uiScaleMode="1440p";customBar2TrackBuffs=0;selfHighlightOutline=1;ufBigHBPlayerDmgAbsorb="bar_glow";]]
   if addonTable.importBtn then
     addonTable.importBtn:SetScript("OnClick", function()
       if addonTable.exportImportPopup then
@@ -3424,82 +4163,7 @@ local function InitHandlers()
               end
               local profile = GetProfile()
               if profile then
-                for k, v in data:gmatch("([%w_]+)=([^;]+);") do
-                  if v:match("^\"(.*)\"$") then
-                    profile[k] = v:match("^\"(.*)\"$")
-                  elseif tonumber(v) then
-                    local num = tonumber(v)
-                    if num == 0 or num == 1 then
-                      local boolKeys = {
-                        showRadialCircle = true, showGCD = true, cursorShowGCD = true, showInCombatOnly = true,
-                        iconsCombatOnly = true, cursorCombatOnly = true, glowWhenReady = true,
-                        customBarOutOfCombat = true, customBarShowGCD = true, customBarCentered = true,
-                        customBar2OutOfCombat = true, customBar2ShowGCD = true, customBar2Centered = true,
-                        customBar3OutOfCombat = true, customBar3ShowGCD = true, customBar3Centered = true,
-                        useBuffBar = true, useEssentialBar = true, blizzardBarSkinning = true, enableMasque = true, showMinimapButton = true,
-                        standaloneSkinBuff = true, standaloneSkinEssential = true, standaloneSkinUtility = true,
-                        standaloneCentered = true, standaloneBuffCentered = true, standaloneEssentialCentered = true, standaloneUtilityCentered = true,
-                        usePersonalResourceBar = true, prbCentered = true, prbShowHealth = true, prbShowPower = true,
-                        prbShowClassPower = true, prbUseClassColor = true, prbUsePowerTypeColor = true, prbShowManaBar = true, prbClampBars = true,
-                        hideActionBar1InCombat = true, hideActionBar1Mouseover = true, hideActionBar1Always = true,
-                        hideAB2InCombat = true, hideAB2Mouseover = true, hideAB2Always = true,
-                        hideAB3InCombat = true, hideAB3Mouseover = true, hideAB3Always = true,
-                        hideAB4InCombat = true, hideAB4Mouseover = true, hideAB4Always = true,
-                        hideAB5InCombat = true, hideAB5Mouseover = true, hideAB5Always = true,
-                        hideAB6InCombat = true, hideAB6Mouseover = true, hideAB6Always = true,
-                        hideAB7InCombat = true, hideAB7Mouseover = true, hideAB7Always = true,
-                        hideAB8InCombat = true, hideAB8Mouseover = true, hideAB8Always = true,
-                        hideStanceBarInCombat = true, hideStanceBarMouseover = true, hideStanceBarAlways = true,
-                        hidePetBarInCombat = true, hidePetBarMouseover = true, hidePetBarAlways = true,
-                        fadeMicroMenu = true, hideActionBarBorders = true, hideActionBarGlows = true, fadeObjectiveTracker = true, fadeBagBar = true, betterItemLevel = true, showEquipmentDetails = true,
-                        chatClassColorNames = true, chatTimestamps = true, chatCopyButton = true, chatUrlDetection = true, chatBackground = true, chatHideButtons = true, chatFadeToggle = true, chatEditBoxStyled = true, chatTabFlash = true,
-                        skyridingEnabled = true, skyridingHideCDM = true, skyridingVigorBar = true, skyridingCooldowns = true, skyridingCentered = true,
-                        autoRepair = true, showTooltipIDs = true, compactMinimapIcons = true, enhancedTooltip = true,
-                        autoQuest = true, autoQuestExcludeDaily = true, autoQuestExcludeWeekly = true, autoQuestExcludeTrivial = true, autoQuestExcludeCompleted = true,
-                        autoSellJunk = true, autoFillDelete = true, quickRoleSignup = true,
-                        combatTimerEnabled = true, combatTimerCentered = true, crTimerEnabled = true, crTimerMode = "combat",
-                        crTimerCentered = true, combatStatusEnabled = true, combatStatusCentered = true,
-                        useCastbar = true, useFocusCastbar = true,
-                        useCustomHideReveal = true, customBarUseCustomHideReveal = true, customBar2UseCustomHideReveal = true, customBar3UseCustomHideReveal = true,
-                        castbarCentered = true, castbarUseClassColor = true,
-                        castbarShowIcon = true, castbarShowTime = true, castbarShowSpellName = true,
-                        focusCastbarCentered = true,
-                        focusCastbarShowIcon = true, focusCastbarShowTime = true, focusCastbarShowSpellName = true, focusCastbarShowTicks = true,
-                        enablePlayerDebuffs = true,
-                        ufClassColor = true, ufUseCustomTextures = true, ufUseCustomNameColor = true, ufDisableGlows = true, ufDisableCombatText = true, ufHideGroupIndicator = true,
-                        disableTargetBuffs = true, hideEliteTexture = true, useCustomBorderColor = true,
-                        ufBigHBPlayerEnabled = true, ufBigHBTargetEnabled = true, ufBigHBFocusEnabled = true,
-                        ufBigHBHidePlayerName = true, ufBigHBHideTargetName = true, ufBigHBHideFocusName = true, ufBigHBHideRealm = true,
-                        ufBigHBPlayerAbsorbStripes = true, ufBigHBTargetAbsorbStripes = true, ufBigHBFocusAbsorbStripes = true,
-                        useBiggerPlayerHealthframe = true, useBiggerPlayerHealthframeClassColor = true,
-                        useBiggerPlayerHealthframeDisableGlows = true, useBiggerPlayerHealthframeDisableCombatText = true,
-                      }
-                      if boolKeys[k] then
-                        profile[k] = (num == 1)
-                      else
-                        profile[k] = num
-                      end
-                    else
-                      profile[k] = num
-                    end
-                  end
-                end
-                local renamedKeys = {
-                  useBiggerPlayerHealthframeClassColor = "ufClassColor",
-                  useBiggerPlayerHealthframeTexture = "ufHealthTexture",
-                  useBiggerPlayerHealthframeDisableGlows = "ufDisableGlows",
-                  useBiggerPlayerHealthframeDisableCombatText = "ufDisableCombatText",
-                }
-                for oldK, newK in pairs(renamedKeys) do
-                  if profile[oldK] ~= nil and profile[newK] == nil then
-                    profile[newK] = profile[oldK]
-                  end
-                  profile[oldK] = nil
-                end
-                local count = profile.customBarsCount or 0
-                profile.customBarEnabled = (count >= 1)
-                profile.customBar2Enabled = (count >= 2)
-                profile.customBar3Enabled = (count >= 3)
+                ApplySerializedDataToProfile(profile, data)
                 if addonTable.profileText then addonTable.profileText:SetText(profileName) end
                 if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
                 UpdateAllControls()
@@ -3512,6 +4176,8 @@ local function InitHandlers()
                 if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
                 if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
                 if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+                if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+                if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
                 if addonTable.UpdateProfileList then addonTable.UpdateProfileList() end
                 if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
                 print("|cff00ff00CCM:|r Imported settings to new profile: " .. profileName)

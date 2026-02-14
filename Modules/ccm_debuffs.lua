@@ -33,6 +33,7 @@ end
 local function CreateDebuffFrame()
   if debuffFrame then return debuffFrame end
   debuffFrame = CreateFrame("Frame", "CCMPlayerDebuffFrame", UIParent)
+  addonTable.DebuffFrame = debuffFrame
   debuffFrame:SetSize(400, 50)
   debuffFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -200)
   debuffFrame:SetFrameStrata("MEDIUM")

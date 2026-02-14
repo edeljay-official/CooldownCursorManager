@@ -53,25 +53,36 @@ for i = 1, 10 do
 end
 addonTable.FocusCastbarFrame:SetScript("OnDragStart", function(self)
   if not addonTable.GetGUIOpen or not addonTable.GetGUIOpen() then return end
-  self:StartMoving()
+  if addonTable.activeTab and addonTable.activeTab() ~= 9 then
+    if addonTable.SwitchToTab then addonTable.SwitchToTab(9) end
+  end
   State.focusCastbarDragging = true
+  self:StartMoving()
 end)
 addonTable.FocusCastbarFrame:SetScript("OnDragStop", function(self)
   if not State.focusCastbarDragging then return end
   self:StopMovingOrSizing()
+  local selfScale = self:GetEffectiveScale()
+  local uiScale = UIParent:GetEffectiveScale()
+  local centerX, centerY = UIParent:GetCenter()
+  local frameX, frameY = self:GetCenter()
+  local newX = math.floor((frameX * selfScale - centerX * uiScale) / selfScale + 0.5)
+  local newY = math.floor((frameY * selfScale - centerY * uiScale) / selfScale + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
-    local _, _, _, newX, newY = self:GetPoint(1)
     profile.focusCastbarX = newX
     profile.focusCastbarY = newY
     if addonTable.UpdateFocusCastbarSliders then addonTable.UpdateFocusCastbarSliders(newX, newY) end
   end
   State.focusCastbarDragging = false
+  self:ClearAllPoints()
+  self:SetPoint("CENTER", UIParent, "CENTER", newX, newY)
 end)
 addonTable.FocusCastbarFrame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.focusCastbarDragging then
-    self:StopMovingOrSizing()
-    State.focusCastbarDragging = false
+    if addonTable.GetGUIOpen and addonTable.GetGUIOpen() then
+      if addonTable.SwitchToTab then addonTable.SwitchToTab(9) end
+    end
   end
 end)
 local function SetBlizzardFocusCastbarVisibility(show)

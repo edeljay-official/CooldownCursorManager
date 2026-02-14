@@ -622,7 +622,7 @@ local function UpdatePRB(force)
         width = widthFromEss - (borderSize * 2)
         if width < 10 then width = 10 end
       end
-    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
+    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" or autoWidthSource == "cbar4" or autoWidthSource == "cbar5" then
       local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
       local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
       local cbarWidth = profile[prefix .. "IconSize"] or 28

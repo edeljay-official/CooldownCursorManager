@@ -53,25 +53,36 @@ for i = 1, 10 do
 end
 addonTable.TargetCastbarFrame:SetScript("OnDragStart", function(self)
   if not addonTable.GetGUIOpen or not addonTable.GetGUIOpen() then return end
-  self:StartMoving()
+  if addonTable.activeTab and addonTable.activeTab() ~= 13 then
+    if addonTable.SwitchToTab then addonTable.SwitchToTab(13) end
+  end
   State.targetCastbarDragging = true
+  self:StartMoving()
 end)
 addonTable.TargetCastbarFrame:SetScript("OnDragStop", function(self)
   if not State.targetCastbarDragging then return end
   self:StopMovingOrSizing()
+  local selfScale = self:GetEffectiveScale()
+  local uiScale = UIParent:GetEffectiveScale()
+  local centerX, centerY = UIParent:GetCenter()
+  local frameX, frameY = self:GetCenter()
+  local newX = math.floor((frameX * selfScale - centerX * uiScale) / selfScale + 0.5)
+  local newY = math.floor((frameY * selfScale - centerY * uiScale) / selfScale + 0.5)
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if profile then
-    local _, _, _, newX, newY = self:GetPoint(1)
     profile.targetCastbarX = newX
     profile.targetCastbarY = newY
     if addonTable.UpdateTargetCastbarSliders then addonTable.UpdateTargetCastbarSliders(newX, newY) end
   end
   State.targetCastbarDragging = false
+  self:ClearAllPoints()
+  self:SetPoint("CENTER", UIParent, "CENTER", newX, newY)
 end)
 addonTable.TargetCastbarFrame:SetScript("OnMouseUp", function(self, button)
   if button == "LeftButton" and not State.targetCastbarDragging then
-    self:StopMovingOrSizing()
-    State.targetCastbarDragging = false
+    if addonTable.GetGUIOpen and addonTable.GetGUIOpen() then
+      if addonTable.SwitchToTab then addonTable.SwitchToTab(13) end
+    end
   end
 end)
 local function SetBlizzardTargetCastbarVisibility(show)

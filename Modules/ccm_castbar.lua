@@ -221,7 +221,7 @@ local function UpdateCastbar()
           width = widthFromUtility
           if width < 20 then width = 20 end
         end
-      elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
+      elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" or autoWidthSource == "cbar4" or autoWidthSource == "cbar5" then
         local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
         local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
         local cbarWidth = profile[prefix .. "IconSize"] or 28
@@ -434,7 +434,7 @@ local function UpdateCastbar()
         width = widthFromUtility
         if width < 20 then width = 20 end
       end
-    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
+    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" or autoWidthSource == "cbar4" or autoWidthSource == "cbar5" then
       local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
       local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
       local cbarWidth = profile[prefix .. "IconSize"] or 28
@@ -841,7 +841,7 @@ local function ShowCastbarPreview()
           if width < 20 then width = 20 end
         end
       end
-    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" then
+    elseif autoWidthSource == "cbar1" or autoWidthSource == "cbar2" or autoWidthSource == "cbar3" or autoWidthSource == "cbar4" or autoWidthSource == "cbar5" then
       local barNum = tonumber(string.sub(autoWidthSource, 5, 5)) or 1
       local prefix = barNum == 1 and "customBar" or ("customBar" .. barNum)
       local cbarWidth = profile[prefix .. "IconSize"] or 28

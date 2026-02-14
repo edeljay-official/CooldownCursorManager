@@ -899,6 +899,12 @@ local function StartMouseCheck()
     if customBar3Frame and customBar3Frame:IsShown() and IsMouseOverFrameOrChildren(customBar3Frame) then
       mouseOverCCMFrames = true
     end
+    if customBar4Frame and customBar4Frame:IsShown() and IsMouseOverFrameOrChildren(customBar4Frame) then
+      mouseOverCCMFrames = true
+    end
+    if customBar5Frame and customBar5Frame:IsShown() and IsMouseOverFrameOrChildren(customBar5Frame) then
+      mouseOverCCMFrames = true
+    end
     if prbFrame and prbFrame:IsShown() and IsMouseOverFrameOrChildren(prbFrame) then
       mouseOverCCMFrames = true
     end

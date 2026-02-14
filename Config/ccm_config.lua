@@ -96,7 +96,7 @@ titleBar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 titleBar:SetBackdropColor(0.15, 0.15, 0.18, 1)
 local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
-titleText:SetText("Cooldown Cursor Manager v6.2.0")
+titleText:SetText("Cooldown Cursor Manager v7.0.0")
 titleText:SetTextColor(1, 0.82, 0)
 local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
 closeBtn:SetSize(24, 24)
@@ -709,6 +709,8 @@ newProfileBtn:SetScript("OnClick", function()
         if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
         if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
         if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+        if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+        if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
       end
     end
     popupFrame:Hide()
@@ -890,19 +892,29 @@ resizeGrip:SetScript("OnLeave", function()
   for _, d in ipairs(gripDots) do d:SetColorTexture(gripColor[1], gripColor[2], gripColor[3], gripColor[4]) end
 end)
 resizeGrip:SetScript("OnMouseDown", function()
-  cfg._resizeWidth = cfg:GetWidth()
-  cfg:StartSizing("BOTTOM")
+  local _, cursorY = GetCursorPosition()
+  local scale = cfg:GetEffectiveScale()
+  cfg._resizeCursorStart = cursorY / scale
+  cfg._resizeHeightStart = cfg:GetHeight()
+  cfg._resizing = true
+  cfg:SetScript("OnUpdate", function()
+    if not cfg._resizing then return end
+    local _, cy = GetCursorPosition()
+    local delta = cfg._resizeCursorStart - cy / scale
+    local newH = math.max(400, math.min(1200, cfg._resizeHeightStart + delta))
+    cfg:SetHeight(newH)
+  end)
 end)
 resizeGrip:SetScript("OnMouseUp", function()
-  cfg:StopMovingOrSizing()
-  cfg:SetWidth(cfg._resizeWidth or cfg:GetWidth())
+  cfg._resizing = false
+  cfg:SetScript("OnUpdate", nil)
   local h = math.floor(cfg:GetHeight() + 0.5)
   if CooldownCursorManagerDB then
     CooldownCursorManagerDB.guiHeight = h
   end
 end)
 local tabs, tabFrames, activeTab = {}, {}, nil
-local MAX_TABS = 19
+local MAX_TABS = 21
 local TAB_UF = 11
 local TAB_QOL = 12
 local TAB_TCASTBAR = 13
@@ -912,6 +924,8 @@ local TAB_SKYRIDING = 16
 local TAB_FEATURES = 18
 local TAB_COMBAT = 19
 local TAB_PROFILES = 17
+local TAB_CUSTOMBAR4 = 20
+local TAB_CUSTOMBAR5 = 21
 for i = 1, MAX_TABS do
   tabFrames[i] = CreateFrame("Frame", nil, contentContainer)
   tabFrames[i]:SetAllPoints()
@@ -929,15 +943,17 @@ profileBar:ClearAllPoints()
 profileBar:SetPoint("TOPLEFT", tabFrames[TAB_PROFILES], "TOPLEFT", 0, -40)
 profileBar:SetPoint("TOPRIGHT", tabFrames[TAB_PROFILES], "TOPRIGHT", 0, -40)
 profileBar:Show()
-local profHeader = tabFrames[TAB_PROFILES]:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+local profHeader = tabFrames[TAB_PROFILES]:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 profHeader:SetPoint("TOPLEFT", tabFrames[TAB_PROFILES], "TOPLEFT", 15, -12)
 profHeader:SetText("Profile Management")
-profHeader:SetTextColor(0.9, 0.9, 0.9)
+profHeader:SetTextColor(1, 0.82, 0)
 local profHeaderLine = tabFrames[TAB_PROFILES]:CreateTexture(nil, "ARTWORK")
 profHeaderLine:SetHeight(1)
-profHeaderLine:SetPoint("TOPLEFT", tabFrames[TAB_PROFILES], "TOPLEFT", 10, -33)
-profHeaderLine:SetPoint("TOPRIGHT", tabFrames[TAB_PROFILES], "TOPRIGHT", -10, -33)
-profHeaderLine:SetColorTexture(0.3, 0.3, 0.35, 0.6)
+profHeaderLine:SetPoint("LEFT", profHeader, "RIGHT", 8, 0)
+profHeaderLine:SetPoint("RIGHT", tabFrames[TAB_PROFILES], "RIGHT", -15, 0)
+profHeaderLine:SetColorTexture(0.3, 0.3, 0.35, 1)
+profHeaderLine:SetSnapToPixelGrid(true)
+profHeaderLine:SetTexelSnappingBias(0)
 local profTab = tabFrames[TAB_PROFILES]
 local function CreateExampleProfileButton(parent, label, role, xOff, yOff, iconColor)
   local btn = CreateStyledButton(parent, label, 120, 28)
@@ -951,23 +967,25 @@ local function CreateExampleProfileButton(parent, label, role, xOff, yOff, iconC
   if fs then fs:SetPoint("CENTER", btn, "CENTER", 4, 0) end
   return btn
 end
-local exProfHeader = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+local exProfHeader = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
 exProfHeader:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -90)
 exProfHeader:SetText("Example Profiles")
-exProfHeader:SetTextColor(0.9, 0.9, 0.9)
+exProfHeader:SetTextColor(1, 0.82, 0)
 local exProfLine = profTab:CreateTexture(nil, "ARTWORK")
 exProfLine:SetHeight(1)
-exProfLine:SetPoint("TOPLEFT", profTab, "TOPLEFT", 10, -111)
-exProfLine:SetPoint("TOPRIGHT", profTab, "TOPRIGHT", -10, -111)
-exProfLine:SetColorTexture(0.3, 0.3, 0.35, 0.6)
-local exampleDesc = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-exampleDesc:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -120)
+exProfLine:SetPoint("LEFT", exProfHeader, "RIGHT", 8, 0)
+exProfLine:SetPoint("RIGHT", profTab, "RIGHT", -15, 0)
+exProfLine:SetColorTexture(0.3, 0.3, 0.35, 1)
+exProfLine:SetSnapToPixelGrid(true)
+exProfLine:SetTexelSnappingBias(0)
+local exampleDesc = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+exampleDesc:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -108)
 exampleDesc:SetText("|cff888888Load a preset profile optimized for your role. This will overwrite your current profile settings.|r")
-addonTable.exampleProfileDPSBtn = CreateExampleProfileButton(profTab, "DPS", "DPS", 15, -145, {r=1, g=0.3, b=0.3})
-addonTable.exampleProfileTankBtn = CreateExampleProfileButton(profTab, "Tank", "Tank", 145, -145, {r=0.3, g=0.5, b=1})
-addonTable.exampleProfileHealerBtn = CreateExampleProfileButton(profTab, "Healer", "Healer", 275, -145, {r=0.3, g=1, b=0.5})
-local exampleNote = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-exampleNote:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -180)
+addonTable.exampleProfileDPSBtn = CreateExampleProfileButton(profTab, "DPS", "DPS", 15, -132, {r=1, g=0.3, b=0.3})
+addonTable.exampleProfileTankBtn = CreateExampleProfileButton(profTab, "Tank", "Tank", 155, -132, {r=0.3, g=0.5, b=1})
+addonTable.exampleProfileHealerBtn = CreateExampleProfileButton(profTab, "Healer", "Healer", 295, -132, {r=0.3, g=1, b=0.5})
+local exampleNote = profTab:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+exampleNote:SetPoint("TOPLEFT", profTab, "TOPLEFT", 15, -170)
 exampleNote:SetText("|cffFFD100Note:|r After loading, customize the profile to your needs and add spells to the Custom Bars.")
 exampleNote:SetJustifyH("LEFT")
 exampleNote:SetTextColor(0.7, 0.7, 0.7)
@@ -994,6 +1012,7 @@ local TAB_WIDTHS = {
   [TAB_UF] = 800, [TAB_QOL] = 710, [TAB_TCASTBAR] = 710,
   [TAB_ACTIONBARS] = 710, [TAB_CHAT] = 710, [TAB_SKYRIDING] = 710,
   [TAB_PROFILES] = 710, [TAB_FEATURES] = 710, [TAB_COMBAT] = 710,
+  [TAB_CUSTOMBAR4] = 870, [TAB_CUSTOMBAR5] = 870,
 }
 local function ActivateTab(idx)
   if activeTab == idx then return end
@@ -1015,6 +1034,8 @@ local function ActivateTab(idx)
   if idx == 3 and addonTable.RefreshCB1SpellList then addonTable.RefreshCB1SpellList() end
   if idx == 4 and addonTable.RefreshCB2SpellList then addonTable.RefreshCB2SpellList() end
   if idx == 5 and addonTable.RefreshCB3SpellList then addonTable.RefreshCB3SpellList() end
+  if idx == TAB_CUSTOMBAR4 and addonTable.RefreshCB4SpellList then addonTable.RefreshCB4SpellList() end
+  if idx == TAB_CUSTOMBAR5 and addonTable.RefreshCB5SpellList then addonTable.RefreshCB5SpellList() end
   if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
   if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
   if addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(idx) end
@@ -1066,7 +1087,7 @@ local function RebuildSidebar()
       offLabel:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
       offLabel:SetText("(off)")
       offLabel:SetTextColor(0.85, 0.75, 0.2)
-      offLabel:SetFont("Fonts\\FRIZQT__.TTF", 9)
+      offLabel:SetFont("Fonts\\FRIZQT__.TTF", 11)
       offLabel:Hide()
     end
     btn.offLabel = offLabel
@@ -1130,6 +1151,8 @@ local function RebuildSidebar()
     if barsCount >= 1 then CreateSidebarBtn(3, "Bar 1", true) end
     if barsCount >= 2 then CreateSidebarBtn(4, "Bar 2", true) end
     if barsCount >= 3 then CreateSidebarBtn(5, "Bar 3", true) end
+    if barsCount >= 4 then CreateSidebarBtn(TAB_CUSTOMBAR4, "Bar 4", true) end
+    if barsCount >= 5 then CreateSidebarBtn(TAB_CUSTOMBAR5, "Bar 5", true) end
   end
   CreateSidebarBtn(6, "Blizz CDM", false, disableBlizzCDM)
   CreateSidebarBtn(7, "PRB", false, not usePRB)
@@ -1164,8 +1187,8 @@ local function UpdateTabVisibility()
   RebuildSidebar()
   local profile = GetProfile()
   local barsCount = profile and profile.customBarsCount or 0
-  if activeTab and activeTab >= 3 and activeTab <= 5 then
-    local tabVisible = (activeTab == 3 and barsCount >= 1) or (activeTab == 4 and barsCount >= 2) or (activeTab == 5 and barsCount >= 3)
+  if activeTab and ((activeTab >= 3 and activeTab <= 5) or activeTab == TAB_CUSTOMBAR4 or activeTab == TAB_CUSTOMBAR5) then
+    local tabVisible = (activeTab == 3 and barsCount >= 1) or (activeTab == 4 and barsCount >= 2) or (activeTab == 5 and barsCount >= 3) or (activeTab == TAB_CUSTOMBAR4 and barsCount >= 4) or (activeTab == TAB_CUSTOMBAR5 and barsCount >= 5)
     if not tabVisible then ActivateTab(1) end
   end
 end

@@ -64,6 +64,15 @@ end
 local function ToLocalUnits(px, frame)
   return px / GetPixelScale(frame)
 end
+local function IsSafePublicNumber(v)
+  if type(v) ~= "number" then return false end
+  if issecretvalue and issecretvalue(v) then return false end
+  return true
+end
+local function ReadSafePublicNumber(v, fallback)
+  if IsSafePublicNumber(v) then return v end
+  return fallback
+end
 
 -- ============================================================
 -- Charge Data (12.0 spell charges system)
@@ -72,11 +81,13 @@ end
 local function FindChargeSpell()
   if chargeSpellID then
     local info = C_Spell.GetSpellCharges(chargeSpellID)
-    if info and info.maxCharges and info.maxCharges > 0 then return chargeSpellID end
+    local maxCharges = info and ReadSafePublicNumber(info.maxCharges, nil)
+    if maxCharges and maxCharges > 0 then return chargeSpellID end
   end
   for _, id in ipairs(CHARGE_SPELL_IDS) do
     local info = C_Spell.GetSpellCharges(id)
-    if info and info.maxCharges and info.maxCharges > 0 then
+    local maxCharges = info and ReadSafePublicNumber(info.maxCharges, nil)
+    if maxCharges and maxCharges > 0 then
       chargeSpellID = id
       return id
     end
@@ -381,8 +392,8 @@ local function UpdateVigorBar(profile)
   local data = C_Spell.GetSpellCharges(chargeSpellID)
   if not data then return end
 
-  local total = data.maxCharges or 6
-  local full = data.currentCharges or 0
+  local total = ReadSafePublicNumber(data.maxCharges, nil) or 6
+  local full = ReadSafePublicNumber(data.currentCharges, nil) or 0
 
   if #vigorSegments < total or (#vigorSegments > 0 and not vigorSegments[1]:IsShown()) then
     CreateVigorSegments(total)
@@ -405,9 +416,11 @@ local function UpdateVigorBar(profile)
     elseif i == full + 1 and full < total then
       bar:GetStatusBarTexture():SetVertexColor(c.rechargeR, c.rechargeG, c.rechargeB, 1)
       local progress = 0
-      if data.cooldownDuration and data.cooldownDuration > 0 and data.cooldownStartTime then
-        local elapsed = GetTime() - data.cooldownStartTime
-        progress = elapsed / data.cooldownDuration
+      local cooldownDuration = ReadSafePublicNumber(data.cooldownDuration, nil)
+      local cooldownStartTime = ReadSafePublicNumber(data.cooldownStartTime, nil)
+      if cooldownDuration and cooldownDuration > 0 and cooldownStartTime then
+        local elapsed = GetTime() - cooldownStartTime
+        progress = elapsed / cooldownDuration
       end
       bar:SetValue(math_max(0, math_min(1, progress)))
       bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
@@ -426,13 +439,15 @@ local function UpdateWhirlingSurge(profile)
 
   local c = cachedColors
   local cdInfo = C_Spell.GetSpellCooldown(WHIRLING_SURGE_ID)
+  local cdStart = cdInfo and ReadSafePublicNumber(cdInfo.startTime, nil)
+  local cdDuration = cdInfo and ReadSafePublicNumber(cdInfo.duration, nil)
 
-  if cdInfo and cdInfo.startTime and cdInfo.duration and cdInfo.duration > 1.5 then
-    local elapsed = GetTime() - cdInfo.startTime
-    local progress = elapsed / cdInfo.duration
+  if cdStart and cdDuration and cdDuration > 1.5 then
+    local elapsed = GetTime() - cdStart
+    local progress = elapsed / cdDuration
     whirlingSurgeBar:SetValue(math_max(0, math_min(1, progress)))
     whirlingSurgeBar:GetStatusBarTexture():SetVertexColor(c.rechargeR, c.rechargeG, c.rechargeB, 1)
-    local remaining = cdInfo.duration - elapsed
+    local remaining = cdDuration - elapsed
     if remaining > 0 then
       whirlingSurgeText:SetText(string_format("%.0fs", remaining))
     else
@@ -455,8 +470,8 @@ local function UpdateSecondWind(profile)
   local chargeInfo = C_Spell.GetSpellCharges(SECOND_WIND_ID)
   if not chargeInfo then return end
 
-  local total = chargeInfo.maxCharges or 3
-  local full = chargeInfo.currentCharges or 0
+  local total = ReadSafePublicNumber(chargeInfo.maxCharges, nil) or 3
+  local full = ReadSafePublicNumber(chargeInfo.currentCharges, nil) or 0
 
   if #secondWindSegments < total or (#secondWindSegments > 0 and not secondWindSegments[1]:IsShown()) then
     CreateSecondWindSegments(total)
@@ -479,9 +494,11 @@ local function UpdateSecondWind(profile)
     elseif i == full + 1 and full < total then
       bar:GetStatusBarTexture():SetVertexColor(c.rechargeR, c.rechargeG, c.rechargeB, 1)
       local progress = 0
-      if chargeInfo.cooldownDuration and chargeInfo.cooldownDuration > 0 and chargeInfo.cooldownStartTime then
-        local elapsed = GetTime() - chargeInfo.cooldownStartTime
-        progress = elapsed / chargeInfo.cooldownDuration
+      local cooldownDuration = ReadSafePublicNumber(chargeInfo.cooldownDuration, nil)
+      local cooldownStartTime = ReadSafePublicNumber(chargeInfo.cooldownStartTime, nil)
+      if cooldownDuration and cooldownDuration > 0 and cooldownStartTime then
+        local elapsed = GetTime() - cooldownStartTime
+        progress = elapsed / cooldownDuration
       end
       bar:SetValue(math_max(0, math_min(1, progress)))
       bar.bg:SetColorTexture(c.emptyR, c.emptyG, c.emptyB, 1)
