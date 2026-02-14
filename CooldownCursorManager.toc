@@ -5,7 +5,8 @@
 ## Version: 7.0.0
 ## SavedVariables: CooldownCursorManagerDB
 ## IconTexture: Interface\AddOns\CooldownCursorManager\media\icon.tga
-## OptionalDeps: Masque, LibSharedMedia-3.0
+## OptionalDeps: Masque, LibSharedMedia-3.0, LibButtonGlow-1.0, LibCustomGlow-1.0
+## X-Embeds: LibSharedMedia-3.0, LibButtonGlow-1.0, LibCustomGlow-1.0
 ## X-Category: Combat
 ## X-Website: https://github.com/edeljay-official/CooldownCursorManager
 ## X-Curse-Project-ID: 1444617
