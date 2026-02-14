@@ -6482,7 +6482,10 @@ local function UpdateCustomBar()
                   return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -6507,7 +6510,10 @@ local function UpdateCustomBar()
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -7177,7 +7183,10 @@ local function UpdateCustomBar2()
                   return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -7202,7 +7211,10 @@ local function UpdateCustomBar2()
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -7870,7 +7882,10 @@ local function UpdateCustomBar3()
                   return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -7895,7 +7910,10 @@ local function UpdateCustomBar3()
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -8545,7 +8563,10 @@ local function UpdateCustomBar4()
                   return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -8570,7 +8591,10 @@ local function UpdateCustomBar4()
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -9220,7 +9244,10 @@ local function UpdateCustomBar5()
                   return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -9245,7 +9272,10 @@ local function UpdateCustomBar5()
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
@@ -10366,7 +10396,10 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
                 return cdInfo.startTime == gcdInfo.startTime and cdInfo.duration == gcdInfo.duration
               end)
               if okGcd and isGcdMatch then
-                icon._cdExpectedEnd = 0
+                local nowTs = (tickCtx and tickCtx.now) or GetTime()
+                if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                  icon._cdExpectedEnd = 0
+                end
               end
             end
           end
@@ -10391,7 +10424,10 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
             local gcdInfo = cachedGcdInfo
             if gcdInfo and gcdInfo.startTime and gcdInfo.duration
                and cdInfo.startTime == gcdInfo.startTime and cdInfo.duration == gcdInfo.duration then
-              icon._cdExpectedEnd = 0
+              local nowTs = (tickCtx and tickCtx.now) or GetTime()
+              if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                icon._cdExpectedEnd = 0
+              end
             end
           end
           if cdInfo.startTime > 0 and cdInfo.duration > 1.5 then
