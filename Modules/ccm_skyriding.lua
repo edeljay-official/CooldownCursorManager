@@ -53,7 +53,6 @@ local UpdatePreviewButtonState
 local math_floor = math.floor
 local math_min = math.min
 local math_max = math.max
-local math_sqrt = math.sqrt
 local string_format = string.format
 local function GetPixelScale(frame)
   local s = (frame and frame.GetEffectiveScale and frame:GetEffectiveScale()) or (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1

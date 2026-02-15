@@ -3,7 +3,7 @@
 -- Default profile values organized by module
 -- Author: Edeljay
 --------------------------------------------------------------------------------
-local addonName, CCM = ...
+local _, CCM = ...
 CCM.Defaults = {
   profiles = {
     Default = {

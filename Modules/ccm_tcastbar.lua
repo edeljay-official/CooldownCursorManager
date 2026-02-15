@@ -8,7 +8,6 @@ if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("C
 local _, addonTable = ...
 local State = addonTable.State
 local GetGlobalFont = addonTable.GetGlobalFont
-local FitTextToBar = addonTable.FitTextToBar
 local castbarTextures = addonTable.castbarTextures
 local channelTickData = addonTable.channelTickData
 addonTable.TargetCastbarFrame = CreateFrame("Frame", "CCMTargetCastbar", UIParent, "BackdropTemplate")

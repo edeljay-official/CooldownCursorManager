@@ -3,7 +3,7 @@
 -- Configuration UI tab layouts and widgets
 -- Author: Edeljay
 --------------------------------------------------------------------------------
-local addonName, CCM = ...
+local _, CCM = ...
 local addonTable = CCM
 local function BuildTextureOptions()
   local options = {}
@@ -2174,8 +2174,7 @@ local function InitTabs()
     local abNote = abc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     abNote:SetPoint("TOPLEFT", abSec, "BOTTOMLEFT", 0, -10)
     abNote:SetText("|cff888888Note: Action Bars have to be set in Edit Mode to Always Visible.|r")
-    local AB_LABEL_X, AB_DD_X, AB_DD_W = 15, 280, 205
-    local AB_ROW_H = 30
+    local AB_DD_X, AB_DD_W = 280, 205
     local AB_GLOBAL_OPTIONS = {
       {text = "Per Bar (Custom)", value = "custom"},
       {text = "Off", value = "off"},

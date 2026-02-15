@@ -3,7 +3,7 @@
 -- Reusable GUI widget factories and UI component builders
 -- Author: Edeljay
 --------------------------------------------------------------------------------
-local addonName, CCM = ...
+local _, CCM = ...
 local addonTable = CCM
 local _activeDropdownList = nil
 local _dropdownClickCatcher = nil
@@ -172,7 +172,7 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   upTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up.tga")
   upBtn:SetScript("OnClick", function()
     local step = s.step or s:GetValueStep() or 1
-    local minVal, maxVal = s:GetMinMaxValues()
+    local _, maxVal = s:GetMinMaxValues()
     local currentVal = s:GetValue()
     local newVal = currentVal + step
     if newVal > maxVal then newVal = maxVal end
@@ -188,7 +188,7 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   downTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
   downBtn:SetScript("OnClick", function()
     local step = s.step or s:GetValueStep() or 1
-    local minVal, maxVal = s:GetMinMaxValues()
+    local minVal = s:GetMinMaxValues()
     local currentVal = s:GetValue()
     local newVal = currentVal - step
     if newVal < minVal then newVal = minVal end
@@ -870,7 +870,7 @@ local SPELL_GLOW_TYPE_OPTIONS = {
   { text = "Proc", value = "proc" },
 }
 
-local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, hasRealCooldown, useCustomHideReveal, hideRevealThreshold, onHideRevealChange, isPureBuffDisabled)
+local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, isHideRevealBlocked, hasRealCooldown, useCustomHideReveal, hideRevealThreshold, onHideRevealChange, isPureBuffDisabled)
   local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
   local rowY = -4 - (idx - 1) * 34
   row:SetHeight(32)
@@ -1090,8 +1090,8 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
   hrBox:SetScript("OnEnterPressed", HRApplyEditBox)
   hrBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
   hrBox:SetScript("OnEditFocusLost", HRApplyEditBox)
-  local showGlow = isGlobalGlowEnabled == true and not isChargeSpell
-  local showHR = useCustomHideReveal == true and hasRealCooldown == true and not isChargeSpell
+  local showGlow = isGlobalGlowEnabled == true and not isChargeSpell and not isHideRevealBlocked
+  local showHR = useCustomHideReveal == true and hasRealCooldown == true and not isChargeSpell and not isHideRevealBlocked
   glowDD:SetShown(showGlow)
   glowDD:SetEnabled(showGlow)
   hrFrame:SetShown(showHR)
@@ -1132,6 +1132,16 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
     hint:SetPoint("LEFT", name, "RIGHT", 6, 0)
     hint:SetTextColor(1, 0.5, 0.1)
     hint:SetText("Enable Track Buffs")
+  end
+  if useCustomHideReveal == true and isHideRevealBlocked then
+    local hrHint = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hrHint:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+    hrHint:SetJustifyH("RIGHT")
+    hrHint:SetTextColor(1, 0.5, 0.1)
+    hrHint:SetText("(no hide reveal & no glow)")
+    name:ClearAllPoints()
+    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    name:SetPoint("RIGHT", hrHint, "LEFT", -6, 0)
   end
   return row
 end

@@ -641,17 +641,17 @@ local function BuildStep2(parent)
     return cb
   end
 
-  local leftHead1 = AddHeader(COL1_X, -6, "Cooldown Tracking")
-  local rightHead1 = AddHeader(COL2_X, -6, "Castbars")
+  AddHeader(COL1_X, -6, "Cooldown Tracking")
+  AddHeader(COL2_X, -6, "Castbars")
 
-  local c1 = AddOptionAt(COL1_X, -32, "Use Cursor CDM", function() return WizardState.cursorIconsEnabled end, function(v) WizardState.cursorIconsEnabled = v end)
+  AddOptionAt(COL1_X, -32, "Use Cursor CDM", function() return WizardState.cursorIconsEnabled end, function(v) WizardState.cursorIconsEnabled = v end)
   local c2 = AddOptionAt(COL1_X, -60, "Use Blizz CDM", function() return WizardState.useBlizzCDM end, function(v) WizardState.useBlizzCDM = v end)
   local c2a = AddOptionAt(COL1_X + SUB_INDENT, -88, "Blizz CDM: Skin standalone bars", function() return WizardState.blizzSkinning end, function(v) WizardState.blizzSkinning = v end)
   local c2b = AddOptionAt(COL1_X + SUB_INDENT, -116, "Blizz CDM: Center standalone bars", function() return WizardState.blizzCentered end, function(v) WizardState.blizzCentered = v end)
 
-  local c4 = AddOptionAt(COL2_X, -32, "Use Custom Castbar", function() return WizardState.useCastbar end, function(v) WizardState.useCastbar = v end)
-  local c5 = AddOptionAt(COL2_X, -60, "Use Focus Castbar", function() return WizardState.useFocusCastbar end, function(v) WizardState.useFocusCastbar = v end)
-  local c6 = AddOptionAt(COL2_X, -88, "Use Target Castbar", function() return WizardState.useTargetCastbar end, function(v) WizardState.useTargetCastbar = v end)
+  AddOptionAt(COL2_X, -32, "Use Custom Castbar", function() return WizardState.useCastbar end, function(v) WizardState.useCastbar = v end)
+  AddOptionAt(COL2_X, -60, "Use Focus Castbar", function() return WizardState.useFocusCastbar end, function(v) WizardState.useFocusCastbar = v end)
+  AddOptionAt(COL2_X, -88, "Use Target Castbar", function() return WizardState.useTargetCastbar end, function(v) WizardState.useTargetCastbar = v end)
 
   local function UpdateBlizzSubOptions()
     local enabled = WizardState.useBlizzCDM == true
@@ -666,15 +666,15 @@ local function BuildStep2(parent)
   end
   UpdateBlizzSubOptions()
 
-  local leftHead2 = AddHeader(COL1_X, -170, "Resources")
-  local rightHead2 = AddHeader(COL2_X, -170, "Unit Frames")
+  AddHeader(COL1_X, -170, "Resources")
+  AddHeader(COL2_X, -170, "Unit Frames")
 
   local c3 = AddOptionAt(COL1_X, -196, "Enable Custom Bars", function() return WizardState.enableCustomBars end, function(v) WizardState.enableCustomBars = v end)
   local c3b = AddOptionAt(COL1_X, -224, "Use Personal Resource Bar", function() return WizardState.usePersonalResourceBar end, function(v) WizardState.usePersonalResourceBar = v end)
   local c3c = AddOptionAt(COL1_X + SUB_INDENT, -252, "PRB: Show Health", function() return WizardState.prbShowHealth end, function(v) WizardState.prbShowHealth = v end)
   local c3d = AddOptionAt(COL1_X + SUB_INDENT, -280, "PRB: Show Power", function() return WizardState.prbShowPower end, function(v) WizardState.prbShowPower = v end)
   local c3e = AddOptionAt(COL1_X + SUB_INDENT, -308, "PRB: Show Class Power", function() return WizardState.prbShowClassPower end, function(v) WizardState.prbShowClassPower = v end)
-  local c7 = AddOptionAt(COL1_X, -336, "Enable Player Debuffs", function() return WizardState.enablePlayerDebuffs end, function(v) WizardState.enablePlayerDebuffs = v end)
+  AddOptionAt(COL1_X, -336, "Enable Player Debuffs", function() return WizardState.enablePlayerDebuffs end, function(v) WizardState.enablePlayerDebuffs = v end)
 
   local c8 = AddOptionAt(COL2_X, -196, "Enable Unit Frame Customization", function() return WizardState.enableUnitFrameCustomization end, function(v) WizardState.enableUnitFrameCustomization = v end)
   local c8a = AddOptionAt(COL2_X + SUB_INDENT, -224, "UF: Use Bigger Healthbars (Player/Target/Focus)", function() return WizardState.ufUseBiggerHealthbars end, function(v) WizardState.ufUseBiggerHealthbars = v end)

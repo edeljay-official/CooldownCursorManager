@@ -7,12 +7,7 @@ if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("C
 
 local _, addonTable = ...
 local State = addonTable.State
-local GetClassColor = addonTable.GetClassColor
 local GetGlobalFont = addonTable.GetGlobalFont
-local FitTextToBar = addonTable.FitTextToBar
-local IsRealNumber = addonTable.IsRealNumber
-local GetClassPowerConfig = addonTable.GetClassPowerConfig
-local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
 local function ApplyConsistentFontShadow(fontString, outlineFlag)
   if not fontString then return end
   local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
@@ -267,19 +262,6 @@ addonTable.ApplyUnitFrameCustomization = function()
       tex:SetAlpha(1)
       tex:SetVertexColor(r, g, b, 1)
     end
-  end
-  local function GetStatusBarUnitToken(statusBar, fallbackUnit)
-    if type(fallbackUnit) == "string" and fallbackUnit ~= "" then
-      return fallbackUnit
-    end
-    if statusBar and type(statusBar.unit) == "string" and statusBar.unit ~= "" then
-      return statusBar.unit
-    end
-    local uf = statusBar and statusBar.unitFrame
-    if uf and type(uf.unit) == "string" and uf.unit ~= "" then
-      return uf.unit
-    end
-    return nil
   end
   local function ApplyTargetFocusHealthCustomization(frame, unitToken)
     if not frame then return end
@@ -1273,109 +1255,6 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
       return overPx and overPx > 0
     end
-    local function ShowDmgAbsorb(dmgAbsorbPx, fillRatio)
-      if not dmgAbsorbPx or dmgAbsorbPx < 1 then
-        HideDmgAbsorb(true)
-        return
-      end
-      local statusTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or nil
-      local ratio = Clamp01(fillRatio)
-      local healOff2 = o.healPredTotalPx or 0
-      local remainingVis = nil
-      if statusTex and statusTex.GetWidth then
-        local texW = SafeNumeric(statusTex:GetWidth())
-        if texW and w then
-          remainingVis = w - texW - healOff2
-        end
-      end
-      if remainingVis == nil then
-        remainingVis = visW * (1 - ratio) - healOff2
-      end
-      if remainingVis < 0 then remainingVis = 0 end
-      if remainingVis <= 1 then
-        HideDmgAbsorb(true)
-        return
-      end
-      if dmgAbsorbPx > remainingVis then dmgAbsorbPx = remainingVis end
-      if dmgAbsorbPx < 1 then
-        HideDmgAbsorb(true)
-        return
-      end
-      o.dmgAbsorbFrame:ClearAllPoints()
-      if statusTex then
-        local capRightRef = o.healthFrame
-        if o.bgFrame and o.bgFrame.GetRight and o.healthFrame.GetRight then
-          local bgRight = SafeNumeric(o.bgFrame:GetRight())
-          local hpRight = SafeNumeric(o.healthFrame:GetRight())
-          if bgRight and hpRight and bgRight < hpRight then
-            capRightRef = o.bgFrame
-          end
-        end
-        local hardCap = nil
-        if statusTex.GetRight and capRightRef.GetRight then
-          local leftEdge = SafeNumeric(statusTex:GetRight())
-          local rightEdge = SafeNumeric(capRightRef:GetRight())
-          if leftEdge and rightEdge then
-            hardCap = rightEdge - leftEdge - healOff2
-          end
-        end
-        if not hardCap or hardCap <= 0 then
-          hardCap = remainingVis
-        end
-        if not hardCap or hardCap <= 1 then
-          HideDmgAbsorb(true)
-          return
-        end
-        if dmgAbsorbPx > hardCap then dmgAbsorbPx = hardCap end
-        if dmgAbsorbPx < 1 then
-          HideDmgAbsorb(true)
-          return
-        end
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", statusTex, "TOPRIGHT", healOff2, 0)
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff2, 0)
-        o.dmgAbsorbFrame:SetSize(hardCap, h)
-        o.dmgAbsorbFrame:SetMinMaxValues(0, hardCap)
-        o.dmgAbsorbFrame:SetValue(dmgAbsorbPx)
-      else
-        local offsetPx = visW * ratio + healOff2
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
-        o.dmgAbsorbFrame:SetSize(math.max(1, remainingVis), h)
-        o.dmgAbsorbFrame:SetMinMaxValues(0, math.max(1, remainingVis))
-        o.dmgAbsorbFrame:SetValue(dmgAbsorbPx)
-      end
-      if o.dmgAbsorbFrame.SetReverseFill then o.dmgAbsorbFrame:SetReverseFill(false) end
-      o.dmgAbsorbFrame:Show()
-      if o.fullDmgAbsorbFrame then o.fullDmgAbsorbFrame:Hide() end
-    end
-    local function ShowFullDmgAbsorb(dmgAbsorbPx)
-      if not o.fullDmgAbsorbFrame or not o.fullDmgAbsorbTex then
-        return false
-      end
-      if not dmgAbsorbPx or dmgAbsorbPx < 1 then
-        o.fullDmgAbsorbFrame:Hide()
-        return false
-      end
-      local maxW = visW
-      if maxW <= 1 then
-        o.fullDmgAbsorbFrame:Hide()
-        return false
-      end
-      if dmgAbsorbPx > maxW then dmgAbsorbPx = maxW end
-      o.fullDmgAbsorbFrame:ClearAllPoints()
-      o.fullDmgAbsorbFrame:SetPoint("TOPRIGHT", o.healthFrame, "TOPRIGHT", 0, 0)
-      o.fullDmgAbsorbFrame:SetPoint("BOTTOMRIGHT", o.healthFrame, "BOTTOMRIGHT", 0, 0)
-      o.fullDmgAbsorbFrame:SetWidth(dmgAbsorbPx)
-      if o.fullDmgAbsorbTex.SetTexCoord then
-        local left = 1 - (dmgAbsorbPx / maxW)
-        if left < 0 then left = 0 end
-        if left > 1 then left = 1 end
-        o.fullDmgAbsorbTex:SetTexCoord(left, 1, 0, 1)
-      end
-      o.fullDmgAbsorbFrame:Show()
-      if o.dmgAbsorbFrame then o.dmgAbsorbFrame:Hide() end
-      return true
-    end
     local function ShowDmgAbsorbFromBarValues(srcDmgAbsorbBar)
       if not srcDmgAbsorbBar or not srcDmgAbsorbBar.GetMinMaxValues or not srcDmgAbsorbBar.GetValue then return false end
       local okMM, minV, maxV = pcall(srcDmgAbsorbBar.GetMinMaxValues, srcDmgAbsorbBar)
@@ -1462,7 +1341,7 @@ addonTable.ApplyUnitFrameCustomization = function()
       if (not dmgAbsorbW or dmgAbsorbW <= 0) and srcDmgAbsorbBar.GetStatusBarTexture then
         local tex = srcDmgAbsorbBar:GetStatusBarTexture()
         if tex and tex.GetTexCoord then
-          local ulx, uly, llx, lly, urx, ury, lrx, lry = tex:GetTexCoord()
+          local ulx, _, llx, _, urx, _, lrx = tex:GetTexCoord()
           if type(ulx) == "number" and type(llx) == "number" and type(urx) == "number" and type(lrx) == "number" then
             local minx = math.min(ulx, llx, urx, lrx)
             local maxx = math.max(ulx, llx, urx, lrx)
@@ -1804,7 +1683,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     local statusTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or nil
     local maxHealthRaw = nil
     if o.origHP.GetMinMaxValues then
-      local okMM, minV, maxV = pcall(o.origHP.GetMinMaxValues, o.origHP)
+      local okMM, _, maxV = pcall(o.origHP.GetMinMaxValues, o.origHP)
       if okMM and maxV ~= nil then maxHealthRaw = maxV end
     end
     if maxHealthRaw == nil and UnitHealthMax then
@@ -3671,16 +3550,6 @@ addonTable.ApplyUnitFrameCustomization = function()
   if not orig.ufFontHooked then
     orig.ufFontHooked = true
     orig.ufFontObjects = orig.ufFontObjects or {}
-    local function GetOrCreateFontObject(size)
-      local key = math.floor(size + 0.5)
-      if not orig.ufFontObjects[key] then
-        orig.ufFontObjects[key] = CreateFont("CCM_UFFont_" .. key)
-      end
-      local gf, go = GetGlobalFont()
-      local oFlag = go or ""
-      orig.ufFontObjects[key]:SetFont(gf, key, oFlag)
-      return orig.ufFontObjects[key]
-    end
     local function ApplyGlobalFontToUFs()
       local ufProf = addonTable.GetProfile and addonTable.GetProfile()
       if not ufProf or ufProf.enableUnitFrameCustomization == false then return end

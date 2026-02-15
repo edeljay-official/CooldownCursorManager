@@ -2,7 +2,7 @@
 ## Title: Cooldown Cursor Manager [Unit Frames]
 ## Notes: CCM companion module: Unit Frames
 ## Author: Edeljay
-## Version: 7.1.0
+## Version: 7.2.0
 ## IconTexture: Interface\AddOns\CooldownCursorManager_UnitFrames\icon.tga
 ## Dependencies: CooldownCursorManager
 ## LoadOnDemand: 1
@@ -11,4 +11,5 @@
 ## X-CCM-Module: unitframes
 
 CooldownCursorManager_UnitFrames.lua
+
 

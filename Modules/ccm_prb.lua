@@ -10,7 +10,6 @@ local State = addonTable.State
 local GetClassColor = addonTable.GetClassColor
 local GetGlobalFont = addonTable.GetGlobalFont
 local FitTextToBar = addonTable.FitTextToBar
-local IsRealNumber = addonTable.IsRealNumber
 local GetClassPowerConfig = addonTable.GetClassPowerConfig
 local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
 local SetBlizzardPlayerPowerBarsVisibility = addonTable.SetBlizzardPlayerPowerBarsVisibility
@@ -31,14 +30,6 @@ local function GetPRBAbsorbTexturePath(profile)
 end
 local function GetPRBStripeOverlayPath()
   return PRB_OVERLAY_TEX_STRIPE_PRB
-end
-local function SetStatusBarValuePixelPerfect(statusBar, value)
-  if not statusBar then return end
-  if PixelUtil and PixelUtil.SetStatusBarValue then
-    PixelUtil.SetStatusBarValue(statusBar, value or 0)
-  else
-    statusBar:SetValue(value or 0)
-  end
 end
 local function ApplyConsistentFontShadow(fontString, outlineFlag)
   if not fontString then return end
@@ -1086,7 +1077,6 @@ local function UpdatePRB(force)
       prbFrame.manaBar:Hide()
       prbFrame.manaBar.text:Hide()
     end
-    local _, playerClass = UnitClass("player")
     -- While PRB is active, always suppress Blizzard class-power widgets
     -- to avoid duplicate/forced combo-point displays (e.g. druid cat).
     SetBlizzardPlayerPowerBarsVisibility(showPower, true)

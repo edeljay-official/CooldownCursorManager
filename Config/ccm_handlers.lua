@@ -3,7 +3,7 @@
 -- Configuration UI event handlers and callbacks
 -- Author: Edeljay
 --------------------------------------------------------------------------------
-local addonName, CCM = ...
+local _, CCM = ...
 local addonTable = CCM
 local function GetProfile() return addonTable.GetProfile and addonTable.GetProfile() end
 local function CreateIcons() if addonTable.CreateIcons then addonTable.CreateIcons() end end
@@ -11,7 +11,6 @@ local function UpdateAllIcons()
   if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
 end
 local SetStyledSliderShown = addonTable.SetStyledSliderShown
-local SetStyledCheckboxShown = addonTable.SetStyledCheckboxShown
 local AttachCheckboxTooltip = addonTable.AttachCheckboxTooltip
 local TRACK_BUFFS_TOOLTIP_TEXT = "Add buffs to Blizzard's CDM Buff Tracker\nand to the spell list below.\nTracked buffs are hidden in Blizzard CDM.\nIn Edit Mode, set Buff Tracker to\nAlways Visible or In Combat."
 local DISABLE_BLIZZ_CDM_TOOLTIP_TEXT = "Disables Blizzard CDM bars and related integration.\nIf Track Buffs is enabled in any bar,\nthis option is re-enabled automatically."
@@ -97,8 +96,6 @@ local function SyncModuleControlsState()
     end
   end
   local cbarsOn = IsModuleEnabled("custombars")
-  local blizzOn = IsModuleEnabled("blizzcdm")
-  local prbOn = IsModuleEnabled("prb")
   local castbarsOn = IsModuleEnabled("castbars")
   local debuffsOn = IsModuleEnabled("debuffs")
   local unitframesOn = IsModuleEnabled("unitframes")
@@ -218,12 +215,6 @@ local function FormatHalf(v)
 end
 local SetButtonHighlighted = addonTable.SetButtonHighlighted
 local ShowColorPicker = addonTable.ShowColorPicker
-local function GetRingPreviewTexture(thickness)
-  local t = math.floor(tonumber(thickness) or 1)
-  if t < 1 then t = 1 end
-  if t > 5 then t = 5 end
-  return "Interface\\AddOns\\CooldownCursorManager\\media\\Ring_32_T" .. t .. ".png"
-end
 local function RadialThicknessToPreset(thickness)
   local t = tonumber(thickness)
   if not t then return "middle" end
@@ -320,7 +311,7 @@ local function HasRealCooldownForHideReveal(entryID, isChargeSpell)
   local actualID = math.abs(entryID)
   if isItem then
     if C_Item and C_Item.GetItemCooldown then
-      local startTime, duration = C_Item.GetItemCooldown(actualID)
+      local _, duration = C_Item.GetItemCooldown(actualID)
       if type(duration) == "number" and duration > 1.5 then return true end
     end
     return false
@@ -381,6 +372,29 @@ local function HasRealCooldownForHideReveal(entryID, isChargeSpell)
 
   for i = 1, #idsToCheck do
     if HasDesignCooldown(idsToCheck[i]) then return true end
+  end
+  return false
+end
+local function IsHideRevealBlockedForEntry(entryID, isChargeSpell)
+  if type(entryID) ~= "number" or entryID < 0 then return false end
+  if isChargeSpell then return true end
+  local actualID = math.abs(entryID)
+  local resolvedID = actualID
+  if addonTable.ResolveTrackedSpellID then
+    local rid = addonTable.ResolveTrackedSpellID(actualID)
+    if type(rid) == "number" and rid > 0 then
+      resolvedID = rid
+    end
+  end
+  if addonTable.IsOverrideRecastSpell then
+    if addonTable.IsOverrideRecastSpell(resolvedID, actualID) == true then
+      return true
+    end
+  end
+  if addonTable.IsBuffTrackingBlockedSpell then
+    if addonTable.IsBuffTrackingBlockedSpell(resolvedID, actualID) == true then
+      return true
+    end
   end
   return false
 end
@@ -473,8 +487,9 @@ local function RefreshCursorSpellList()
     local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"
     local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true)
     local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge)
+    local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge)
     local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true
-    CreateSpellRow(cur.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHideReveal, spellHideRevealThresholds[i], onHideRevealChange, pureBuffOff)
+    CreateSpellRow(cur.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHideReveal, spellHideRevealThresholds[i], onHideRevealChange, pureBuffOff)
   end
   UpdateSpellListHeight(cur.spellChild, #spellList)
 end
@@ -497,7 +512,7 @@ local function RefreshCB1SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB2SpellList()
@@ -519,7 +534,7 @@ local function RefreshCB2SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB3SpellList()
@@ -541,7 +556,7 @@ local function RefreshCB3SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function SetupDragDrop(tabFrame, getSpellsFunc, setSpellsFunc, refreshFunc, createIconsFunc, updateFunc, extraFrames)
@@ -607,7 +622,7 @@ local function RefreshCB4SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB5SpellList()
@@ -629,7 +644,7 @@ local function RefreshCB5SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 addonTable.RefreshCursorSpellList = RefreshCursorSpellList

@@ -7,7 +7,6 @@ local addonName, CCM = ...
 local addonTable = CCM
 local function GetProfile() return addonTable.GetProfile and addonTable.GetProfile() end
 local function CreateIcons() if addonTable.CreateIcons then addonTable.CreateIcons() end end
-local function UpdateAllIcons() if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end end
 local function SetGUIOpen(v) if addonTable.SetGUIOpen then addonTable.SetGUIOpen(v) end end
 local HideActiveDropdownList = addonTable.HideActiveDropdownList
 addonTable.ConfigGetProfile = GetProfile
@@ -83,7 +82,6 @@ cfg:Hide()
 cfg:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 2})
 cfg:SetBackdropColor(0.08, 0.08, 0.10, 0.97)
 cfg:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
-local FitConfigToScreen = addonTable.FitConfigToScreen
 cfg:SetScript("OnSizeChanged", function(self)
   if self:IsShown() and addonTable.FitConfigToScreen then
     addonTable.FitConfigToScreen(self)
@@ -922,7 +920,7 @@ resizeGrip:SetScript("OnMouseUp", function()
     CooldownCursorManagerDB.guiHeight = h
   end
 end)
-local tabs, tabFrames, activeTab = {}, {}, nil
+local tabFrames, activeTab = {}, nil
 local MAX_TABS = 21
 local TAB_UF = 11
 local TAB_QOL = 12

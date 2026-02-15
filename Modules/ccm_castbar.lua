@@ -9,7 +9,6 @@ local _, addonTable = ...
 local State = addonTable.State
 local GetClassColor = addonTable.GetClassColor
 local GetGlobalFont = addonTable.GetGlobalFont
-local FitTextToBar = addonTable.FitTextToBar
 local castbarFrame = CreateFrame("Frame", "CCMCastbar", UIParent, "BackdropTemplate")
 castbarFrame:SetSize(250, 20)
 castbarFrame:SetPoint("CENTER", UIParent, "CENTER", 0, -250)
@@ -366,7 +365,7 @@ local function UpdateCastbar()
     end
     return
   end
-  local name, text, texture, startTimeMS, endTimeMS, isTradeSkill, castID, notInterruptible, spellID = UnitCastingInfo("player")
+  local name, text, texture, startTimeMS, endTimeMS, isTradeSkill, _, notInterruptible, spellID = UnitCastingInfo("player")
   local isChanneling = false
   if not name then
     name, text, texture, startTimeMS, endTimeMS, isTradeSkill, notInterruptible, spellID = UnitChannelInfo("player")
