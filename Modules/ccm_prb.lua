@@ -12,7 +12,12 @@ local GetGlobalFont = addonTable.GetGlobalFont
 local FitTextToBar = addonTable.FitTextToBar
 local GetClassPowerConfig = addonTable.GetClassPowerConfig
 local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
-local SetBlizzardPlayerPowerBarsVisibility = addonTable.SetBlizzardPlayerPowerBarsVisibility
+local function SetBlizzardPlayerPowerBarsVisibility(showPower, showClassPower)
+  local fn = addonTable and addonTable.SetBlizzardPlayerPowerBarsVisibility
+  if type(fn) == "function" then
+    return fn(showPower, showClassPower)
+  end
+end
 local PRB_OVERLAY_TEX_NORM = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\normTex.tga"
 local PRB_OVERLAY_TEX_STRIPE_PRB = "Interface\\AddOns\\CooldownCursorManager\\media\\textures\\stripe_overlay"
 local function SafeNum(v)

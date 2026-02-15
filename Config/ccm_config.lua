@@ -71,6 +71,9 @@ cfg:SetScript("OnHide", function()
   if addonTable.StopLowHealthWarningPreview then
     addonTable.StopLowHealthWarningPreview()
   end
+  if addonTable.StopUFBossPreview then
+    addonTable.StopUFBossPreview()
+  end
   if addonTable.ResetAllPreviewHighlights then
     addonTable.ResetAllPreviewHighlights()
   end
@@ -103,7 +106,7 @@ titleBar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 titleBar:SetBackdropColor(0.15, 0.15, 0.18, 1)
 local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
-titleText:SetText("Cooldown Cursor Manager v7.2.0")
+titleText:SetText("Cooldown Cursor Manager v7.3.0")
 titleText:SetTextColor(1, 0.82, 0)
 local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
 closeBtn:SetSize(24, 24)
@@ -921,7 +924,7 @@ resizeGrip:SetScript("OnMouseUp", function()
   end
 end)
 local tabFrames, activeTab = {}, nil
-local MAX_TABS = 24
+local MAX_TABS = 25
 local TAB_UF = 11
 local TAB_QOL = 12
 local TAB_TCASTBAR = 13
@@ -936,6 +939,7 @@ local TAB_CUSTOMBAR5 = 21
 local TAB_UF_PLAYER = 22
 local TAB_UF_TARGET = 23
 local TAB_UF_FOCUS = 24
+local TAB_UF_BOSS = 25
 for i = 1, MAX_TABS do
   tabFrames[i] = CreateFrame("Frame", nil, contentContainer)
   tabFrames[i]:SetAllPoints()
@@ -1022,13 +1026,14 @@ local function StopAllPreviews()
   if addonTable.StopCombatStatusPreview then addonTable.StopCombatStatusPreview() end
   if addonTable.StopSkyridingPreview then addonTable.StopSkyridingPreview() end
   if addonTable.StopLowHealthWarningPreview then addonTable.StopLowHealthWarningPreview() end
+  if addonTable.StopUFBossPreview then addonTable.StopUFBossPreview() end
   if addonTable.ResetAllPreviewHighlights then addonTable.ResetAllPreviewHighlights() end
 end
 local TAB_WIDTHS = {
   [1] = 710, [2] = 870, [3] = 870, [4] = 870, [5] = 870,
   [6] = 720, [7] = 710, [8] = 710, [9] = 710, [10] = 710,
   [TAB_UF] = 800, [TAB_QOL] = 710, [TAB_TCASTBAR] = 710,
-  [TAB_UF_PLAYER] = 800, [TAB_UF_TARGET] = 800, [TAB_UF_FOCUS] = 800,
+  [TAB_UF_PLAYER] = 800, [TAB_UF_TARGET] = 800, [TAB_UF_FOCUS] = 800, [TAB_UF_BOSS] = 800,
   [TAB_ACTIONBARS] = 710, [TAB_CHAT] = 710, [TAB_SKYRIDING] = 710,
   [TAB_PROFILES] = 710, [TAB_FEATURES] = 710, [TAB_COMBAT] = 710,
   [TAB_CUSTOMBAR4] = 870, [TAB_CUSTOMBAR5] = 870,
@@ -1209,6 +1214,7 @@ local function RebuildSidebar()
     CreateSidebarBtn(TAB_UF_PLAYER, "Player", true, unitframesBaseOff or (not ufBigMaster) or (profile and profile.ufBigHBPlayerEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
     CreateSidebarBtn(TAB_UF_TARGET, "Target", true, unitframesBaseOff or (not ufBigMaster) or (profile and profile.ufBigHBTargetEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
     CreateSidebarBtn(TAB_UF_FOCUS, "Focus", true, unitframesBaseOff or (not ufBigMaster) or (profile and profile.ufBigHBFocusEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+    CreateSidebarBtn(TAB_UF_BOSS, "Boss", true, unitframesBaseOff or (profile and profile.ufBossFramesEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
   end
   CreateSidebarBtn(nil, "QoL", false, not moduleQOL, true, "qol", (not moduleQOL) and "disabled" or nil)
   if expandState.qol then
@@ -1350,6 +1356,7 @@ addonTable.TAB_UF = TAB_UF
 addonTable.TAB_UF_PLAYER = TAB_UF_PLAYER
 addonTable.TAB_UF_TARGET = TAB_UF_TARGET
 addonTable.TAB_UF_FOCUS = TAB_UF_FOCUS
+addonTable.TAB_UF_BOSS = TAB_UF_BOSS
 addonTable.TAB_QOL = TAB_QOL
 addonTable.TAB_ACTIONBARS = TAB_ACTIONBARS
 addonTable.TAB_CHAT = TAB_CHAT

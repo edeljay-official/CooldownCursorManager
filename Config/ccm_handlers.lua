@@ -132,6 +132,7 @@ local function SyncModuleControlsState()
   SetTabControlsEnabled(addonTable.TAB_UF_PLAYER or 22, unitframesOn)
   SetTabControlsEnabled(addonTable.TAB_UF_TARGET or 23, unitframesOn)
   SetTabControlsEnabled(addonTable.TAB_UF_FOCUS or 24, unitframesOn)
+  SetTabControlsEnabled(addonTable.TAB_UF_BOSS or 25, unitframesOn)
   SyncQolTabControlsState()
 end
 local function SyncTrackBuffsCheckboxesFromProfile(profile)
@@ -305,9 +306,58 @@ local function ResetAllPreviewHighlights()
   if addonTable.skyridingPreviewOnBtn then
     SetButtonHighlighted(addonTable.skyridingPreviewOnBtn, false)
   end
+  if addonTable.ufBossFramePreviewOnBtn then
+    SetButtonHighlighted(addonTable.ufBossFramePreviewOnBtn, false)
+  end
+  if addonTable.lowHealthWarningPreviewOnBtn then
+    SetButtonHighlighted(addonTable.lowHealthWarningPreviewOnBtn, false)
+  end
 end
 addonTable.ResetAllPreviewHighlights = ResetAllPreviewHighlights
 local CreateSpellRow = addonTable.CreateSpellRow
+local function IsEntryChargeSpell(entryID)
+  if type(entryID) ~= "number" or entryID < 0 then return false end
+  local actualID = math.abs(entryID)
+  local resolvedID = actualID
+  if addonTable.ResolveTrackedSpellID then
+    local rid = addonTable.ResolveTrackedSpellID(actualID)
+    if type(rid) == "number" and rid > 0 then
+      resolvedID = rid
+    end
+  end
+
+  local function ReadLiveChargeFlag(spellID)
+    if type(spellID) ~= "number" or spellID <= 0 then return nil end
+    if not (C_Spell and C_Spell.GetSpellCharges) then return nil end
+    local okCharges, chargesInfo = pcall(C_Spell.GetSpellCharges, spellID)
+    if not okCharges then return nil end
+    if type(chargesInfo) ~= "table" then return false end
+    if chargesInfo.maxCharges == nil then return false end
+    if issecretvalue and issecretvalue(chargesInfo.maxCharges) then return nil end
+    local maxCharges = tonumber(chargesInfo.maxCharges)
+    if type(maxCharges) == "number" then
+      return maxCharges > 1
+    end
+    return nil
+  end
+
+  local actualFlag = ReadLiveChargeFlag(actualID)
+  local resolvedFlag = (resolvedID ~= actualID) and ReadLiveChargeFlag(resolvedID) or nil
+
+  if actualFlag == true or resolvedFlag == true then
+    return true
+  end
+  if actualFlag == false or resolvedFlag == false then
+    return false
+  end
+
+  local cache = addonTable.ChargeSpellCache
+  if type(cache) == "table" then
+    if cache[actualID] == true then return true end
+    if resolvedID ~= actualID and cache[resolvedID] == true then return true end
+  end
+  return false
+end
 local function HasRealCooldownForHideReveal(entryID, isChargeSpell)
   if type(entryID) ~= "number" then return false end
   local isItem = entryID < 0
@@ -389,8 +439,12 @@ local function IsHideRevealBlockedForEntry(entryID, isChargeSpell)
       resolvedID = rid
     end
   end
+  local isOverride = false
   if addonTable.IsOverrideRecastSpell then
-    if addonTable.IsOverrideRecastSpell(resolvedID, actualID) == true then
+    isOverride = addonTable.IsOverrideRecastSpell(resolvedID, actualID) == true
+  end
+  if isOverride and addonTable.HasActivePlayerAuraForSpell then
+    if addonTable.HasActivePlayerAuraForSpell(resolvedID, actualID) == true then
       return true
     end
   end
@@ -421,7 +475,7 @@ local function RefreshCursorSpellList()
   local useGlobalGlows = profile and profile.useSpellGlows == true
   local useCustomHideReveal = profile and profile.useCustomHideReveal == true
   local trackBuffsOff = profile and profile.trackBuffs == false
-  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
+  local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked)
     spellEnabled[idx] = checked
     addonTable.SetSpellList(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHideRevealThresholds)
@@ -488,11 +542,12 @@ local function RefreshCursorSpellList()
   end
   for i, eID in ipairs(spellList) do
     local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"
-    local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true)
+    local isCharge = IsEntryChargeSpell(eID)
     local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge)
     local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge)
-    local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true
-    CreateSpellRow(cur.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHideReveal, spellHideRevealThresholds[i], onHideRevealChange, pureBuffOff)
+    local pureBuffOff = trackBuffsOff and pureBuffs and eID > 0 and pureBuffs[eID] == true
+    local pureBuffEntry = pureBuffs and eID > 0 and pureBuffs[eID] == true
+    CreateSpellRow(cur.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHideReveal, spellHideRevealThresholds[i], onHideRevealChange, pureBuffOff, pureBuffEntry)
   end
   UpdateSpellListHeight(cur.spellChild, #spellList)
 end
@@ -507,7 +562,7 @@ local function RefreshCB1SpellList()
   local useGlobalGlows = profile and profile.customBarUseSpellGlows == true
   local useCustomHR = profile and profile.customBarUseCustomHideReveal == true
   local trackBuffsOff = profile and profile.customBarTrackBuffs == false
-  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
+  local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end end
@@ -515,7 +570,7 @@ local function RefreshCB1SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB1SpellList(); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end; if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBarSpells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = IsEntryChargeSpell(eID); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = trackBuffsOff and pureBuffs and eID > 0 and pureBuffs[eID] == true; local pureBuffEntry = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff, pureBuffEntry) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB2SpellList()
@@ -529,7 +584,7 @@ local function RefreshCB2SpellList()
   local useGlobalGlows = profile and profile.customBar2UseSpellGlows == true
   local useCustomHR = profile and profile.customBar2UseCustomHideReveal == true
   local trackBuffsOff = profile and profile.customBar2TrackBuffs == false
-  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
+  local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end end
@@ -537,7 +592,7 @@ local function RefreshCB2SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB2SpellList(); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end; if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar2Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = IsEntryChargeSpell(eID); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = trackBuffsOff and pureBuffs and eID > 0 and pureBuffs[eID] == true; local pureBuffEntry = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff, pureBuffEntry) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB3SpellList()
@@ -551,7 +606,7 @@ local function RefreshCB3SpellList()
   local useGlobalGlows = profile and profile.customBar3UseSpellGlows == true
   local useCustomHR = profile and profile.customBar3UseCustomHideReveal == true
   local trackBuffsOff = profile and profile.customBar3TrackBuffs == false
-  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
+  local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end end
@@ -559,7 +614,7 @@ local function RefreshCB3SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB3SpellList(); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end; if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar3Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = IsEntryChargeSpell(eID); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = trackBuffsOff and pureBuffs and eID > 0 and pureBuffs[eID] == true; local pureBuffEntry = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff, pureBuffEntry) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function SetupDragDrop(tabFrame, getSpellsFunc, setSpellsFunc, refreshFunc, createIconsFunc, updateFunc, extraFrames)
@@ -617,7 +672,7 @@ local function RefreshCB4SpellList()
   local useGlobalGlows = profile and profile.customBar4UseSpellGlows == true
   local useCustomHR = profile and profile.customBar4UseCustomHideReveal == true
   local trackBuffsOff = profile and profile.customBar4TrackBuffs == false
-  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
+  local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end end
@@ -625,7 +680,7 @@ local function RefreshCB4SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB4SpellList(); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end; if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar4Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = IsEntryChargeSpell(eID); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = trackBuffsOff and pureBuffs and eID > 0 and pureBuffs[eID] == true; local pureBuffEntry = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff, pureBuffEntry) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 local function RefreshCB5SpellList()
@@ -639,7 +694,7 @@ local function RefreshCB5SpellList()
   local useGlobalGlows = profile and profile.customBar5UseSpellGlows == true
   local useCustomHR = profile and profile.customBar5UseCustomHideReveal == true
   local trackBuffsOff = profile and profile.customBar5TrackBuffs == false
-  local pureBuffs = trackBuffsOff and addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
+  local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or nil
   local function onToggle(idx, checked) spellEnabled[idx] = checked; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onDelete(idx) table.remove(spellList, idx); table.remove(spellEnabled, idx); table.remove(spellGlowEnabled, idx); table.remove(spellGlowType, idx); table.remove(spellHRT, idx); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onMoveUp(idx) if idx > 1 then spellList[idx], spellList[idx-1] = spellList[idx-1], spellList[idx]; spellEnabled[idx], spellEnabled[idx-1] = spellEnabled[idx-1], spellEnabled[idx]; spellGlowEnabled[idx], spellGlowEnabled[idx-1] = spellGlowEnabled[idx-1], spellGlowEnabled[idx]; spellGlowType[idx], spellGlowType[idx-1] = spellGlowType[idx-1], spellGlowType[idx]; spellHRT[idx], spellHRT[idx-1] = spellHRT[idx-1], spellHRT[idx]; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end end
@@ -647,7 +702,7 @@ local function RefreshCB5SpellList()
   local function onReorder(sourceIdx, targetIdx) local entry = table.remove(spellList, sourceIdx); local en = table.remove(spellEnabled, sourceIdx); local glowEnabled = table.remove(spellGlowEnabled, sourceIdx); local glowType = table.remove(spellGlowType, sourceIdx); local hr = table.remove(spellHRT, sourceIdx); table.insert(spellList, targetIdx, entry); table.insert(spellEnabled, targetIdx, en); table.insert(spellGlowEnabled, targetIdx, glowEnabled); table.insert(spellGlowType, targetIdx, glowType); table.insert(spellHRT, targetIdx, hr); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); RefreshCB5SpellList(); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onGlowTypeSelect(idx, value) spellGlowType[idx] = value or "off"; spellGlowEnabled[idx] = (value ~= "off"); addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT); if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end; if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end end
   local function onHideRevealChange(idx, value) spellHRT[idx] = value; addonTable.SetCustomBar5Spells(spellList, spellEnabled, spellGlowEnabled, spellGlowType, spellHRT) end
-  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = (eID > 0) and addonTable.ChargeSpellCache and (addonTable.ChargeSpellCache[eID] == true); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff) end
+  for i, eID in ipairs(spellList) do local effectiveType = (spellGlowEnabled[i] == true) and (spellGlowType[i] or "pixel") or "off"; local isCharge = IsEntryChargeSpell(eID); local hasRealCooldown = HasRealCooldownForHideReveal(eID, isCharge); local hideRevealBlocked = IsHideRevealBlockedForEntry(eID, isCharge); local pureBuffOff = trackBuffsOff and pureBuffs and eID > 0 and pureBuffs[eID] == true; local pureBuffEntry = pureBuffs and eID > 0 and pureBuffs[eID] == true; CreateSpellRow(cb.spellChild, i, eID, spellEnabled[i], onToggle, onDelete, onMoveUp, onMoveDown, onReorder, useGlobalGlows, effectiveType, onGlowTypeSelect, isCharge, hideRevealBlocked, hasRealCooldown, useCustomHR, spellHRT[i], onHideRevealChange, pureBuffOff, pureBuffEntry) end
   UpdateSpellListHeight(cb.spellChild, #spellList)
 end
 addonTable.RefreshCursorSpellList = RefreshCursorSpellList
@@ -910,26 +965,31 @@ local function UpdateAllControls()
   local ufBigPlayer = profile.ufBigHBPlayerEnabled == true
   local ufBigTarget = profile.ufBigHBTargetEnabled == true
   local ufBigFocus = profile.ufBigHBFocusEnabled == true
+  local ufBossOn = profile.ufBossFramesEnabled == true
   local ufBigPlayerNameMaxChars = num(profile.ufBigHBPlayerNameMaxChars, num(profile.ufBigHBNameMaxChars, 0))
   local ufBigTargetNameMaxChars = num(profile.ufBigHBTargetNameMaxChars, num(profile.ufBigHBNameMaxChars, 0))
   local ufBigFocusNameMaxChars = num(profile.ufBigHBFocusNameMaxChars, num(profile.ufBigHBNameMaxChars, 0))
   if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB:SetChecked(ufBigPlayer); addonTable.ufBigHBPlayerCB:SetEnabled(ufOn) end
   if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB:SetChecked(ufBigTarget); addonTable.ufBigHBTargetCB:SetEnabled(ufOn) end
   if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB:SetChecked(ufBigFocus); addonTable.ufBigHBFocusCB:SetEnabled(ufOn) end
+  if addonTable.ufBossFramesEnabledCB then addonTable.ufBossFramesEnabledCB:SetChecked(ufBossOn); addonTable.ufBossFramesEnabledCB:SetEnabled(ufOn) end
 
   local function ApplyUFBigSlider(slider, value, enabled, fmt)
     if not slider then return end
+    slider:SetEnabled(enabled)
+    slider:SetAlpha(enabled and 1 or 0.35)
+    if slider.valueTextBg then slider.valueTextBg:SetAlpha(enabled and 1 or 0.35) end
     slider._updating = true
     slider:SetValue(value)
     slider._updating = false
     if slider.valueText then
       if fmt then slider.valueText:SetText(string.format(fmt, value)) else slider.valueText:SetText(math.floor(value + 0.5)) end
     end
-    slider:SetEnabled(enabled)
   end
   local playerGroupEnabled = bigHBOn and ufBigPlayer
   local targetGroupEnabled = bigHBOn and ufBigTarget
   local focusGroupEnabled = bigHBOn and ufBigFocus
+  local bossGroupEnabled = ufOn and ufBossOn
   if addonTable.ufBigHBPlayerHideRealmCB then addonTable.ufBigHBPlayerHideRealmCB:SetChecked((profile.ufBigHBPlayerHideRealm == true) or (profile.ufBigHBHideRealm == true)); addonTable.ufBigHBPlayerHideRealmCB:SetEnabled(playerGroupEnabled) end
   if addonTable.ufBigHBTargetHideRealmCB then addonTable.ufBigHBTargetHideRealmCB:SetChecked((profile.ufBigHBTargetHideRealm == true) or (profile.ufBigHBHideRealm == true)); addonTable.ufBigHBTargetHideRealmCB:SetEnabled(targetGroupEnabled) end
   if addonTable.ufBigHBFocusHideRealmCB then addonTable.ufBigHBFocusHideRealmCB:SetChecked((profile.ufBigHBFocusHideRealm == true) or (profile.ufBigHBHideRealm == true)); addonTable.ufBigHBFocusHideRealmCB:SetEnabled(focusGroupEnabled) end
@@ -981,6 +1041,43 @@ local function UpdateAllControls()
   if addonTable.ufBigHBFocusDmgAbsorbDD then addonTable.ufBigHBFocusDmgAbsorbDD:SetValue(profile.ufBigHBFocusDmgAbsorb or "bar_glow"); addonTable.ufBigHBFocusDmgAbsorbDD:SetEnabled(focusGroupEnabled) end
   if addonTable.ufBigHBFocusHealPredDD then addonTable.ufBigHBFocusHealPredDD:SetValue(profile.ufBigHBFocusHealPred or "on"); addonTable.ufBigHBFocusHealPredDD:SetEnabled(focusGroupEnabled) end
   if addonTable.ufBigHBFocusAbsorbStripesCB then addonTable.ufBigHBFocusAbsorbStripesCB:SetChecked(profile.ufBigHBFocusAbsorbStripes ~= false); addonTable.ufBigHBFocusAbsorbStripesCB:SetEnabled(focusGroupEnabled) end
+  ApplyUFBigSlider(addonTable.ufBossFrameXSlider, num(profile.ufBossFrameX, -245), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossFrameYSlider, num(profile.ufBossFrameY, -280), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossFrameSpacingSlider, num(profile.ufBossFrameSpacing, 36), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossFrameWidthSlider, num(profile.ufBossFrameWidth, 168), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossFrameHealthHeightSlider, num(profile.ufBossFrameHealthHeight, 20), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossFramePowerHeightSlider, num(profile.ufBossFramePowerHeight, 8), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossFrameScaleSlider, num(profile.ufBossFrameScale, 1), bossGroupEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBossFrameBorderSizeSlider, num(profile.ufBossFrameBorderSize, 1), bossGroupEnabled)
+  if addonTable.ufBossFrameShowLevelCB then addonTable.ufBossFrameShowLevelCB:SetChecked(profile.ufBossFrameShowLevel ~= false); addonTable.ufBossFrameShowLevelCB:SetEnabled(bossGroupEnabled) end
+  if addonTable.ufBossFrameHidePortraitCB then addonTable.ufBossFrameHidePortraitCB:SetChecked(profile.ufBossFrameHidePortrait == true); addonTable.ufBossFrameHidePortraitCB:SetEnabled(bossGroupEnabled) end
+  if addonTable.ufBossFrameShowHealthTextCB then addonTable.ufBossFrameShowHealthTextCB:SetChecked(profile.ufBossFrameShowHealthText ~= false); addonTable.ufBossFrameShowHealthTextCB:SetEnabled(bossGroupEnabled) end
+  local bossHpTextEnabled = bossGroupEnabled and (profile.ufBossFrameShowHealthText ~= false)
+  if addonTable.ufBossHealthTextFormatDD then addonTable.ufBossHealthTextFormatDD:SetValue(profile.ufBossHealthTextFormat or "percent_value"); addonTable.ufBossHealthTextFormatDD:SetEnabled(bossHpTextEnabled); addonTable.ufBossHealthTextFormatDD:SetAlpha(bossHpTextEnabled and 1 or 0.35) end
+  ApplyUFBigSlider(addonTable.ufBossHealthTextScaleSlider, num(profile.ufBossHealthTextScale, 1), bossHpTextEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBossHealthTextXSlider, num(profile.ufBossHealthTextX, -4), bossHpTextEnabled)
+  ApplyUFBigSlider(addonTable.ufBossHealthTextYSlider, num(profile.ufBossHealthTextY, 0), bossHpTextEnabled)
+  if addonTable.ufBossFrameShowPowerTextCB then addonTable.ufBossFrameShowPowerTextCB:SetChecked(profile.ufBossFrameShowPowerText ~= false); addonTable.ufBossFrameShowPowerTextCB:SetEnabled(bossGroupEnabled) end
+  local bossPpTextEnabled = bossGroupEnabled and (profile.ufBossFrameShowPowerText ~= false)
+  ApplyUFBigSlider(addonTable.ufBossPowerTextScaleSlider, num(profile.ufBossPowerTextScale, 1), bossPpTextEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBossPowerTextXSlider, num(profile.ufBossPowerTextX, -4), bossPpTextEnabled)
+  ApplyUFBigSlider(addonTable.ufBossPowerTextYSlider, num(profile.ufBossPowerTextY, 0), bossPpTextEnabled)
+  if addonTable.ufBossFrameShowAbsorbCB then addonTable.ufBossFrameShowAbsorbCB:SetChecked(profile.ufBossFrameShowAbsorb == true); addonTable.ufBossFrameShowAbsorbCB:SetEnabled(bossGroupEnabled) end
+  if addonTable.ufBossAbsorbColorBtn then addonTable.ufBossAbsorbColorBtn:SetEnabled(bossGroupEnabled and (profile.ufBossFrameShowAbsorb == true)); addonTable.ufBossAbsorbColorBtn:SetAlpha((bossGroupEnabled and (profile.ufBossFrameShowAbsorb == true)) and 1 or 0.35) end
+  if addonTable.ufBossBarTextureDD then addonTable.ufBossBarTextureDD:SetValue(profile.ufBossBarTexture or "lsm:Blizzard"); addonTable.ufBossBarTextureDD:SetEnabled(bossGroupEnabled); addonTable.ufBossBarTextureDD:SetAlpha(bossGroupEnabled and 1 or 0.35) end
+  ApplyUFBigSlider(addonTable.ufBossFrameBarBgAlphaSlider, num(profile.ufBossFrameBarBgAlpha, 0.45), bossGroupEnabled, "%.2f")
+  local bossCastClamped = profile.ufBossCastbarClamped ~= false
+  if addonTable.ufBossCastbarClampedCB then addonTable.ufBossCastbarClampedCB:SetChecked(bossCastClamped); addonTable.ufBossCastbarClampedCB:SetEnabled(bossGroupEnabled) end
+  if addonTable.ufBossCastbarAnchorDD then addonTable.ufBossCastbarAnchorDD:SetOptions({{text = "Bottom", value = "bottom"}, {text = "Top", value = "top"}, {text = "Left", value = "left", disabled = bossCastClamped}, {text = "Right", value = "right", disabled = bossCastClamped}}); addonTable.ufBossCastbarAnchorDD:SetValue(profile.ufBossCastbarAnchor or "bottom"); addonTable.ufBossCastbarAnchorDD:SetEnabled(bossGroupEnabled); addonTable.ufBossCastbarAnchorDD:SetAlpha(bossGroupEnabled and 1 or 0.35) end
+  ApplyUFBigSlider(addonTable.ufBossCastbarHeightSlider, num(profile.ufBossCastbarHeight, 12), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossCastbarWidthSlider, num(profile.ufBossCastbarWidth, 0), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossCastbarSpacingSlider, num(profile.ufBossCastbarSpacing, 2), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossCastbarTextScaleSlider, num(profile.ufBossCastbarTextScale, 1), bossGroupEnabled, "%.2f")
+  ApplyUFBigSlider(addonTable.ufBossCastbarXSlider, num(profile.ufBossCastbarX, 0), bossGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBossCastbarYSlider, num(profile.ufBossCastbarY, 0), bossGroupEnabled)
+  if addonTable.ufBossCastbarIconCB then addonTable.ufBossCastbarIconCB:SetChecked(profile.ufBossCastbarIcon ~= false); addonTable.ufBossCastbarIconCB:SetEnabled(bossGroupEnabled) end
+  if addonTable.ufBossFramePreviewOnBtn then addonTable.ufBossFramePreviewOnBtn:SetEnabled(bossGroupEnabled); addonTable.ufBossFramePreviewOnBtn:SetAlpha(bossGroupEnabled and 1 or 0.45) end
+  if addonTable.ufBossFramePreviewOffBtn then addonTable.ufBossFramePreviewOffBtn:SetEnabled(true); addonTable.ufBossFramePreviewOffBtn:SetAlpha(1) end
   if addonTable.autoRepairCB then addonTable.autoRepairCB:SetChecked(profile.autoRepair == true) end
   if addonTable.showTooltipIDsCB then addonTable.showTooltipIDsCB:SetChecked(profile.showTooltipIDs == true) end
   if addonTable.compactMinimapIconsCB then addonTable.compactMinimapIconsCB:SetChecked(profile.compactMinimapIcons == true) end
@@ -2196,9 +2293,494 @@ local function InitHandlers()
       end)
     end
   end
+  local function EnsureBossPreviewFrame()
+    if addonTable.ufBossPreviewHolder and addonTable.ufBossPreviewRows then
+      return addonTable.ufBossPreviewHolder
+    end
+    local holder = CreateFrame("Frame", "CCMUFBossPreview", UIParent, "BackdropTemplate")
+    holder:SetSize(260, 280)
+    holder:SetFrameStrata("HIGH")
+    holder:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+    holder:SetBackdropColor(0.02, 0.02, 0.03, 0.55)
+    holder:SetBackdropBorderColor(0.25, 0.25, 0.3, 1)
+    holder:SetMovable(true)
+    holder:SetClampedToScreen(true)
+    holder:EnableMouse(true)
+    holder._ccmDragStartCursorX = nil
+    holder._ccmDragStartCursorY = nil
+    holder._ccmDragStartX = nil
+    holder._ccmDragStartY = nil
+    holder._ccmDragAnchor = nil
+    local function BeginBossPreviewDrag()
+      local p = GetProfile()
+      if not p then return end
+      local uiScale = UIParent:GetEffectiveScale() or 1
+      local cx, cy = GetCursorPosition()
+      holder._ccmDragStartCursorX = (tonumber(cx) or 0) / uiScale
+      holder._ccmDragStartCursorY = (tonumber(cy) or 0) / uiScale
+      holder._ccmDragAnchor = p.ufBossFrameAnchor or "TOPRIGHT"
+      holder._ccmDragStartX = tonumber(p.ufBossFrameX) or -245
+      holder._ccmDragStartY = tonumber(p.ufBossFrameY) or -280
+      holder._ccmDragging = true
+      holder:StartMoving()
+    end
+    local function CommitBossPreviewDragPosition()
+      local p = GetProfile()
+      if not p then return end
+      local uiScale = UIParent:GetEffectiveScale() or 1
+      local cx, cy = GetCursorPosition()
+      local curX = (tonumber(cx) or 0) / uiScale
+      local curY = (tonumber(cy) or 0) / uiScale
+      local startCX = tonumber(holder._ccmDragStartCursorX) or curX
+      local startCY = tonumber(holder._ccmDragStartCursorY) or curY
+      local dx = curX - startCX
+      local dy = curY - startCY
+      local anchor = holder._ccmDragAnchor or p.ufBossFrameAnchor or "TOPRIGHT"
+      local x = (tonumber(holder._ccmDragStartX) or tonumber(p.ufBossFrameX) or -245) + dx
+      local y = (tonumber(holder._ccmDragStartY) or tonumber(p.ufBossFrameY) or -280) + dy
+      local function RoundSigned(v)
+        if v >= 0 then return math.floor(v + 0.5) end
+        return math.ceil(v - 0.5)
+      end
+      p.ufBossFrameAnchor = anchor
+      p.ufBossFrameX = RoundSigned(tonumber(x) or 0)
+      p.ufBossFrameY = RoundSigned(tonumber(y) or 0)
+      holder:ClearAllPoints()
+      holder:SetPoint(p.ufBossFrameAnchor, UIParent, p.ufBossFrameAnchor, p.ufBossFrameX, p.ufBossFrameY)
+      holder._ccmDragStartCursorX = nil
+      holder._ccmDragStartCursorY = nil
+      holder._ccmDragStartX = nil
+      holder._ccmDragStartY = nil
+      holder._ccmDragAnchor = nil
+      if addonTable.ufBossFrameXSlider then addonTable.ufBossFrameXSlider:SetValue(p.ufBossFrameX) end
+      if addonTable.ufBossFrameYSlider then addonTable.ufBossFrameYSlider:SetValue(p.ufBossFrameY) end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+    end
+    local function ForceStopBossPreviewDrag()
+      if not holder._ccmDragging then return end
+      holder:StopMovingOrSizing()
+      holder._ccmDragging = false
+      CommitBossPreviewDragPosition()
+    end
+    holder:RegisterForDrag("LeftButton")
+    holder:SetScript("OnDragStart", function(self)
+      BeginBossPreviewDrag()
+    end)
+    holder:SetScript("OnDragStop", function(self)
+      ForceStopBossPreviewDrag()
+    end)
+    local dragLayer = CreateFrame("Frame", nil, holder)
+    dragLayer:SetAllPoints(holder)
+    dragLayer:EnableMouse(true)
+    dragLayer:RegisterForDrag("LeftButton")
+    dragLayer:SetFrameStrata(holder:GetFrameStrata())
+    dragLayer:SetFrameLevel((holder:GetFrameLevel() or 1) + 50)
+    dragLayer:SetScript("OnDragStart", function()
+      BeginBossPreviewDrag()
+    end)
+    dragLayer:SetScript("OnDragStop", function()
+      ForceStopBossPreviewDrag()
+    end)
+    dragLayer:SetScript("OnMouseUp", function()
+      ForceStopBossPreviewDrag()
+    end)
+    holder:SetScript("OnHide", function()
+      ForceStopBossPreviewDrag()
+    end)
+    holder:SetScript("OnUpdate", function(self)
+      if self._ccmDragging and IsMouseButtonDown and (not IsMouseButtonDown("LeftButton")) then
+        ForceStopBossPreviewDrag()
+      end
+    end)
+    holder._ccmDragLayer = dragLayer
+    local dragNote = holder:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    dragNote:SetPoint("TOP", holder, "TOP", 0, -4)
+    dragNote:SetText("Boss Preview (drag)")
+    dragNote:SetTextColor(1, 0.82, 0.1)
+    addonTable.ufBossPreviewRows = {}
+    for i = 1, 5 do
+      local row = CreateFrame("Frame", nil, holder, "BackdropTemplate")
+      row:SetSize(230, 42)
+      row:SetPoint("TOPLEFT", holder, "TOPLEFT", 14, -(i - 1) * 52 - 18)
+      row:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+      row:SetBackdropColor(0.06, 0.06, 0.08, 0.95)
+      row:SetBackdropBorderColor(0.22, 0.22, 0.26, 1)
+      local portrait = row:CreateTexture(nil, "ARTWORK")
+      portrait:SetSize(36, 36)
+      portrait:SetPoint("LEFT", row, "LEFT", 3, 0)
+      portrait:SetTexture("Interface\\Icons\\Achievement_Boss_YoggSaron_01")
+      portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      local baseLevel = row:GetFrameLevel()
+      local hpBg = CreateFrame("StatusBar", nil, row)
+      hpBg:SetFrameLevel(baseLevel + 1)
+      hpBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      hpBg:SetStatusBarColor(0, 0, 0, 0.45)
+      local hp = CreateFrame("StatusBar", nil, row)
+      hp:SetFrameLevel(baseLevel + 2)
+      hp:SetPoint("TOPLEFT", portrait, "TOPRIGHT", 4, -1)
+      hp:SetPoint("TOPRIGHT", row, "TOPRIGHT", -5, -1)
+      hp:SetHeight(24)
+      hp:SetMinMaxValues(0, 1)
+      hp:SetValue(0.75)
+      hp:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      hp:GetStatusBarTexture():SetVertexColor(0.16, 0.72, 0.21, 1)
+      hp:SetClipsChildren(true)
+      local absorb = CreateFrame("StatusBar", nil, hp)
+      absorb:SetFrameLevel(hp:GetFrameLevel() + 1)
+      absorb:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      absorb:SetStatusBarColor(0.85, 0.95, 1.00, 0.28)
+      local barBorder = CreateFrame("Frame", nil, row, "BackdropTemplate")
+      barBorder:SetFrameLevel(baseLevel + 4)
+      barBorder:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+      barBorder:SetBackdropColor(0, 0, 0, 0)
+      barBorder:SetBackdropBorderColor(0.22, 0.22, 0.26, 1)
+      local ppBg = CreateFrame("StatusBar", nil, row)
+      ppBg:SetFrameLevel(baseLevel + 1)
+      ppBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      ppBg:SetStatusBarColor(0, 0, 0, 0.45)
+      local pp = CreateFrame("StatusBar", nil, row)
+      pp:SetFrameLevel(baseLevel + 2)
+      pp:SetPoint("TOPLEFT", hp, "BOTTOMLEFT", 0, -2)
+      pp:SetPoint("TOPRIGHT", hp, "BOTTOMRIGHT", 0, -2)
+      pp:SetHeight(8)
+      pp:SetMinMaxValues(0, 1)
+      pp:SetValue(0.45)
+      pp:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      pp:GetStatusBarTexture():SetVertexColor(0.45, 0.24, 0.78, 1)
+      local textOverlay = CreateFrame("Frame", nil, row)
+      textOverlay:SetAllPoints(row)
+      textOverlay:SetFrameLevel(row:GetFrameLevel() + 10)
+      local name = textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+      name:SetPoint("LEFT", hp, "LEFT", 4, 0)
+      name:SetText("Boss " .. i)
+      local hpText = textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      hpText:SetPoint("RIGHT", hp, "RIGHT", -30, 0)
+      hpText:SetText("100% (879K)")
+      local lvl = textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      lvl:SetPoint("RIGHT", hp, "RIGHT", -4, 0)
+      lvl:SetText("??")
+      local ppText = textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      ppText:SetPoint("RIGHT", pp, "RIGHT", -4, 0)
+      ppText:SetText("90")
+      local castHolder = CreateFrame("Frame", nil, row, "BackdropTemplate")
+      castHolder:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+      castHolder:SetBackdropColor(0.06, 0.06, 0.08, 0.95)
+      castHolder:SetBackdropBorderColor(0.22, 0.22, 0.26, 1)
+      local castBaseLevel = castHolder:GetFrameLevel()
+      local castBg = CreateFrame("StatusBar", nil, castHolder)
+      castBg:SetFrameLevel(castBaseLevel + 1)
+      castBg:SetAllPoints(castHolder)
+      castBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      castBg:SetStatusBarColor(0, 0, 0, 0.45)
+      castBg:SetMinMaxValues(0, 1)
+      castBg:SetValue(1)
+      local cast = CreateFrame("StatusBar", nil, castHolder)
+      cast:SetFrameLevel(castBaseLevel + 2)
+      cast:SetAllPoints(castHolder)
+      cast:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+      cast:SetMinMaxValues(0, 1)
+      cast:SetValue(0.55)
+      cast:SetStatusBarColor(1.00, 0.72, 0.12, 1)
+      local castTextOverlay = CreateFrame("Frame", nil, castHolder)
+      castTextOverlay:SetAllPoints(castHolder)
+      castTextOverlay:SetFrameLevel(cast:GetFrameLevel() + 5)
+      local castText = castTextOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      castText:SetPoint("LEFT", castHolder, "LEFT", 4, 0)
+      castText:SetText("Ethereal Portal")
+      local castTime = castTextOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      castTime:SetPoint("RIGHT", castHolder, "RIGHT", -4, 0)
+      castTime:SetText("2.3")
+      local castIcon = castHolder:CreateTexture(nil, "ARTWORK")
+      castIcon:SetTexture("Interface\\Icons\\spell_arcane_portalstormwind")
+      castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      addonTable.ufBossPreviewRows[i] = {row = row, barBorder = barBorder, hpBg = hpBg, hp = hp, absorb = absorb, ppBg = ppBg, pp = pp, name = name, hpText = hpText, ppText = ppText, lvl = lvl, portrait = portrait, castHolder = castHolder, cast = cast, castBg = castBg, castTextOverlay = castTextOverlay, castText = castText, castTime = castTime, castIcon = castIcon}
+    end
+    addonTable.ufBossPreviewHolder = holder
+    holder:Hide()
+    return holder
+  end
+  local function UpdateBossPreviewFromProfile()
+    local p = GetProfile()
+    local holder = EnsureBossPreviewFrame()
+    local rows = addonTable.ufBossPreviewRows
+    if not p or not holder or type(rows) ~= "table" then return end
+    local gf, go
+    if addonTable.GetGlobalFont then gf, go = addonTable.GetGlobalFont() end
+    gf = gf or "Fonts\\FRIZQT__.TTF"
+    go = go or ""
+    local borderOn = p.useCustomBorderColor == true
+    local br = borderOn and (p.ufCustomBorderColorR or 0.22) or 0.22
+    local bg = borderOn and (p.ufCustomBorderColorG or 0.22) or 0.22
+    local bb = borderOn and (p.ufCustomBorderColorB or 0.26) or 0.26
+    local nameR = (p.ufUseCustomNameColor == true) and (p.ufNameColorR or 1) or 1
+    local nameG = (p.ufUseCustomNameColor == true) and (p.ufNameColorG or 1) or 1
+    local nameB = (p.ufUseCustomNameColor == true) and (p.ufNameColorB or 1) or 1
+    local width = math.max(120, tonumber(p.ufBossFrameWidth) or 168)
+    local hpH = math.max(8, tonumber(p.ufBossFrameHealthHeight) or 20)
+    local ppH = math.max(4, tonumber(p.ufBossFramePowerHeight) or 8)
+    local spacing = math.max(0, tonumber(p.ufBossFrameSpacing) or 36)
+    local showLevel = p.ufBossFrameShowLevel ~= false
+    local hidePortrait = p.ufBossFrameHidePortrait == true
+    local borderSize = math.max(0, math.min(3, math.floor((tonumber(p.ufBossFrameBorderSize) or ((p.ufBossFrameUseBorder == true) and 1 or 0)) + 0.5)))
+    local useBorder = borderSize > 0
+    local castbarClamped = p.ufBossCastbarClamped ~= false
+    local castbarAnchor = p.ufBossCastbarAnchor or "bottom"
+    local castbarHeight = tonumber(p.ufBossCastbarHeight) or 12
+    local castbarWidthOverride = tonumber(p.ufBossCastbarWidth) or 0
+    local castbarSpacing = castbarClamped and 0 or (tonumber(p.ufBossCastbarSpacing) or 2)
+    local castIconEnabled = p.ufBossCastbarIcon ~= false
+    local castbarOffX = tonumber(p.ufBossCastbarX) or 0
+    local castbarOffY = tonumber(p.ufBossCastbarY) or 0
+    local showHealthText = p.ufBossFrameShowHealthText ~= false
+    local healthTextX = tonumber(p.ufBossHealthTextX) or -4
+    local healthTextY = tonumber(p.ufBossHealthTextY) or 0
+    local healthTextScale = tonumber(p.ufBossHealthTextScale) or 1
+    local showPowerText = p.ufBossFrameShowPowerText ~= false
+    local powerTextX = tonumber(p.ufBossPowerTextX) or -4
+    local powerTextY = tonumber(p.ufBossPowerTextY) or 0
+    local powerTextScale = tonumber(p.ufBossPowerTextScale) or 1
+    local castbarTextScale = tonumber(p.ufBossCastbarTextScale) or 1
+    local showAbsorb = p.ufBossFrameShowAbsorb == true
+    local absorbR = tonumber(p.ufBossAbsorbColorR) or 0.85
+    local absorbG = tonumber(p.ufBossAbsorbColorG) or 0.95
+    local absorbB = tonumber(p.ufBossAbsorbColorB) or 1.00
+    local absorbA = tonumber(p.ufBossAbsorbColorA) or 0.28
+    local barBgAlpha = math.max(0, math.min(1, tonumber(p.ufBossFrameBarBgAlpha) or 0.45))
+    local totalH = hpH + ppH + 7
+    local rowStride = totalH + 16 + spacing
+    local bossTexKey = p.ufBossBarTexture or "lsm:Blizzard"
+    local texturePath = (addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(bossTexKey)) or "Interface\\TargetingFrame\\UI-StatusBar"
+    if not holder._ccmDragging then
+      holder:ClearAllPoints()
+      holder:SetPoint(p.ufBossFrameAnchor or "TOPRIGHT", UIParent, p.ufBossFrameAnchor or "TOPRIGHT", tonumber(p.ufBossFrameX) or -245, tonumber(p.ufBossFrameY) or -280)
+    end
+    holder:SetScale(tonumber(p.ufBossFrameScale) or 1)
+    holder:SetHeight((rowStride * 5) + 24)
+    holder:SetWidth(width + 64)
+    for i = 1, #rows do
+      local rowData = rows[i]
+      local row = rowData and rowData.row
+      local barBorder = rowData and rowData.barBorder
+      local hpBg = rowData and rowData.hpBg
+      local hp = rowData and rowData.hp
+      local absorb = rowData and rowData.absorb
+      local ppBg = rowData and rowData.ppBg
+      local pp = rowData and rowData.pp
+      local name = rowData and rowData.name
+      local hpText = rowData and rowData.hpText
+      local ppText = rowData and rowData.ppText
+      local lvl = rowData and rowData.lvl
+      local portrait = rowData and rowData.portrait
+      local castHolder = rowData and rowData.castHolder
+      local cast = rowData and rowData.cast
+      local castBg = rowData and rowData.castBg
+      local castTextOverlay = rowData and rowData.castTextOverlay
+      local castText = rowData and rowData.castText
+      local castTime = rowData and rowData.castTime
+      local castIcon = rowData and rowData.castIcon
+      if row and hp and pp and name and lvl then
+        local portraitSize = hpH + ppH
+        local leftInset = hidePortrait and 5 or (portraitSize + 5)
+        row:ClearAllPoints()
+        row:SetPoint("TOPLEFT", holder, "TOPLEFT", 14, -(i - 1) * rowStride - 18)
+        row:SetSize(width + 46, totalH + 22)
+        row:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+        row:SetBackdropColor(0, 0, 0, 0)
+        row:SetBackdropBorderColor(br, bg, bb, 0)
+        hp:ClearAllPoints()
+        hp:SetPoint("TOPLEFT", row, "TOPLEFT", leftInset, -4)
+        hp:SetPoint("TOPRIGHT", row, "TOPRIGHT", -5, -4)
+        hp:SetHeight(hpH)
+        if hpBg then
+          hpBg:ClearAllPoints()
+          hpBg:SetPoint("TOPLEFT", hp, "TOPLEFT", 0, 0)
+          hpBg:SetPoint("TOPRIGHT", hp, "TOPRIGHT", 0, 0)
+          hpBg:SetHeight(hpH)
+          hpBg:SetMinMaxValues(0, 1)
+          hpBg:SetValue(1)
+          if hpBg.SetStatusBarTexture then pcall(hpBg.SetStatusBarTexture, hpBg, "Interface\\Buttons\\WHITE8x8") end
+          hpBg:SetStatusBarColor(0, 0, 0, barBgAlpha)
+          hpBg:Show()
+        end
+        pp:ClearAllPoints()
+        pp:SetPoint("TOPLEFT", hp, "BOTTOMLEFT", 0, 0)
+        pp:SetPoint("TOPRIGHT", hp, "BOTTOMRIGHT", 0, 0)
+        pp:SetHeight(ppH)
+        if portrait then
+          portrait:ClearAllPoints()
+          portrait:SetSize(portraitSize, portraitSize)
+          portrait:SetPoint("TOPRIGHT", hp, "TOPLEFT", 0, 0)
+          portrait:SetShown(not hidePortrait)
+        end
+        if ppBg then
+          ppBg:ClearAllPoints()
+          ppBg:SetPoint("TOPLEFT", pp, "TOPLEFT", 0, 0)
+          ppBg:SetPoint("TOPRIGHT", pp, "TOPRIGHT", 0, 0)
+          ppBg:SetHeight(ppH)
+          ppBg:SetMinMaxValues(0, 1)
+          ppBg:SetValue(1)
+          if ppBg.SetStatusBarTexture then pcall(ppBg.SetStatusBarTexture, ppBg, "Interface\\Buttons\\WHITE8x8") end
+          ppBg:SetStatusBarColor(0, 0, 0, barBgAlpha)
+          ppBg:Show()
+        end
+        if barBorder then
+          barBorder:ClearAllPoints()
+          local borderLeft = (not hidePortrait and portrait) and portrait or (hpBg or hp)
+          barBorder:SetPoint("TOPLEFT", borderLeft, "TOPLEFT", -borderSize, borderSize)
+          barBorder:SetPoint("BOTTOMRIGHT", ppBg or pp, "BOTTOMRIGHT", borderSize, -borderSize)
+          barBorder:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = math.max(1, borderSize)})
+          barBorder:SetBackdropColor(0, 0, 0, 0)
+          barBorder:SetBackdropBorderColor(br, bg, bb, useBorder and 1 or 0)
+        end
+        if absorb then
+          absorb:ClearAllPoints()
+          local hpTex = hp:GetStatusBarTexture()
+          absorb:SetPoint("TOPLEFT", hpTex, "TOPRIGHT", 0, 0)
+          absorb:SetPoint("BOTTOMLEFT", hpTex, "BOTTOMRIGHT", 0, 0)
+          absorb:SetWidth(hp:GetWidth() or width)
+          absorb:SetMinMaxValues(0, 1)
+          absorb:SetValue(0.18)
+          absorb:SetStatusBarColor(absorbR, absorbG, absorbB, absorbA)
+          absorb:SetShown(showAbsorb)
+        end
+        if hp.SetStatusBarTexture then pcall(hp.SetStatusBarTexture, hp, texturePath) end
+        if pp.SetStatusBarTexture then pcall(pp.SetStatusBarTexture, pp, texturePath) end
+        if absorb and absorb.SetStatusBarTexture then pcall(absorb.SetStatusBarTexture, absorb, texturePath) end
+        hp:SetValue(math.max(0.15, 0.95 - (i * 0.11)))
+        pp:SetValue(math.max(0.05, 0.66 - (i * 0.09)))
+        if name.SetFont then pcall(name.SetFont, name, gf, 11, go or "") end
+        if lvl.SetFont then pcall(lvl.SetFont, lvl, gf, 10, go or "") end
+        if name.SetTextColor then name:SetTextColor(nameR, nameG, nameB) end
+        if lvl.SetTextColor then lvl:SetTextColor(nameR, nameG, nameB) end
+        if hpText then
+          if hpText.SetFont then pcall(hpText.SetFont, hpText, gf, math.max(6, math.floor(10 * healthTextScale + 0.5)), go or "") end
+          hpText:ClearAllPoints()
+          hpText:SetPoint("RIGHT", hp, "RIGHT", healthTextX, healthTextY)
+          hpText:SetTextColor(nameR, nameG, nameB)
+          hpText:SetShown(showHealthText)
+        end
+        if ppText then
+          if ppText.SetFont then pcall(ppText.SetFont, ppText, gf, math.max(6, math.floor(10 * powerTextScale + 0.5)), go or "") end
+          ppText:ClearAllPoints()
+          ppText:SetPoint("RIGHT", pp, "RIGHT", powerTextX, powerTextY)
+          ppText:SetTextColor(nameR, nameG, nameB)
+          ppText:SetShown(showPowerText)
+        end
+        lvl:ClearAllPoints()
+        lvl:SetPoint("RIGHT", hp, "RIGHT", -4, 0)
+        if hpText and showHealthText then
+          local hpFmt = p.ufBossHealthTextFormat or "percent_value"
+          if hpFmt == "percent" then hpText:SetText("100%")
+          elseif hpFmt == "value" then hpText:SetText("879K")
+          elseif hpFmt == "value_percent" then hpText:SetText("879K | 100%")
+          elseif hpFmt == "full" then hpText:SetText("879,412")
+          else hpText:SetText("100% (879K)") end
+        end
+        if ppText and showPowerText then
+          ppText:SetText("90")
+        end
+        lvl:SetShown(showLevel)
+        if castHolder and cast then
+          castHolder:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = math.max(1, borderSize)})
+          castHolder:SetBackdropColor(0, 0, 0, 0)
+          castHolder:SetBackdropBorderColor(br, bg, bb, useBorder and 1 or 0)
+          local castBorderLeft = (not hidePortrait and portrait) and portrait or (hpBg or hp)
+          local useCustomWidth = castbarWidthOverride > 0
+          castHolder:ClearAllPoints()
+          if castbarAnchor == "top" then
+            if useCustomWidth then
+              castHolder:SetPoint("BOTTOM", hpBg or hp, "TOP", castbarOffX, castbarSpacing + castbarOffY)
+              castHolder:SetSize(castbarWidthOverride + borderSize * 2, castbarHeight + borderSize * 2)
+            else
+              castHolder:SetPoint("BOTTOMLEFT", castBorderLeft, "TOPLEFT", -borderSize + castbarOffX, castbarSpacing + castbarOffY)
+              castHolder:SetPoint("BOTTOMRIGHT", hpBg or hp, "TOPRIGHT", borderSize + castbarOffX, castbarSpacing + castbarOffY)
+              castHolder:SetHeight(castbarHeight + borderSize * 2)
+            end
+          elseif castbarAnchor == "left" then
+            castHolder:SetPoint("RIGHT", castBorderLeft, "LEFT", -castbarSpacing + castbarOffX, castbarOffY)
+            local castW = (useCustomWidth and castbarWidthOverride or width) + borderSize * 2
+            castHolder:SetSize(castW, castbarHeight + borderSize * 2)
+          elseif castbarAnchor == "right" then
+            castHolder:SetPoint("LEFT", hpBg or hp, "RIGHT", castbarSpacing + castbarOffX, castbarOffY)
+            local castW = (useCustomWidth and castbarWidthOverride or width) + borderSize * 2
+            castHolder:SetSize(castW, castbarHeight + borderSize * 2)
+          else
+            local ppRef = ppBg or pp
+            if useCustomWidth then
+              castHolder:SetPoint("TOP", ppRef, "BOTTOM", castbarOffX, -castbarSpacing + castbarOffY)
+              castHolder:SetSize(castbarWidthOverride + borderSize * 2, castbarHeight + borderSize * 2)
+            else
+              castHolder:SetPoint("TOPLEFT", ppRef, "BOTTOMLEFT", -(hidePortrait and 0 or portraitSize) - borderSize + castbarOffX, -castbarSpacing + castbarOffY)
+              castHolder:SetPoint("TOPRIGHT", ppRef, "BOTTOMRIGHT", borderSize + castbarOffX, -castbarSpacing + castbarOffY)
+              castHolder:SetHeight(castbarHeight + borderSize * 2)
+            end
+          end
+          local castIconVisible = castIconEnabled and not hidePortrait
+          local iconSpace = castIconVisible and castbarHeight or 0
+          if castIcon then
+            castIcon:ClearAllPoints()
+            castIcon:SetSize(castbarHeight, castbarHeight)
+            castIcon:SetPoint("TOPLEFT", castHolder, "TOPLEFT", borderSize, -borderSize)
+            castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+            castIcon:SetShown(castIconVisible)
+          end
+          if castBg then
+            castBg:ClearAllPoints()
+            castBg:SetPoint("TOPLEFT", castHolder, "TOPLEFT", borderSize + iconSpace, -borderSize)
+            castBg:SetPoint("BOTTOMRIGHT", castHolder, "BOTTOMRIGHT", -borderSize, borderSize)
+            castBg:SetStatusBarColor(0, 0, 0, barBgAlpha)
+          end
+          if cast then
+            cast:ClearAllPoints()
+            cast:SetPoint("TOPLEFT", castHolder, "TOPLEFT", borderSize + iconSpace, -borderSize)
+            cast:SetPoint("BOTTOMRIGHT", castHolder, "BOTTOMRIGHT", -borderSize, borderSize)
+            if cast.SetStatusBarTexture then pcall(cast.SetStatusBarTexture, cast, texturePath) end
+          end
+          cast:SetValue(math.max(0.10, 0.85 - (i * 0.12)))
+          if castTextOverlay then
+            castTextOverlay:ClearAllPoints()
+            castTextOverlay:SetPoint("TOPLEFT", castHolder, "TOPLEFT", borderSize + iconSpace, -borderSize)
+            castTextOverlay:SetPoint("BOTTOMRIGHT", castHolder, "BOTTOMRIGHT", -borderSize, borderSize)
+          end
+          local castFS = math.max(6, math.floor(10 * castbarTextScale + 0.5))
+          if castText then
+            castText:ClearAllPoints()
+            castText:SetPoint("LEFT", castTextOverlay or cast, "LEFT", 4, 0)
+            castText:SetText("Ethereal Portal")
+            if castText.SetFont then pcall(castText.SetFont, castText, gf, castFS, go or "") end
+            castText:SetTextColor(nameR, nameG, nameB)
+          end
+          if castTime then
+            castTime:ClearAllPoints()
+            castTime:SetPoint("RIGHT", castTextOverlay or cast, "RIGHT", -4, 0)
+            if castTime.SetFont then pcall(castTime.SetFont, castTime, gf, castFS, go or "") end
+            castTime:SetTextColor(nameR, nameG, nameB)
+            castTime:SetText(string.format("%.1f", math.max(0.1, 3.5 - (i * 0.3))))
+          end
+          castHolder:Show()
+        end
+      end
+    end
+  end
+  local function SetBossPreviewShown(show)
+    local holder = EnsureBossPreviewFrame()
+    if not holder then return end
+    holder:SetShown(show == true)
+    if show == true then
+      UpdateBossPreviewFromProfile()
+      SetButtonHighlighted(addonTable.ufBossFramePreviewOnBtn, true)
+    else
+      SetButtonHighlighted(addonTable.ufBossFramePreviewOnBtn, false)
+    end
+  end
+  addonTable.StopUFBossPreview = function()
+    SetBossPreviewShown(false)
+  end
   if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerEnabled = s:GetChecked(); if p.ufBigHBPlayerEnabled == true then p.ufBigHBEnabled = true elseif p.ufBigHBTargetEnabled ~= true and p.ufBigHBFocusEnabled ~= true then p.ufBigHBEnabled = false end; ApplyUFBigHealthbarChanges(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
   if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetEnabled = s:GetChecked(); if p.ufBigHBTargetEnabled == true then p.ufBigHBEnabled = true elseif p.ufBigHBPlayerEnabled ~= true and p.ufBigHBFocusEnabled ~= true then p.ufBigHBEnabled = false end; ApplyUFBigHealthbarChanges(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
   if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusEnabled = s:GetChecked(); if p.ufBigHBFocusEnabled == true then p.ufBigHBEnabled = true elseif p.ufBigHBPlayerEnabled ~= true and p.ufBigHBTargetEnabled ~= true then p.ufBigHBEnabled = false end; ApplyUFBigHealthbarChanges(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBossFramesEnabledCB then addonTable.ufBossFramesEnabledCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossFramesEnabled = s:GetChecked(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end; ShowReloadPrompt("Toggling Boss Frame Customization requires a reload for full effect.", "Reload", "Later") end end end
   if addonTable.ufBigHBPlayerHideRealmCB then addonTable.ufBigHBPlayerHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBTargetHideRealmCB then addonTable.ufBigHBTargetHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBFocusHideRealmCB then addonTable.ufBigHBFocusHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
@@ -2265,6 +2847,98 @@ local function InitHandlers()
   BindUFBigIntSlider(addonTable.ufBigHBFocusLevelYSlider, "ufBigHBFocusLevelY")
   BindUFBigScaleSlider(addonTable.ufBigHBFocusNameTextScaleSlider, "ufBigHBFocusNameTextScale")
   BindUFBigScaleSlider(addonTable.ufBigHBFocusLevelTextScaleSlider, "ufBigHBFocusLevelTextScale")
+  local function BindBossIntSlider(slider, key)
+    if not slider then return end
+    slider:SetScript("OnValueChanged", function(s, v)
+      if s._updating or not s:IsEnabled() then return end
+      local p = GetProfile()
+      if not p then return end
+      local rounded = math.floor(v + 0.5)
+      if p[key] == rounded then
+        if s.valueText and not s.valueText:HasFocus() then s.valueText:SetText(rounded) end
+        return
+      end
+      p[key] = rounded
+      if s.valueText then s.valueText:SetText(rounded) end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      UpdateBossPreviewFromProfile()
+    end)
+  end
+  local function BindBossScaleSlider(slider, key)
+    if not slider then return end
+    slider:SetScript("OnValueChanged", function(s, v)
+      if s._updating or not s:IsEnabled() then return end
+      local p = GetProfile()
+      if not p then return end
+      local rounded = math.floor(v * 100 + 0.5) / 100
+      if p[key] == rounded then
+        if s.valueText and not s.valueText:HasFocus() then s.valueText:SetText(string.format("%.2f", rounded)) end
+        return
+      end
+      p[key] = rounded
+      if s.valueText then s.valueText:SetText(string.format("%.2f", rounded)) end
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      UpdateBossPreviewFromProfile()
+    end)
+  end
+  BindBossIntSlider(addonTable.ufBossFrameXSlider, "ufBossFrameX")
+  BindBossIntSlider(addonTable.ufBossFrameYSlider, "ufBossFrameY")
+  BindBossIntSlider(addonTable.ufBossFrameSpacingSlider, "ufBossFrameSpacing")
+  BindBossIntSlider(addonTable.ufBossFrameWidthSlider, "ufBossFrameWidth")
+  BindBossIntSlider(addonTable.ufBossFrameHealthHeightSlider, "ufBossFrameHealthHeight")
+  BindBossIntSlider(addonTable.ufBossFramePowerHeightSlider, "ufBossFramePowerHeight")
+  BindBossIntSlider(addonTable.ufBossFrameBorderSizeSlider, "ufBossFrameBorderSize")
+  BindBossIntSlider(addonTable.ufBossCastbarHeightSlider, "ufBossCastbarHeight")
+  BindBossIntSlider(addonTable.ufBossCastbarWidthSlider, "ufBossCastbarWidth")
+  BindBossIntSlider(addonTable.ufBossCastbarSpacingSlider, "ufBossCastbarSpacing")
+  BindBossScaleSlider(addonTable.ufBossCastbarTextScaleSlider, "ufBossCastbarTextScale")
+  BindBossIntSlider(addonTable.ufBossCastbarXSlider, "ufBossCastbarX")
+  BindBossIntSlider(addonTable.ufBossCastbarYSlider, "ufBossCastbarY")
+  BindBossScaleSlider(addonTable.ufBossFrameScaleSlider, "ufBossFrameScale")
+  if addonTable.ufBossFrameShowLevelCB then addonTable.ufBossFrameShowLevelCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossFrameShowLevel = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile() end end end
+  if addonTable.ufBossFrameHidePortraitCB then addonTable.ufBossFrameHidePortraitCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossFrameHidePortrait = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile() end end end
+  if addonTable.ufBossFrameShowHealthTextCB then addonTable.ufBossFrameShowHealthTextCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossFrameShowHealthText = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile(); UpdateAllControls() end end end
+  if addonTable.ufBossHealthTextFormatDD then addonTable.ufBossHealthTextFormatDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBossHealthTextFormat = v or "percent_value"; if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile() end end end
+  BindBossScaleSlider(addonTable.ufBossHealthTextScaleSlider, "ufBossHealthTextScale")
+  BindBossIntSlider(addonTable.ufBossHealthTextXSlider, "ufBossHealthTextX")
+  BindBossIntSlider(addonTable.ufBossHealthTextYSlider, "ufBossHealthTextY")
+  if addonTable.ufBossFrameShowPowerTextCB then addonTable.ufBossFrameShowPowerTextCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossFrameShowPowerText = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile(); UpdateAllControls() end end end
+  BindBossScaleSlider(addonTable.ufBossPowerTextScaleSlider, "ufBossPowerTextScale")
+  BindBossIntSlider(addonTable.ufBossPowerTextXSlider, "ufBossPowerTextX")
+  BindBossIntSlider(addonTable.ufBossPowerTextYSlider, "ufBossPowerTextY")
+  if addonTable.ufBossFrameShowAbsorbCB then addonTable.ufBossFrameShowAbsorbCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossFrameShowAbsorb = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile(); UpdateAllControls() end end end
+  if addonTable.ufBossAbsorbColorBtn then addonTable.ufBossAbsorbColorBtn:SetScript("OnClick", function()
+    local p = GetProfile()
+    if not p then return end
+    local r, g, b = p.ufBossAbsorbColorR or 0.85, p.ufBossAbsorbColorG or 0.95, p.ufBossAbsorbColorB or 1.00
+    local a = p.ufBossAbsorbColorA or 0.28
+    local function GetAlpha()
+      if ColorPickerFrame.GetColorAlpha then return ColorPickerFrame:GetColorAlpha() end
+      return 1 - a
+    end
+    local function ApplyAbsorbColor()
+      local nr, ng, nb = ColorPickerFrame:GetColorRGB()
+      local na = 1 - GetAlpha()
+      p.ufBossAbsorbColorR = nr; p.ufBossAbsorbColorG = ng; p.ufBossAbsorbColorB = nb; p.ufBossAbsorbColorA = na
+      if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      UpdateBossPreviewFromProfile()
+    end
+    ShowColorPicker({r = r, g = g, b = b, opacity = 1 - a, hasOpacity = true,
+      swatchFunc = ApplyAbsorbColor, opacityFunc = ApplyAbsorbColor,
+      cancelFunc = function(prev)
+        p.ufBossAbsorbColorR = prev.r; p.ufBossAbsorbColorG = prev.g; p.ufBossAbsorbColorB = prev.b
+        p.ufBossAbsorbColorA = 1 - (prev.opacity or (1 - a))
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+        UpdateBossPreviewFromProfile()
+      end})
+  end) end
+  if addonTable.ufBossBarTextureDD then addonTable.ufBossBarTextureDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBossBarTexture = v or "lsm:Blizzard"; if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile() end end end
+  if addonTable.ufBossCastbarAnchorDD then addonTable.ufBossCastbarAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBossCastbarAnchor = v or "bottom"; if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile() end end end
+  if addonTable.ufBossCastbarClampedCB then addonTable.ufBossCastbarClampedCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossCastbarClamped = s:GetChecked(); if s:GetChecked() and (p.ufBossCastbarAnchor == "left" or p.ufBossCastbarAnchor == "right") then p.ufBossCastbarAnchor = "bottom" end; if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile(); UpdateAllControls() end end end
+  if addonTable.ufBossCastbarIconCB then addonTable.ufBossCastbarIconCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBossCastbarIcon = s:GetChecked(); if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end; UpdateBossPreviewFromProfile() end end end
+  BindBossScaleSlider(addonTable.ufBossFrameBarBgAlphaSlider, "ufBossFrameBarBgAlpha")
+  if addonTable.ufBossFramePreviewOnBtn then addonTable.ufBossFramePreviewOnBtn:SetScript("OnClick", function() SetBossPreviewShown(true) end) end
+  if addonTable.ufBossFramePreviewOffBtn then addonTable.ufBossFramePreviewOffBtn:SetScript("OnClick", function() SetBossPreviewShown(false) end) end
   if addonTable.ufBigHBPlayerHealAbsorbDD then addonTable.ufBigHBPlayerHealAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerHealAbsorb = val; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerDmgAbsorbDD then addonTable.ufBigHBPlayerDmgAbsorbDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerDmgAbsorb = val; ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerHealPredDD then addonTable.ufBigHBPlayerHealPredDD.onSelect = function(val) local p = GetProfile(); if p then p.ufBigHBPlayerHealPred = val; ApplyUFBigHealthbarChanges() end end end
@@ -4269,7 +4943,7 @@ local function InitHandlers()
       local p = GetProfile(); if not p then return end
       local _, needsReload = SetModuleEnabled("custombars", s:GetChecked())
       if not IsModuleEnabled("custombars") then
-        p.customBarsCount = 0
+        s:SetChecked(false)
       elseif p.customBarsCount == 0 then
         p.customBarsCount = 1
       end
@@ -4321,7 +4995,6 @@ local function InitHandlers()
         local _, needsReload = SetModuleEnabled("prb", s:GetChecked())
         if not IsModuleEnabled("prb") then
           s:SetChecked(false)
-          p.usePersonalResourceBar = false
           if addonTable.UpdatePRB then addonTable.UpdatePRB() end
           SyncModuleControlsState()
           if needsReload then
@@ -4518,9 +5191,6 @@ local function InitHandlers()
         local _, needsReload = SetModuleEnabled("castbars", s:GetChecked())
         if not IsModuleEnabled("castbars") then
           s:SetChecked(false)
-          p.useCastbar = false
-          p.useFocusCastbar = false
-          p.useTargetCastbar = false
           if addonTable.StopCastbarPreview then addonTable.StopCastbarPreview() end
           if addonTable.StopFocusCastbarPreview then addonTable.StopFocusCastbarPreview() end
           if addonTable.StopTargetCastbarPreview then addonTable.StopTargetCastbarPreview() end
@@ -4533,12 +5203,12 @@ local function InitHandlers()
         end
         local wasEnabled = p.useCastbar
         p.useCastbar = s:GetChecked()
-        if s:GetChecked() then
-          p.useFocusCastbar = true
-          p.useTargetCastbar = true
-          if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(true) end
-          if addonTable.targetCastbarCB then addonTable.targetCastbarCB:SetChecked(true) end
+        if s:GetChecked() and not wasEnabled then
+          if p.useFocusCastbar == nil then p.useFocusCastbar = true end
+          if p.useTargetCastbar == nil then p.useTargetCastbar = true end
         end
+        SyncModuleControlsState()
+        if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if s:GetChecked() then
           if addonTable.SetBlizzardCastbarVisibility then
@@ -4612,7 +5282,6 @@ local function InitHandlers()
         local _, needsReload = SetModuleEnabled("debuffs", s:GetChecked())
         if not IsModuleEnabled("debuffs") then
           s:SetChecked(false)
-          p.enablePlayerDebuffs = false
           if addonTable.RestorePlayerDebuffs then addonTable.RestorePlayerDebuffs() end
           SyncModuleControlsState()
           if needsReload then
@@ -4668,7 +5337,6 @@ local function InitHandlers()
         local _, needsReload = SetModuleEnabled("unitframes", s:GetChecked())
         if not IsModuleEnabled("unitframes") then
           s:SetChecked(false)
-          p.enableUnitFrameCustomization = false
           if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
           if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
           SyncModuleControlsState()

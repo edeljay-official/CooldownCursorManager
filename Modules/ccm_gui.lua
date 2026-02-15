@@ -144,6 +144,12 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   vt:SetScript("OnEditFocusLost", ApplyEditBoxValue)
   s:SetScript("OnValueChanged", function(self, value)
     if self._updating then return end
+    if self._ccmDisabled then
+      self._updating = true
+      self:SetValue(self._ccmDisabledValue or value)
+      self._updating = false
+      return
+    end
     local step = self.step or 1
     local rounded = math.floor(value / step + 0.5) * step
     if math.abs(value - rounded) > 0.001 then
@@ -200,24 +206,32 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   s.downBtn = downBtn
   s.label = l
   s.SetEnabled = function(self, enabled)
+    self._ccmDisabled = not enabled
+    if not enabled then self._ccmDisabledValue = self:GetValue() end
     if enabled then
       self:Enable()
+      self:EnableMouse(true)
       l:SetTextColor(0.9, 0.9, 0.9)
       self:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
       thumb:SetColorTexture(0.4, 0.4, 0.45, 1)
       vt:SetTextColor(1, 1, 1)
       vt:EnableMouse(true)
       upBtn:Enable()
+      upBtn:EnableMouse(true)
       downBtn:Enable()
+      downBtn:EnableMouse(true)
     else
       self:Disable()
+      self:EnableMouse(false)
       l:SetTextColor(0.4, 0.4, 0.4)
       self:SetBackdropBorderColor(0.15, 0.15, 0.18, 1)
       thumb:SetColorTexture(0.25, 0.25, 0.28, 1)
       vt:SetTextColor(0.4, 0.4, 0.4)
       vt:EnableMouse(false)
       upBtn:Disable()
+      upBtn:EnableMouse(false)
       downBtn:Disable()
+      downBtn:EnableMouse(false)
     end
   end
   return s
@@ -341,11 +355,9 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   arrow:SetVertexColor(0.6, 0.6, 0.6)
   local list = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
   list:SetWidth(w)
-  list:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  list:SetBackdropColor(0.1, 0.1, 0.12, 0.98)
-  list:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
   list:SetFrameStrata("TOOLTIP")
   list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
+  list._ccmBackdropReady = false
   list:Hide()
   list:SetScript("OnHide", function()
     if _activeDropdownList == list then
@@ -551,6 +563,12 @@ local function StyledDropdown(p, labelTxt, x, y, w)
       end
       dd._scrollOffset = 0
       RenderDropdownOptions()
+      if not list._ccmBackdropReady then
+        list._ccmBackdropReady = true
+        list:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+        list:SetBackdropColor(0.1, 0.1, 0.12, 0.98)
+        list:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+      end
       list:ClearAllPoints()
       list:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
       list:SetFrameStrata("TOOLTIP")
@@ -737,6 +755,16 @@ local function ShowColorPicker(params)
     if ColorPickerFrame.NineSlice then ColorPickerFrame.NineSlice:Hide() end
     if ColorPickerFrame.Bg then ColorPickerFrame.Bg:SetAlpha(0) end
     if ColorPickerFrame.Background then ColorPickerFrame.Background:SetAlpha(0) end
+    local cpWidget = ColorPickerFrame.Content and ColorPickerFrame.Content.ColorPicker
+    if cpWidget and cpWidget.GetColorAlphaTexture then
+      local alphaTex = cpWidget:GetColorAlphaTexture()
+      if alphaTex then
+        alphaTex:SetTexCoord(0, 1, 1, 0)
+        hooksecurefunc(alphaTex, "SetTexCoord", function(self, a1, a2, a3, a4)
+          if a4 and a3 < a4 then self:SetTexCoord(a1, a2, a4, a3) end
+        end)
+      end
+    end
   end
   if ColorPickerFrame then
     local function StyleBtn(btn)
@@ -870,7 +898,7 @@ local SPELL_GLOW_TYPE_OPTIONS = {
   { text = "Proc", value = "proc" },
 }
 
-local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, isHideRevealBlocked, hasRealCooldown, useCustomHideReveal, hideRevealThreshold, onHideRevealChange, isPureBuffDisabled)
+local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, isHideRevealBlocked, hasRealCooldown, useCustomHideReveal, hideRevealThreshold, onHideRevealChange, isPureBuffDisabled, isPureBuffEntry)
   local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
   local rowY = -4 - (idx - 1) * 34
   row:SetHeight(32)
@@ -1138,10 +1166,24 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
     hrHint:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
     hrHint:SetJustifyH("RIGHT")
     hrHint:SetTextColor(1, 0.5, 0.1)
-    hrHint:SetText("(no hide reveal & no glow)")
+    hrHint:SetText("(no hide reveal & no glow for this spell)")
     name:ClearAllPoints()
     name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
     name:SetPoint("RIGHT", hrHint, "LEFT", -6, 0)
+  end
+  if useCustomHideReveal == true and isPureBuffEntry and (not showHR) and (not isHideRevealBlocked) then
+    local buffHint = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    if showGlow then
+      buffHint:SetPoint("RIGHT", glowDD, "LEFT", -6, 0)
+    else
+      buffHint:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+    end
+    buffHint:SetJustifyH("RIGHT")
+    buffHint:SetTextColor(1, 0.5, 0.1)
+    buffHint:SetText("(no hide reveal for this buff)")
+    name:ClearAllPoints()
+    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    name:SetPoint("RIGHT", buffHint, "LEFT", -6, 0)
   end
   return row
 end

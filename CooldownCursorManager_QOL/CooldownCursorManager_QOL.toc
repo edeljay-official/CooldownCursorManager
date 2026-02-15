@@ -2,7 +2,7 @@
 ## Title: Cooldown Cursor Manager [QoL]
 ## Notes: CCM companion module: Quality of Life
 ## Author: Edeljay
-## Version: 7.2.0
+## Version: 7.3.0
 ## IconTexture: Interface\AddOns\CooldownCursorManager_QOL\icon.tga
 ## Dependencies: CooldownCursorManager
 ## LoadOnDemand: 1

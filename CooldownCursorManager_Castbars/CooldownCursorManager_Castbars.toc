@@ -2,7 +2,7 @@
 ## Title: Cooldown Cursor Manager [Castbars]
 ## Notes: CCM companion module: Castbars
 ## Author: Edeljay
-## Version: 7.2.0
+## Version: 7.3.0
 ## IconTexture: Interface\AddOns\CooldownCursorManager_Castbars\icon.tga
 ## Dependencies: CooldownCursorManager
 ## LoadOnDemand: 1

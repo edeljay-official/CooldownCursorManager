@@ -3580,46 +3580,8 @@ end
 addonTable.ApplyModuleStateToProfile = function(profile)
   if type(profile) ~= "table" then return end
   local ms = addonTable.GetModuleStates()
-  if ms.custombars == false then
-    profile.customBarsCount = 0
-    profile.customBarEnabled = false
-    profile.customBar2Enabled = false
-    profile.customBar3Enabled = false
-    profile.customBar4Enabled = false
-    profile.customBar5Enabled = false
-  end
   if ms.blizzcdm == false then
     profile.disableBlizzCDM = true
-    profile.useBuffBar = false
-    profile.useEssentialBar = false
-  end
-  if ms.prb == false then
-    profile.usePersonalResourceBar = false
-  end
-  if ms.castbars == false then
-    profile.useCastbar = false
-    profile.useFocusCastbar = false
-    profile.useTargetCastbar = false
-  end
-  if ms.debuffs == false then
-    profile.enablePlayerDebuffs = false
-  end
-  if ms.unitframes == false then
-    profile.enableUnitFrameCustomization = false
-  end
-  if ms.qol == false then
-    profile.combatTimerEnabled = false
-    profile.crTimerEnabled = false
-    profile.combatStatusEnabled = false
-    profile.selfHighlightEnabled = false
-    profile.lowHealthWarningEnabled = false
-    profile.noTargetAlertEnabled = false
-    profile.autoRepair = false
-    profile.autoSellJunk = false
-    profile.autoQuest = false
-    profile.autoFillDelete = false
-    profile.quickRoleSignup = false
-    profile.skyridingEnabled = false
   end
 end
 addonTable.SetModuleEnabled = function(moduleKey, enabled)
@@ -6921,16 +6883,11 @@ local function UpdateCustomBar()
     end
     local hasChargeRecharge = false
     if (not isItem) and isChargeSpell and chargesData then
-      if inCombat then
-        local okRecharge, recharge = pcall(function()
-          return chargesData.cooldownStartTime and chargesData.cooldownDuration
-            and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
-        end)
-        hasChargeRecharge = okRecharge and recharge or false
-      else
-        hasChargeRecharge = chargesData.cooldownStartTime and chargesData.cooldownDuration
-          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0 or false
-      end
+      local okRecharge, recharge = pcall(function()
+        return chargesData.cooldownStartTime and chargesData.cooldownDuration
+          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
+      end)
+      hasChargeRecharge = okRecharge and recharge or false
     end
     if buffOverlayActive or isOnCooldown or hasChargeRecharge then
       barHasActiveTimers = true
@@ -7655,16 +7612,11 @@ local function UpdateCustomBar2()
     end
     local hasChargeRecharge = false
     if (not isItem) and isChargeSpell and chargesData then
-      if inCombat then
-        local okRecharge, recharge = pcall(function()
-          return chargesData.cooldownStartTime and chargesData.cooldownDuration
-            and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
-        end)
-        hasChargeRecharge = okRecharge and recharge or false
-      else
-        hasChargeRecharge = chargesData.cooldownStartTime and chargesData.cooldownDuration
-          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0 or false
-      end
+      local okRecharge, recharge = pcall(function()
+        return chargesData.cooldownStartTime and chargesData.cooldownDuration
+          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
+      end)
+      hasChargeRecharge = okRecharge and recharge or false
     end
     if buffOverlayActive or isOnCooldown or hasChargeRecharge then
       barHasActiveTimers = true
@@ -11782,17 +11734,13 @@ end
 addonTable.SaveCurrentProfileForSpec = SaveCurrentProfileForSpec
 addonTable.GetCharacterSpecKey = GetCharacterSpecKey
 local ChangelogPopupFrame
-local CHANGELOG_V710_TEXT = table.concat({
-  "|cff9ad0ff- addon has now addon modules|r",
-  "|cff9ad0ff- added CCM Installer for first time users or when press installer button in profile tab|r",
-  "|cff9ad0ff- removed damage reduction tracker, works now with track buffs|r",
-  "|cff9ad0ff- bugfixes|r",
-  "|cff9ad0ff- performance fixes|r",
-  "|cff9ad0ff- fixed gui elements for different scalings|r",
-  "|cff9ad0ff- optimized buff tracker for Cursor CDM and Custom Bars|r",
+local CHANGELOG_V730_TEXT = table.concat({
+  "|cff9ad0ff- splittet addon in modules and core function is only cursor cdm to track spells on your cursor|r",
+  "|cff9ad0ff- added boss unitframes|r",
+  "|cff9ad0ff- gui optimizations|r",
 }, "\n")
 local CHANGELOG_TEXT_BY_VERSION = {
-  ["7.2.0"] = CHANGELOG_V710_TEXT,
+  ["7.3.0"] = CHANGELOG_V730_TEXT,
 }
 local function GetCurrentAddonVersion()
   if C_AddOns and C_AddOns.GetAddOnMetadata then
@@ -11954,8 +11902,32 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     UpdateCustomBar5()
     UpdateStandaloneBlizzardBars()
     PreCacheSpellDurations()
-    C_Timer.After(1, function() ScanSpellBookCharges() PreCacheSpellDurations() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
-    C_Timer.After(3, function() ScanSpellBookCharges() PreCacheSpellDurations() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
+    C_Timer.After(1, function()
+      ScanSpellBookCharges()
+      PreCacheSpellDurations()
+      State.standaloneNeedsSkinning = true
+      UpdateStandaloneBlizzardBars()
+      UpdateAllIcons()
+      UpdateCustomBar()
+      UpdateCustomBar2()
+      UpdateCustomBar3()
+      UpdateCustomBar4()
+      UpdateCustomBar5()
+      if addonTable.RequestCustomBarUpdate then addonTable.RequestCustomBarUpdate() end
+    end)
+    C_Timer.After(3, function()
+      ScanSpellBookCharges()
+      PreCacheSpellDurations()
+      State.standaloneNeedsSkinning = true
+      UpdateStandaloneBlizzardBars()
+      UpdateAllIcons()
+      UpdateCustomBar()
+      UpdateCustomBar2()
+      UpdateCustomBar3()
+      UpdateCustomBar4()
+      UpdateCustomBar5()
+      if addonTable.RequestCustomBarUpdate then addonTable.RequestCustomBarUpdate() end
+    end)
     if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
     if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
     if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("prb") and profile and profile.usePersonalResourceBar then
@@ -12034,6 +12006,16 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
       if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
     end
+    C_Timer.After(0.35, function()
+      ScanSpellBookCharges()
+      UpdateAllIcons()
+      UpdateCustomBar()
+      UpdateCustomBar2()
+      UpdateCustomBar3()
+      UpdateCustomBar4()
+      UpdateCustomBar5()
+      if addonTable.RequestCustomBarUpdate then addonTable.RequestCustomBarUpdate() end
+    end)
   elseif event == "MERCHANT_SHOW" then
     if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("qol") then
       if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end

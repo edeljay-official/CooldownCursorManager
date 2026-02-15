@@ -58,6 +58,7 @@ local function RefreshTextureDropdownOptions()
   end
   ApplyTextureOptionsToDropdown(addonTable.ufHealthTextureDD)
   ApplyTextureOptionsToDropdown(addonTable.skyridingTextureDD)
+  ApplyTextureOptionsToDropdown(addonTable.ufBossBarTextureDD)
 end
 addonTable.RefreshTextureDropdownOptions = RefreshTextureDropdownOptions
 local function BuildFontOptions()
@@ -283,24 +284,24 @@ local function InitTabs()
   addonTable.prbCB = Checkbox(gc, "Use Personal Resource Bar", 15, -386)
   addonTable.prbCB:ClearAllPoints()
   addonTable.prbCB:SetPoint("TOPLEFT", addonTable.customBarsModuleCB, "BOTTOMLEFT", 0, -10)
-  addonTable.castbarCB = Checkbox(gc, "Use Custom Castbar", 280, -354)
-  addonTable.castbarCB:ClearAllPoints()
-  addonTable.castbarCB:SetPoint("TOPLEFT", addonTable.disableBlizzCDMCB, "BOTTOMLEFT", 0, -10)
-  addonTable.focusCastbarCB = Checkbox(gc, "Use Custom Focus Castbar", 15, -386)
-  addonTable.focusCastbarCB:ClearAllPoints()
-  addonTable.focusCastbarCB:SetPoint("TOPLEFT", addonTable.prbCB, "BOTTOMLEFT", 0, -10)
-  addonTable.targetCastbarCB = Checkbox(gc, "Use Custom Target Castbar", 280, -386)
-  addonTable.targetCastbarCB:ClearAllPoints()
-  addonTable.targetCastbarCB:SetPoint("TOPLEFT", addonTable.castbarCB, "BOTTOMLEFT", 0, -10)
+  addonTable.unitFrameCustomizationCB = Checkbox(gc, "Enable Unit Frame Customization", 280, -354)
+  addonTable.unitFrameCustomizationCB:ClearAllPoints()
+  addonTable.unitFrameCustomizationCB:SetPoint("TOPLEFT", addonTable.disableBlizzCDMCB, "BOTTOMLEFT", 0, -10)
   addonTable.playerDebuffsCB = Checkbox(gc, "Enable Player Debuffs Skinning", 15, -418)
   addonTable.playerDebuffsCB:ClearAllPoints()
-  addonTable.playerDebuffsCB:SetPoint("TOPLEFT", addonTable.focusCastbarCB, "BOTTOMLEFT", 0, -10)
-  addonTable.unitFrameCustomizationCB = Checkbox(gc, "Enable Unit Frame Customization", 280, -418)
-  addonTable.unitFrameCustomizationCB:ClearAllPoints()
-  addonTable.unitFrameCustomizationCB:SetPoint("TOPLEFT", addonTable.targetCastbarCB, "BOTTOMLEFT", 0, -10)
-  addonTable.qolModuleCB = Checkbox(gc, "Enable QOL Module", 280, -450)
+  addonTable.playerDebuffsCB:SetPoint("TOPLEFT", addonTable.prbCB, "BOTTOMLEFT", 0, -10)
+  addonTable.qolModuleCB = Checkbox(gc, "Enable QOL Module", 280, -386)
   addonTable.qolModuleCB:ClearAllPoints()
   addonTable.qolModuleCB:SetPoint("TOPLEFT", addonTable.unitFrameCustomizationCB, "BOTTOMLEFT", 0, -10)
+  addonTable.castbarCB = Checkbox(gc, "Use Custom Castbars", 280, -418)
+  addonTable.castbarCB:ClearAllPoints()
+  addonTable.castbarCB:SetPoint("TOPLEFT", addonTable.qolModuleCB, "BOTTOMLEFT", 0, -10)
+  addonTable.targetCastbarCB = Checkbox(gc, "Use Custom Target Castbar", 280, -450)
+  addonTable.targetCastbarCB:ClearAllPoints()
+  addonTable.targetCastbarCB:SetPoint("TOPLEFT", addonTable.castbarCB, "BOTTOMLEFT", 20, -5)
+  addonTable.focusCastbarCB = Checkbox(gc, "Use Custom Focus Castbar", 280, -482)
+  addonTable.focusCastbarCB:ClearAllPoints()
+  addonTable.focusCastbarCB:SetPoint("TOPLEFT", addonTable.targetCastbarCB, "BOTTOMLEFT", 0, -5)
   addonTable.customBarsCountSlider = Slider(gc, "Custom Bars (0 = Off)", 15, -450, 0, 5, 3, 1)
   addonTable.customBarsCountSlider.label:ClearAllPoints()
   addonTable.customBarsCountSlider.label:SetPoint("TOPLEFT", addonTable.playerDebuffsCB, "BOTTOMLEFT", 0, -18)
@@ -494,7 +495,7 @@ local function InitTabs()
   cur.glowSpeedSlider:SetPoint("LEFT", cur.glowSpeedSlider.label, "RIGHT", 4, 0)
   cur.glowThicknessSlider = Slider(ct, "Glow Thickness", 370, -440, 0.1, 4.0, 1.0, 0.1)
   cur.glowThicknessSlider:ClearAllPoints()
-  cur.glowThicknessSlider:SetPoint("LEFT", cur.glowSpeedSlider, "RIGHT", 250, 0)
+  cur.glowThicknessSlider:SetPoint("LEFT", cur.glowSpeedSlider, "RIGHT", 180, 0)
   cur.glowThicknessSlider:SetSize(100, 10)
   cur.glowThicknessSlider:GetThumbTexture():SetSize(10, 14)
   cur.glowThicknessSlider.Low:Hide()
@@ -650,7 +651,7 @@ local function InitTabs()
     cb.iconSizeSlider.label:SetPoint("TOPLEFT", cbSettingsSec, "BOTTOMLEFT", 0, -55)
     cb.iconSizeSlider:ClearAllPoints()
     cb.iconSizeSlider:SetPoint("TOPLEFT", cb.iconSizeSlider.label, "BOTTOMLEFT", 0, -8)
-    cb.spacingSlider = Slider(tf, "Spacing", 280, -80, -3, 10, 2, 1)
+    cb.spacingSlider = Slider(tf, "Spacing", 354, -80, -3, 10, 2, 1)
     cb.spacingSlider.label:ClearAllPoints()
     cb.spacingSlider.label:SetPoint("TOPLEFT", cbSettingsSec, "BOTTOMLEFT", 265, -55)
     cb.spacingSlider:ClearAllPoints()
@@ -670,7 +671,7 @@ local function InitTabs()
     cb.cdTextSlider.label:SetPoint("TOPLEFT", cb.xSlider, "BOTTOMLEFT", 0, -25)
     cb.cdTextSlider:ClearAllPoints()
     cb.cdTextSlider:SetPoint("TOPLEFT", cb.cdTextSlider.label, "BOTTOMLEFT", 0, -8)
-    cb.cdGradientSlider = Slider(tf, "CD Gradient (sec)", 280, -190, 0, 30, 0, 1)
+    cb.cdGradientSlider = Slider(tf, "CD Gradient (sec)", 354, -190, 0, 30, 0, 1)
     cb.cdGradientSlider.label:ClearAllPoints()
     cb.cdGradientSlider.label:SetPoint("TOPLEFT", cb.ySlider, "BOTTOMLEFT", 0, -25)
     cb.cdGradientSlider:ClearAllPoints()
@@ -687,7 +688,7 @@ local function InitTabs()
     cb.stackTextSlider.label:SetPoint("TOPLEFT", cb.cdTextSlider, "BOTTOMLEFT", 0, -25)
     cb.stackTextSlider:ClearAllPoints()
     cb.stackTextSlider:SetPoint("TOPLEFT", cb.stackTextSlider.label, "BOTTOMLEFT", 0, -8)
-    cb.stackXSlider = Slider(tf, "Stack Offset X", 280, -245, -20, 20, 0, 1)
+    cb.stackXSlider = Slider(tf, "Stack Offset X", 354, -245, -20, 20, 0, 1)
     cb.stackXSlider.label:ClearAllPoints()
     cb.stackXSlider.label:SetPoint("TOPLEFT", cb.cdGradientSlider, "BOTTOMLEFT", 0, -25)
     cb.stackXSlider:ClearAllPoints()
@@ -697,7 +698,7 @@ local function InitTabs()
     cb.stackYSlider.label:SetPoint("TOPLEFT", cb.stackTextSlider, "BOTTOMLEFT", 0, -25)
     cb.stackYSlider:ClearAllPoints()
     cb.stackYSlider:SetPoint("TOPLEFT", cb.stackYSlider.label, "BOTTOMLEFT", 0, -8)
-    cb.iconsPerRowSlider = Slider(tf, "Icons Per Row", 280, -300, 1, 20, 20, 1)
+    cb.iconsPerRowSlider = Slider(tf, "Icons Per Row", 354, -300, 1, 20, 20, 1)
     cb.iconsPerRowSlider.label:ClearAllPoints()
     cb.iconsPerRowSlider.label:SetPoint("TOPLEFT", cb.stackXSlider, "BOTTOMLEFT", 0, -25)
     cb.iconsPerRowSlider:ClearAllPoints()
@@ -756,7 +757,7 @@ local function InitTabs()
     cb.glowSpeedSlider:SetPoint("LEFT", cb.glowSpeedSlider.label, "RIGHT", 4, 0)
     cb.glowThicknessSlider = Slider(tf, "Glow Thickness", 370, -475, 0.1, 4.0, 1.0, 0.1)
     cb.glowThicknessSlider:ClearAllPoints()
-    cb.glowThicknessSlider:SetPoint("LEFT", cb.glowSpeedSlider, "RIGHT", 250, 0)
+    cb.glowThicknessSlider:SetPoint("LEFT", cb.glowSpeedSlider, "RIGHT", 180, 0)
     cb.glowThicknessSlider:SetSize(100, 10)
     cb.glowThicknessSlider:GetThumbTexture():SetSize(10, 14)
     cb.glowThicknessSlider.Low:Hide()
@@ -1884,8 +1885,16 @@ local function InitTabs()
     ufBigHBNote:SetPoint("TOPLEFT", addonTable.ufBigHBFocusCB, "BOTTOMLEFT", 0, -8)
     ufBigHBNote:SetText("Configure details in Player/Target/Focus subtabs.")
     ufBigHBNote:SetTextColor(0.65, 0.65, 0.7)
+    local ufBossSec = Section(uc, "Boss Frame Customization", -386)
+    addonTable.ufBossFramesEnabledCB = Checkbox(uc, "Enable Boss Frame Customization", 15, -414)
+    addonTable.ufBossFramesEnabledCB:ClearAllPoints()
+    addonTable.ufBossFramesEnabledCB:SetPoint("TOPLEFT", ufBossSec, "BOTTOMLEFT", 0, -12)
+    local ufBossNote = uc:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ufBossNote:SetPoint("TOPLEFT", addonTable.ufBossFramesEnabledCB, "BOTTOMLEFT", 0, -8)
+    ufBossNote:SetText("Configure boss frame look and position in the Boss subtab.")
+    ufBossNote:SetTextColor(0.65, 0.65, 0.7)
     if ufScrollChild and ufScrollFrame then
-      ufScrollChild:SetHeight(620)
+      ufScrollChild:SetHeight(760)
       ufScrollFrame:SetVerticalScroll(0)
     end
 
@@ -1947,6 +1956,7 @@ local function InitTabs()
     end
   end
 
+  C_Timer.After(0, function()
   CreateUFUnitSubTab(tabFrames[22], "Player", "Player", "Enable Player Bigger Healthbar", {
     {text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}
   })
@@ -1956,6 +1966,112 @@ local function InitTabs()
   CreateUFUnitSubTab(tabFrames[24], "Focus", "Focus", "Enable Focus Bigger Healthbar", {
     {text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}
   })
+  end)
+  do
+    local tab25 = tabFrames[25]
+    if tab25 then
+      local bossSF = CreateFrame("ScrollFrame", "CCMBossScrollFrame", tab25, "UIPanelScrollFrameTemplate")
+      bossSF:SetPoint("TOPLEFT", tab25, "TOPLEFT", 0, 0)
+      bossSF:SetPoint("BOTTOMRIGHT", tab25, "BOTTOMRIGHT", -22, 0)
+      local bc = CreateFrame("Frame", "CCMBossScrollChild", bossSF)
+      bc:SetSize(490, 840)
+      bossSF:SetScrollChild(bc)
+      local bossBar = _G["CCMBossScrollFrameScrollBar"]
+      if bossBar then
+        bossBar:SetPoint("TOPLEFT", bossSF, "TOPRIGHT", 6, -16)
+        bossBar:SetPoint("BOTTOMLEFT", bossSF, "BOTTOMRIGHT", 6, 16)
+        local bossThumb = bossBar:GetThumbTexture()
+        if bossThumb then bossThumb:SetColorTexture(0.4, 0.4, 0.45, 0.8); bossThumb:SetSize(8, 40) end
+        local bossUp = _G["CCMBossScrollFrameScrollBarScrollUpButton"]
+        local bossDown = _G["CCMBossScrollFrameScrollBarScrollDownButton"]
+        if bossUp then bossUp:SetAlpha(0); bossUp:EnableMouse(false) end
+        if bossDown then bossDown:SetAlpha(0); bossDown:EnableMouse(false) end
+      end
+      SetSmoothScroll(bossSF)
+      local C1, C2 = 15, 280
+      local y = -12
+      Section(bc, "General", y)
+      y = y - 28
+      addonTable.ufBossFrameScaleSlider = Slider(bc, "Scale", C1, y, 0.50, 2.00, 1.00, 0.05)
+      addonTable.ufBossFrameSpacingSlider = Slider(bc, "Frame Spacing", C2, y, 0, 80, 36, 1)
+      y = y - 56
+      addonTable.ufBossFrameXSlider = Slider(bc, "X Offset", C1, y, -2000, 2000, -245, 1)
+      addonTable.ufBossFrameYSlider = Slider(bc, "Y Offset", C2, y, -1200, 1200, -280, 1)
+      y = y - 56
+      addonTable.ufBossFrameWidthSlider = Slider(bc, "Width", C1, y, 120, 320, 168, 1)
+      addonTable.ufBossFrameBorderSizeSlider = Slider(bc, "Border Size", C2, y, 0, 3, 1, 1)
+      y = y - 56
+      addonTable.ufBossFrameShowLevelCB = Checkbox(bc, "Show Level Text", C1, y)
+      addonTable.ufBossFrameHidePortraitCB = Checkbox(bc, "Hide Portrait", C2, y)
+      y = y - 32
+      addonTable.ufBossBarTextureDD = StyledDropdown(bc, "Bar Texture", C1, y, 150)
+      ApplyTextureOptionsToDropdown(addonTable.ufBossBarTextureDD)
+      addonTable.ufBossFrameBarBgAlphaSlider = Slider(bc, "Background Alpha", C2, y, 0.00, 1.00, 0.45, 0.05)
+      y = y - 64
+      Section(bc, "Health Bar", y)
+      y = y - 28
+      addonTable.ufBossFrameHealthHeightSlider = Slider(bc, "Height", C1, y, 8, 40, 20, 1)
+      addonTable.ufBossHealthTextScaleSlider = Slider(bc, "Text Scale", C2, y, 0.50, 2.00, 1.00, 0.05)
+      y = y - 50
+      addonTable.ufBossHealthTextFormatDD = StyledDropdown(bc, "Text Format", C2, y, 150)
+      addonTable.ufBossFrameShowHealthTextCB = Checkbox(bc, "Show Text", C1, y - 18)
+      addonTable.ufBossHealthTextFormatDD:SetOptions({
+        {text = "Percent + Value", value = "percent_value"},
+        {text = "Value + Percent", value = "value_percent"},
+        {text = "Value Only", value = "value"},
+        {text = "Percent Only", value = "percent"},
+        {text = "Full Number", value = "full"},
+      })
+      y = y - 56
+      addonTable.ufBossHealthTextXSlider = Slider(bc, "Text X", C1, y, -200, 200, -4, 1)
+      addonTable.ufBossHealthTextYSlider = Slider(bc, "Text Y", C2, y, -200, 200, 0, 1)
+      y = y - 56
+      addonTable.ufBossFrameShowAbsorbCB = Checkbox(bc, "Show Absorb", C1, y)
+      addonTable.ufBossAbsorbColorBtn = CreateStyledButton(bc, "Absorb Color", 100, 22)
+      addonTable.ufBossAbsorbColorBtn:SetPoint("LEFT", addonTable.ufBossFrameShowAbsorbCB, "RIGHT", 8, 0)
+      y = y - 36
+      Section(bc, "Power Bar", y)
+      y = y - 28
+      addonTable.ufBossFramePowerHeightSlider = Slider(bc, "Height", C1, y, 4, 24, 8, 1)
+      addonTable.ufBossPowerTextScaleSlider = Slider(bc, "Text Scale", C2, y, 0.50, 2.00, 1.00, 0.05)
+      y = y - 58
+      addonTable.ufBossFrameShowPowerTextCB = Checkbox(bc, "Show Text", C1, y)
+      y = y - 24
+      addonTable.ufBossPowerTextXSlider = Slider(bc, "Text X", C1, y, -200, 200, -4, 1)
+      addonTable.ufBossPowerTextYSlider = Slider(bc, "Text Y", C2, y, -200, 200, 0, 1)
+      y = y - 52
+      Section(bc, "Castbar", y)
+      y = y - 28
+      addonTable.ufBossCastbarHeightSlider = Slider(bc, "Height", C1, y, 6, 24, 12, 1)
+      addonTable.ufBossCastbarWidthSlider = Slider(bc, "Width (0=auto)", C2, y, 0, 300, 0, 1)
+      y = y - 56
+      addonTable.ufBossCastbarClampedCB = Checkbox(bc, "Clamp to Bars", C1, y)
+      addonTable.ufBossCastbarIconCB = Checkbox(bc, "Show Spell Icon", C2, y)
+      y = y - 32
+      addonTable.ufBossCastbarAnchorDD = StyledDropdown(bc, "Position", C1, y, 120)
+      addonTable.ufBossCastbarAnchorDD:SetOptions({
+        {text = "Bottom", value = "bottom"},
+        {text = "Top", value = "top"},
+        {text = "Left", value = "left"},
+        {text = "Right", value = "right"},
+      })
+      addonTable.ufBossCastbarSpacingSlider = Slider(bc, "Spacing", C2, y, 0, 20, 2, 1)
+      y = y - 56
+      addonTable.ufBossCastbarTextScaleSlider = Slider(bc, "Text Scale", C1, y, 0.50, 2.00, 1.00, 0.05)
+      y = y - 56
+      addonTable.ufBossCastbarXSlider = Slider(bc, "X Position", C1, y, -200, 200, 0, 1)
+      addonTable.ufBossCastbarYSlider = Slider(bc, "Y Position", C2, y, -200, 200, 0, 1)
+      y = y - 56
+      addonTable.ufBossFramePreviewOnBtn = CreateStyledButton(bc, "Show Preview", 110, 22)
+      addonTable.ufBossFramePreviewOnBtn:SetPoint("TOPLEFT", bc, "TOPLEFT", C1, y)
+      addonTable.ufBossFramePreviewOffBtn = CreateStyledButton(bc, "Hide Preview", 110, 22)
+      addonTable.ufBossFramePreviewOffBtn:SetPoint("LEFT", addonTable.ufBossFramePreviewOnBtn, "RIGHT", 8, 0)
+      local bossPreviewNote = bc:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+      bossPreviewNote:SetPoint("TOPLEFT", addonTable.ufBossFramePreviewOnBtn, "BOTTOMLEFT", 0, -8)
+      bossPreviewNote:SetText("Preview appears on screen. Drag it to reposition boss frames.")
+      bossPreviewNote:SetTextColor(0.65, 0.65, 0.7)
+    end
+  end
 
   local tab12 = tabFrames[12]
   if tab12 then
