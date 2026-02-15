@@ -2,7 +2,7 @@
 ## Title: Cooldown Cursor Manager [PRB]
 ## Notes: CCM companion module: Personal Resource Bar
 ## Author: Edeljay
-## Version: 7.2.0
+## Version: 7.1.0
 ## IconTexture: Interface\AddOns\CooldownCursorManager_PRB\icon.tga
 ## Dependencies: CooldownCursorManager
 ## LoadOnDemand: 1
@@ -11,5 +11,4 @@
 ## X-CCM-Module: prb
 
 CooldownCursorManager_PRB.lua
-
 

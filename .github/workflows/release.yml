@@ -35,7 +35,7 @@ jobs:
         run: |
           mkdir -p build/CooldownCursorManager
           cp -r Config Core Libraries Modules media ccm_core.lua CooldownCursorManager.toc LICENSE.txt build/CooldownCursorManager/
-          cp -r CompanionModules/CooldownCursorManager_* build/
+          cp -r CooldownCursorManager_* build/
           cd build && zip -r ../CooldownCursorManager-${{ steps.version.outputs.tag }}.zip CooldownCursorManager/ CooldownCursorManager_*/
 
       - name: Create Release
