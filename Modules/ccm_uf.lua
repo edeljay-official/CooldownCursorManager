@@ -3,15 +3,11 @@
 -- Unit frame customization and big healthbar overlays
 -- Author: Edeljay
 --------------------------------------------------------------------------------
+if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_UnitFrames") == 0 then return end
 
 local _, addonTable = ...
 local State = addonTable.State
-local GetClassColor = addonTable.GetClassColor
 local GetGlobalFont = addonTable.GetGlobalFont
-local FitTextToBar = addonTable.FitTextToBar
-local IsRealNumber = addonTable.IsRealNumber
-local GetClassPowerConfig = addonTable.GetClassPowerConfig
-local IsClassPowerRedundant = addonTable.IsClassPowerRedundant
 local function ApplyConsistentFontShadow(fontString, outlineFlag)
   if not fontString then return end
   local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
@@ -89,6 +85,731 @@ local function SetBlizzardPlayerPowerBarsVisibility(showPower, showClassPower)
   end
 end
 addonTable.SetBlizzardPlayerPowerBarsVisibility = SetBlizzardPlayerPowerBarsVisibility
+
+local function CCM_IsSecret(v)
+  return issecretvalue and issecretvalue(v) or false
+end
+
+local function CCM_SetBarValuesSafe(bar, minValue, maxValue, value)
+  if not bar then return end
+  local mn = minValue
+  local mx = maxValue
+  local vv = value
+  if type(mn) ~= "number" then mn = 0 end
+  if type(mx) ~= "number" then mx = 1 end
+  if type(vv) ~= "number" then vv = mn end
+  if not CCM_IsSecret(mn) and not CCM_IsSecret(mx) and mx <= mn then
+    mx = mn + 1
+  end
+  pcall(bar.SetMinMaxValues, bar, mn, mx)
+  pcall(bar.SetValue, bar, vv)
+end
+
+local function CCM_FormatCompactNumber(v)
+  local n = tonumber(v)
+  if type(n) ~= "number" then return "" end
+  local abs = math.abs(n)
+  local fmt
+  if abs >= 1000000000 then
+    fmt = string.format("%.1fB", n / 1000000000)
+  elseif abs >= 1000000 then
+    fmt = string.format("%.1fM", n / 1000000)
+  elseif abs >= 1000 then
+    fmt = string.format("%.1fK", n / 1000)
+  else
+    fmt = string.format("%d", n)
+  end
+  fmt = fmt:gsub("%.0([KMB])", "%1")
+  return fmt
+end
+
+local function CCM_FormatBossTextSafe(v)
+  if type(v) ~= "number" then return "" end
+  if CCM_IsSecret(v) then
+    if AbbreviateLargeNumbers then
+      local ok, text = pcall(AbbreviateLargeNumbers, v)
+      if ok and type(text) == "string" then return text end
+    end
+    return v
+  end
+  return CCM_FormatCompactNumber(v)
+end
+
+local function CCM_SafePercent(unit)
+  if not unit then return nil end
+  local ok, pct = pcall(function()
+    if UnitHealthPercent then
+      local s100 = CurveConstants and CurveConstants.ScaleTo100
+      return UnitHealthPercent(unit, false, s100)
+    end
+    return nil
+  end)
+  if ok and type(pct) == "number" then return string.format("%.0f%%", pct) end
+  return nil
+end
+
+local function CCM_SafeAbbrevValue(v)
+  if CCM_IsSecret(v) then
+    if AbbreviateLargeNumbers then
+      local vOk, vText = pcall(AbbreviateLargeNumbers, v)
+      if vOk and type(vText) == "string" then return vText end
+    end
+    return nil
+  end
+  return CCM_FormatCompactNumber(v)
+end
+
+local function CCM_FormatBossHealthTextSafe(cur, unit, fmt)
+  if type(cur) ~= "number" then return "" end
+  fmt = fmt or "percent"
+  if fmt == "value" then
+    return CCM_SafeAbbrevValue(cur) or ""
+  elseif fmt == "value_percent" then
+    local valStr = CCM_SafeAbbrevValue(cur)
+    local pctStr = CCM_SafePercent(unit)
+    if valStr and pctStr then return valStr .. " | " .. pctStr end
+    return valStr or pctStr or ""
+  else
+    return CCM_SafePercent(unit) or ""
+  end
+end
+
+
+local _ccmBossHiddenParent = CreateFrame("Frame", nil, UIParent)
+_ccmBossHiddenParent:SetAllPoints()
+_ccmBossHiddenParent:Hide()
+
+local _ccmBossOrigParents = {}
+local _ccmBossLooseFrames = {}
+
+local _ccmBossWatcher = CreateFrame("Frame")
+_ccmBossWatcher:RegisterEvent("PLAYER_REGEN_ENABLED")
+_ccmBossWatcher:SetScript("OnEvent", function()
+  for frame in next, _ccmBossLooseFrames do
+    frame:SetParent(_ccmBossHiddenParent)
+  end
+  table.wipe(_ccmBossLooseFrames)
+end)
+
+local function CCM_DisableBlizzBossFrame(f)
+  if not f then return end
+  if not _ccmBossOrigParents[f] then
+    _ccmBossOrigParents[f] = f:GetParent()
+  end
+  f:UnregisterAllEvents()
+  f:Hide()
+  if InCombatLockdown() and f:IsProtected() then
+    _ccmBossLooseFrames[f] = true
+  else
+    f:SetParent(_ccmBossHiddenParent)
+  end
+  if not f._ccmReParentHooked then
+    f._ccmReParentHooked = true
+    hooksecurefunc(f, "SetParent", function(self, parent)
+      if not self._ccmBossDisabled then return end
+      if parent ~= _ccmBossHiddenParent then
+        if InCombatLockdown() and self:IsProtected() then
+          _ccmBossLooseFrames[self] = true
+        else
+          self:SetParent(_ccmBossHiddenParent)
+        end
+      end
+    end)
+  end
+  f._ccmBossDisabled = true
+  local health = f.healthBar or f.healthbar or f.HealthBar or (f.HealthBarsContainer and f.HealthBarsContainer.healthBar)
+  if health then health:UnregisterAllEvents() end
+  local power = f.manabar or f.ManaBar
+  if power then power:UnregisterAllEvents() end
+  local castbar = f.castBar or f.spellbar or f.CastingBarFrame
+  if castbar then castbar:UnregisterAllEvents() end
+  local altpower = f.powerBarAlt or f.PowerBarAlt
+  if altpower then altpower:UnregisterAllEvents() end
+  local buffs = f.BuffFrame or f.AurasFrame
+  if buffs then buffs:UnregisterAllEvents() end
+end
+
+local function CCM_EnableBlizzBossFrame(f)
+  if not f then return end
+  f._ccmBossDisabled = false
+  _ccmBossLooseFrames[f] = nil
+  local origParent = _ccmBossOrigParents[f]
+  if origParent and not InCombatLockdown() then
+    f:SetParent(origParent)
+  end
+end
+
+local function CCM_ApplyBossBlizzardVisibility(enabled)
+  if enabled then
+    if BossTargetFrameContainer then
+      CCM_DisableBlizzBossFrame(BossTargetFrameContainer)
+    end
+  end
+  for i = 1, 8 do
+    local f = _G["Boss" .. i .. "TargetFrame"]
+    if f then
+      if enabled then
+        CCM_DisableBlizzBossFrame(f)
+      else
+        CCM_EnableBlizzBossFrame(f)
+      end
+    end
+  end
+end
+
+local function CCM_EnsureCustomBossFrames()
+  State.customBoss = State.customBoss or {}
+  local st = State.customBoss
+  if st.holder and st.rows then return st end
+
+  st.holder = CreateFrame("Frame", "CCMCustomBossHolder", UIParent)
+  st.holder:SetFrameStrata("MEDIUM")
+  st.rows = {}
+  st.elapsed = 0
+
+  for i = 1, 8 do
+    local row = CreateFrame("Button", "CCMCustomBossFrame" .. i, st.holder, "SecureUnitButtonTemplate,BackdropTemplate")
+    row:SetAttribute("unit", "boss" .. i)
+    row:RegisterForClicks("AnyUp")
+    row:SetAttribute("*type1", "target")
+    row:SetAttribute("*type2", "togglemenu")
+    row:HookScript("OnEnter", function(self)
+      local unit = self:GetAttribute("unit")
+      if unit and UnitExists(unit) then
+        GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
+        GameTooltip:SetUnit(unit)
+        GameTooltip:Show()
+      end
+    end)
+    row:HookScript("OnLeave", function()
+      GameTooltip:Hide()
+    end)
+    RegisterUnitWatch(row)
+
+    row:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+    row:SetBackdropColor(0, 0, 0, 0)
+    row:SetBackdropBorderColor(0.22, 0.22, 0.26, 1)
+
+    row.portraitBg = CreateFrame("Frame", nil, row, "BackdropTemplate")
+    row.portraitBg:SetSize(36, 36)
+    row.portraitBg:SetPoint("TOPLEFT", row, "TOPLEFT", 3, -4)
+    row.portraitBg:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8" })
+    row.portraitBg:SetBackdropColor(0.10, 0.10, 0.12, 1)
+    row.portrait = row.portraitBg:CreateTexture(nil, "ARTWORK")
+    row.portrait:SetAllPoints(row.portraitBg)
+    row.portrait:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+
+    local baseLevel = row:GetFrameLevel()
+
+    row.hpBg = CreateFrame("StatusBar", nil, row)
+    row.hpBg:SetFrameLevel(baseLevel + 1)
+    row.hpBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+    row.hpBg:SetStatusBarColor(0, 0, 0, 0.45)
+
+    row.hp = CreateFrame("StatusBar", nil, row)
+    row.hp:SetFrameLevel(baseLevel + 2)
+    row.hp:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+    row.hp:SetClipsChildren(true)
+    row.absorb = CreateFrame("StatusBar", nil, row.hp)
+    row.absorb:SetFrameLevel(row.hp:GetFrameLevel() + 1)
+    row.absorb:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+    row.absorb:SetStatusBarColor(0.85, 0.95, 1.00, 0.28)
+
+    row.barBorder = CreateFrame("Frame", nil, row, "BackdropTemplate")
+    row.barBorder:SetFrameLevel(baseLevel + 4)
+    row.barBorder:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+    row.barBorder:SetBackdropColor(0, 0, 0, 0)
+    row.barBorder:SetBackdropBorderColor(0.22, 0.22, 0.26, 1)
+
+    row.ppBg = CreateFrame("StatusBar", nil, row)
+    row.ppBg:SetFrameLevel(baseLevel + 1)
+    row.ppBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+    row.ppBg:SetStatusBarColor(0, 0, 0, 0.45)
+
+    row.pp = CreateFrame("StatusBar", nil, row)
+    row.pp:SetFrameLevel(baseLevel + 2)
+    row.pp:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+
+    row.textOverlay = CreateFrame("Frame", nil, row)
+    row.textOverlay:SetAllPoints(row)
+    row.textOverlay:SetFrameLevel(row:GetFrameLevel() + 10)
+    row.name = row.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    row.name:SetJustifyH("LEFT")
+    row.hpText = row.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.hpText:SetJustifyH("RIGHT")
+    row.ppText = row.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.ppText:SetJustifyH("RIGHT")
+    row.level = row.textOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.level:SetJustifyH("RIGHT")
+
+    row.castHolder = CreateFrame("Frame", nil, row, "BackdropTemplate")
+    row.castHolder:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+    row.castHolder:SetBackdropColor(0, 0, 0, 0)
+    row.castHolder:SetBackdropBorderColor(0.22, 0.22, 0.26, 1)
+
+    local castBaseLevel = row.castHolder:GetFrameLevel()
+    row.castBg = CreateFrame("StatusBar", nil, row.castHolder)
+    row.castBg:SetFrameLevel(castBaseLevel + 1)
+    row.castBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+    row.castBg:SetStatusBarColor(0, 0, 0, 0.45)
+    row.castBg:SetAllPoints(row.castHolder)
+    row.castBg:SetMinMaxValues(0, 1)
+    row.castBg:SetValue(1)
+
+    row.cast = CreateFrame("StatusBar", nil, row.castHolder)
+    row.cast:SetFrameLevel(castBaseLevel + 2)
+    row.cast:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+    row.cast:SetMinMaxValues(0, 1)
+    row.cast:SetValue(0.5)
+    row.cast:SetAllPoints(row.castHolder)
+
+    row.castTextOverlay = CreateFrame("Frame", nil, row.castHolder)
+    row.castTextOverlay:SetAllPoints(row.castHolder)
+    row.castTextOverlay:SetFrameLevel(row.cast:GetFrameLevel() + 5)
+    row.castText = row.castTextOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.castText:SetPoint("LEFT", row.castHolder, "LEFT", 4, 0)
+    row.castText:SetJustifyH("LEFT")
+    row.castTime = row.castTextOverlay:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    row.castTime:SetPoint("RIGHT", row.castHolder, "RIGHT", -4, 0)
+    row.castTime:SetJustifyH("RIGHT")
+    row.castIcon = row.castHolder:CreateTexture(nil, "ARTWORK")
+    row.castIcon:SetTexture("Interface\\Icons\\spell_arcane_portalstormwind")
+    row.castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+    row.castHolder:Hide()
+
+    st.rows[i] = row
+  end
+
+  st._castState = {}
+  for i = 1, 8 do
+    st._castState[i] = { casting = false, channeling = false }
+  end
+  local castEventFrame = CreateFrame("Frame")
+  for i = 1, 8 do
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_START", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_STOP", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_FAILED", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTED", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_START", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_CHANNEL_STOP", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_INTERRUPTIBLE", "boss" .. i)
+    castEventFrame:RegisterUnitEvent("UNIT_SPELLCAST_NOT_INTERRUPTIBLE", "boss" .. i)
+  end
+  castEventFrame:SetScript("OnEvent", function(_, event, unit, _, spellID)
+    if not unit then return end
+    local idx = unit:match("^boss(%d+)$")
+    if not idx then return end
+    idx = tonumber(idx)
+    if not idx or not st._castState[idx] then return end
+    local cs = st._castState[idx]
+    if event == "UNIT_SPELLCAST_START" then
+      cs.casting = true
+      cs.channeling = false
+      local info = spellID and C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
+      cs.spellName = info and info.name or nil
+      cs.spellIcon = info and info.iconID or nil
+    elseif event == "UNIT_SPELLCAST_CHANNEL_START" then
+      cs.channeling = true
+      cs.casting = false
+      local info = spellID and C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID)
+      cs.spellName = info and info.name or nil
+      cs.spellIcon = info and info.iconID or nil
+    elseif event == "UNIT_SPELLCAST_STOP" or event == "UNIT_SPELLCAST_FAILED" or event == "UNIT_SPELLCAST_INTERRUPTED" then
+      cs.casting = false
+      if not cs.channeling then cs.spellName = nil; cs.spellIcon = nil end
+    elseif event == "UNIT_SPELLCAST_CHANNEL_STOP" then
+      cs.channeling = false
+      if not cs.casting then cs.spellName = nil; cs.spellIcon = nil end
+    elseif event == "UNIT_SPELLCAST_INTERRUPTIBLE" or event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE" then
+      cs.notInterruptible = (event == "UNIT_SPELLCAST_NOT_INTERRUPTIBLE")
+    end
+  end)
+
+  st.holder:SetScript("OnUpdate", function(_, elapsed)
+    st.elapsed = (st.elapsed or 0) + (elapsed or 0)
+    if st.elapsed < 0.04 then return end
+    st.elapsed = 0
+    if not st.enabled then return end
+    for i = 1, #st.rows do
+      local row = st.rows[i]
+      local unit = "boss" .. i
+      if UnitExists(unit) then
+        if not InCombatLockdown() then row:Show() end
+        local hpMax = UnitHealthMax(unit)
+        local hpCur = UnitHealth(unit)
+        CCM_SetBarValuesSafe(row.hp, 0, hpMax, hpCur)
+        local r, g, b = 1, 0.1, 0.1
+        if addonTable.GetProfile and (addonTable.GetProfile().ufClassColor == true) and UnitIsPlayer(unit) then
+          local _, classToken = UnitClass(unit)
+          local cc = classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
+          if cc then r, g, b = cc.r, cc.g, cc.b end
+        end
+        row.hp:SetStatusBarColor(r, g, b, 1)
+        local pMax = UnitPowerMax(unit)
+        local pCur = UnitPower(unit)
+        CCM_SetBarValuesSafe(row.pp, 0, pMax, pCur)
+        local pType, pToken = UnitPowerType(unit)
+        local pc = (pToken and PowerBarColor and PowerBarColor[pToken]) or (pType and PowerBarColor and PowerBarColor[pType])
+        row.pp:SetStatusBarColor((pc and pc.r) or 0.35, (pc and pc.g) or 0.35, (pc and pc.b) or 0.95, 1)
+        local unitName = UnitName(unit)
+        if unitName then
+          pcall(row.name.SetText, row.name, unitName)
+        else
+          row.name:SetText("Boss " .. i)
+        end
+        row.name:Show()
+        if row._showHealthText then
+          local hText = CCM_FormatBossHealthTextSafe(hpCur, unit, row._healthTextFormat)
+          if hText then pcall(row.hpText.SetText, row.hpText, hText) end
+          row.hpText:Show()
+        else
+          row.hpText:Hide()
+        end
+        if row._showPowerText then
+          local pText = CCM_FormatBossTextSafe(pCur)
+          if pText then pcall(row.ppText.SetText, row.ppText, pText) end
+          row.ppText:Show()
+        else
+          row.ppText:Hide()
+        end
+        if row._showLevel then
+          local lv = UnitLevel(unit)
+          local lvOk, lvStr = pcall(function()
+            if type(lv) == "number" and lv > 0 then return tostring(lv) end
+            return "??"
+          end)
+          row.level:SetText((lvOk and lvStr) or "??")
+          row.level:Show()
+        else
+          row.level:Hide()
+        end
+        if row._hidePortrait then
+          row.portraitBg:Hide()
+        else
+          row.portraitBg:Show()
+          SetPortraitTexture(row.portrait, unit)
+        end
+        if row._showAbsorb then
+          local absorb = UnitGetTotalAbsorbs and UnitGetTotalAbsorbs(unit) or 0
+          if CCM_IsSecret(absorb) or CCM_IsSecret(hpMax) then
+            CCM_SetBarValuesSafe(row.absorb, 0, hpMax, absorb)
+            row.absorb:Show()
+          else
+            local absOk, absShow = pcall(function()
+              if type(absorb) == "number" and absorb > 0 then return true end
+              return false
+            end)
+            if absOk and absShow then
+              CCM_SetBarValuesSafe(row.absorb, 0, hpMax, absorb)
+              row.absorb:Show()
+            else
+              row.absorb:Hide()
+            end
+          end
+        else
+          row.absorb:Hide()
+        end
+
+        local cs = st._castState[i]
+        local showingCast = cs.casting or cs.channeling
+        if showingCast then
+          local durationObject = nil
+          if cs.casting and UnitCastingDuration then
+            local okDur, durObj = pcall(UnitCastingDuration, unit)
+            if okDur then durationObject = durObj end
+          elseif cs.channeling and UnitChannelDuration then
+            local okDur, durObj = pcall(UnitChannelDuration, unit)
+            if okDur then durationObject = durObj end
+          end
+          if durationObject and row.cast.SetTimerDuration then
+            local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or nil
+            local dir = cs.casting and Enum.StatusBarTimerDirection.ElapsedTime or Enum.StatusBarTimerDirection.RemainingTime
+            pcall(row.cast.SetTimerDuration, row.cast, durationObject, interp, dir)
+          end
+          if cs.notInterruptible then
+            row.cast:SetStatusBarColor(0.50, 0.50, 0.50, 1)
+          else
+            row.cast:SetStatusBarColor(cs.casting and 1.00 or 0.34, cs.casting and 0.72 or 0.58, cs.casting and 0.12 or 1.00, 1)
+          end
+          if cs.spellName then row.castText:SetText(cs.spellName) end
+          if cs.spellIcon and row.castIcon then row.castIcon:SetTexture(cs.spellIcon) end
+          if durationObject then
+            local okRem, remaining = pcall(function() return durationObject:GetRemainingDuration() end)
+            if okRem and remaining ~= nil then
+              row.castTime:SetText(string.format("%.1f", remaining))
+            end
+          end
+        end
+        if row.castIcon then
+          row.castIcon:SetShown(showingCast and row._castbarIconEnabled == true)
+        end
+        row.castHolder:SetShown(showingCast)
+      else
+        if not InCombatLockdown() then row:Hide() end
+      end
+    end
+  end)
+
+  return st
+end
+
+local function CCM_ApplyCustomBossFrames(profile, ufEnabled, useCustomTex, selectedTexturePath)
+  local st = CCM_EnsureCustomBossFrames()
+  local enabled = ufEnabled and profile and profile.ufBossFramesEnabled == true
+  st.enabled = enabled == true
+  if not profile then
+    if st.holder then st.holder:Hide() end
+    CCM_ApplyBossBlizzardVisibility(false)
+    return
+  end
+
+  if not enabled then
+    if st.holder then st.holder:Hide() end
+    CCM_ApplyBossBlizzardVisibility(false)
+    return
+  end
+
+  local anchor = profile.ufBossFrameAnchor or "TOPRIGHT"
+  local x = tonumber(profile.ufBossFrameX) or -245
+  local y = tonumber(profile.ufBossFrameY) or -280
+  local scale = tonumber(profile.ufBossFrameScale) or 1
+  local spacing = tonumber(profile.ufBossFrameSpacing) or 36
+  local width = tonumber(profile.ufBossFrameWidth) or 168
+  local healthH = tonumber(profile.ufBossFrameHealthHeight) or 20
+  local powerH = tonumber(profile.ufBossFramePowerHeight) or 8
+  local showLevel = profile.ufBossFrameShowLevel ~= false
+  local hidePortrait = profile.ufBossFrameHidePortrait == true
+  local borderSize = math.max(0, math.min(3, math.floor((tonumber(profile.ufBossFrameBorderSize) or ((profile.ufBossFrameUseBorder == true) and 1 or 0)) + 0.5)))
+  local useBorder = borderSize > 0
+  local castbarClamped = profile.ufBossCastbarClamped ~= false
+  local castbarAnchor = profile.ufBossCastbarAnchor or "bottom"
+  local castbarIconEnabled = profile.ufBossCastbarIcon ~= false
+  local castbarHeight = tonumber(profile.ufBossCastbarHeight) or 12
+  local castbarWidthOverride = tonumber(profile.ufBossCastbarWidth) or 0
+  local castbarSpacing = castbarClamped and 0 or (tonumber(profile.ufBossCastbarSpacing) or 2)
+  local castbarOffX = tonumber(profile.ufBossCastbarX) or 0
+  local castbarOffY = tonumber(profile.ufBossCastbarY) or 0
+  local showHealthText = profile.ufBossFrameShowHealthText ~= false
+  local healthTextFormat = profile.ufBossHealthTextFormat or "percent"
+  local showPowerText = profile.ufBossFrameShowPowerText ~= false
+  local healthTextX = tonumber(profile.ufBossHealthTextX) or -4
+  local healthTextY = tonumber(profile.ufBossHealthTextY) or 0
+  local powerTextX = tonumber(profile.ufBossPowerTextX) or -4
+  local powerTextY = tonumber(profile.ufBossPowerTextY) or 0
+  local healthTextScale = tonumber(profile.ufBossHealthTextScale) or 1
+  local powerTextScale = tonumber(profile.ufBossPowerTextScale) or 1
+  local castbarTextScale = tonumber(profile.ufBossCastbarTextScale) or 1
+  local showAbsorb = profile.ufBossFrameShowAbsorb == true
+  local absorbR = tonumber(profile.ufBossAbsorbColorR) or 0.85
+  local absorbG = tonumber(profile.ufBossAbsorbColorG) or 0.95
+  local absorbB = tonumber(profile.ufBossAbsorbColorB) or 1.00
+  local absorbA = tonumber(profile.ufBossAbsorbColorA) or 0.28
+  local bossTexKey = profile.ufBossBarTexture or "lsm:Blizzard"
+  local bossTexResolved = (addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(bossTexKey)) or texturePaths[bossTexKey] or texturePaths.blizzard
+  local barBgAlpha = tonumber(profile.ufBossFrameBarBgAlpha) or 0.45
+  if barBgAlpha < 0 then barBgAlpha = 0 end
+  if barBgAlpha > 1 then barBgAlpha = 1 end
+  local borderOn = profile.useCustomBorderColor == true
+  local borderR = borderOn and (profile.ufCustomBorderColorR or 0.22) or 0.22
+  local borderG = borderOn and (profile.ufCustomBorderColorG or 0.22) or 0.22
+  local borderB = borderOn and (profile.ufCustomBorderColorB or 0.26) or 0.26
+  local useNameColor = profile.ufUseCustomNameColor == true
+  local nameR = useNameColor and (profile.ufNameColorR or 1) or 1
+  local nameG = useNameColor and (profile.ufNameColorG or 1) or 1
+  local nameB = useNameColor and (profile.ufNameColorB or 1) or 1
+  local bossBarTexturePath = bossTexResolved or "Interface\\Buttons\\WHITE8x8"
+
+  local gf, go
+  if addonTable.GetGlobalFont then
+    gf, go = addonTable.GetGlobalFont()
+  end
+  gf = gf or "Fonts\\FRIZQT__.TTF"
+  go = go or ""
+  local PU = PixelUtil
+  st.holder:ClearAllPoints()
+  st.holder:SetPoint(anchor, UIParent, anchor, x, y)
+  st.holder:SetScale(scale)
+  st.holder:Show()
+  st.holder:SetFrameStrata("MEDIUM")
+
+  local totalH = healthH + powerH + 7
+  local rowStride = totalH + 16 + spacing
+  PU.SetSize(st.holder, width + 64, (rowStride * 8) + 24)
+
+  for i = 1, #st.rows do
+    local row = st.rows[i]
+    local portraitSize = healthH + powerH
+    local leftInset = hidePortrait and 5 or (portraitSize + 5)
+    row:ClearAllPoints()
+    PU.SetPoint(row, "TOPLEFT", st.holder, "TOPLEFT", 14, -(i - 1) * rowStride - 18)
+    PU.SetSize(row, width + 46, totalH + 22)
+    row:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1 })
+    row:SetBackdropColor(0, 0, 0, 0)
+    row:SetBackdropBorderColor(borderR, borderG, borderB, 0)
+    row._showLevel = showLevel
+    row._hidePortrait = hidePortrait
+    row._castbarIconEnabled = castbarIconEnabled
+    row._showHealthText = showHealthText
+    row._healthTextFormat = healthTextFormat
+    row._showPowerText = showPowerText
+    row._healthTextX = healthTextX
+    row._healthTextY = healthTextY
+    row._powerTextX = powerTextX
+    row._powerTextY = powerTextY
+    row._showAbsorb = showAbsorb
+
+    row.hpBg:ClearAllPoints()
+    PU.SetPoint(row.hpBg, "TOPLEFT", row, "TOPLEFT", leftInset, -4)
+    PU.SetPoint(row.hpBg, "TOPRIGHT", row, "TOPRIGHT", -5, -4)
+    PU.SetHeight(row.hpBg, healthH)
+    row.hpBg:SetMinMaxValues(0, 1)
+    row.hpBg:SetValue(1)
+    row.hpBg:SetStatusBarColor(0, 0, 0, barBgAlpha)
+
+    row.hp:ClearAllPoints()
+    PU.SetPoint(row.hp, "TOPLEFT", row.hpBg, "TOPLEFT", 0, 0)
+    PU.SetPoint(row.hp, "TOPRIGHT", row.hpBg, "TOPRIGHT", 0, 0)
+    PU.SetHeight(row.hp, healthH)
+    pcall(row.hp.SetStatusBarTexture, row.hp, bossBarTexturePath)
+
+    row.ppBg:ClearAllPoints()
+    PU.SetPoint(row.ppBg, "TOPLEFT", row.hp, "BOTTOMLEFT", 0, 0)
+    PU.SetPoint(row.ppBg, "TOPRIGHT", row.hp, "BOTTOMRIGHT", 0, 0)
+    PU.SetHeight(row.ppBg, powerH)
+    row.ppBg:SetMinMaxValues(0, 1)
+    row.ppBg:SetValue(1)
+    row.ppBg:SetStatusBarColor(0, 0, 0, barBgAlpha)
+
+    row.pp:ClearAllPoints()
+    PU.SetPoint(row.pp, "TOPLEFT", row.hp, "BOTTOMLEFT", 0, 0)
+    PU.SetPoint(row.pp, "TOPRIGHT", row.hp, "BOTTOMRIGHT", 0, 0)
+    PU.SetHeight(row.pp, powerH)
+    pcall(row.pp.SetStatusBarTexture, row.pp, bossBarTexturePath)
+
+    if row.barBorder then
+      row.barBorder:ClearAllPoints()
+      local borderLeft = hidePortrait and row.hpBg or row.portraitBg
+      PU.SetPoint(row.barBorder, "TOPLEFT", borderLeft, "TOPLEFT", -borderSize, borderSize)
+      PU.SetPoint(row.barBorder, "BOTTOMRIGHT", row.ppBg, "BOTTOMRIGHT", borderSize, -borderSize)
+      row.barBorder:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = math.max(1, borderSize) })
+      row.barBorder:SetBackdropColor(0, 0, 0, 0)
+      row.barBorder:SetBackdropBorderColor(borderR, borderG, borderB, useBorder and 1 or 0)
+    end
+
+    row.name:ClearAllPoints()
+    PU.SetPoint(row.name, "LEFT", row.hp, "LEFT", 4, 0)
+    if row.name.SetFont then pcall(row.name.SetFont, row.name, gf, 11, go or "") end
+    row.name:SetTextColor(nameR, nameG, nameB)
+    row.hpText:ClearAllPoints()
+    PU.SetPoint(row.hpText, "RIGHT", row.hp, "RIGHT", healthTextX, healthTextY)
+    if row.hpText.SetFont then pcall(row.hpText.SetFont, row.hpText, gf, math.max(6, math.floor(10 * healthTextScale + 0.5)), go or "") end
+    row.hpText:SetTextColor(nameR, nameG, nameB)
+    row.ppText:ClearAllPoints()
+    PU.SetPoint(row.ppText, "RIGHT", row.pp, "RIGHT", powerTextX, powerTextY)
+    if row.ppText.SetFont then pcall(row.ppText.SetFont, row.ppText, gf, math.max(6, math.floor(10 * powerTextScale + 0.5)), go or "") end
+    row.ppText:SetTextColor(nameR, nameG, nameB)
+
+    row.level:ClearAllPoints()
+    PU.SetPoint(row.level, "RIGHT", row.hp, "RIGHT", -4, 0)
+    if row.level.SetFont then pcall(row.level.SetFont, row.level, gf, 10, go or "") end
+    row.level:SetTextColor(nameR, nameG, nameB)
+
+    if row.portraitBg then
+      row.portraitBg:ClearAllPoints()
+      if hidePortrait then
+        row.portraitBg:Hide()
+      else
+        PU.SetSize(row.portraitBg, portraitSize, portraitSize)
+        PU.SetPoint(row.portraitBg, "TOPRIGHT", row.hp, "TOPLEFT", 0, 0)
+        row.portraitBg:Show()
+      end
+    end
+
+    local barBorderLeft = hidePortrait and row.hpBg or row.portraitBg
+    local useCustomWidth = castbarWidthOverride > 0
+    row.castHolder:ClearAllPoints()
+    if castbarAnchor == "top" then
+      if useCustomWidth then
+        PU.SetPoint(row.castHolder, "BOTTOM", row.hpBg, "TOP", castbarOffX, castbarSpacing + castbarOffY)
+        PU.SetSize(row.castHolder, castbarWidthOverride + borderSize * 2, castbarHeight + borderSize * 2)
+      else
+        PU.SetPoint(row.castHolder, "BOTTOMLEFT", barBorderLeft, "TOPLEFT", -borderSize + castbarOffX, castbarSpacing + castbarOffY)
+        PU.SetPoint(row.castHolder, "BOTTOMRIGHT", row.hpBg, "TOPRIGHT", borderSize + castbarOffX, castbarSpacing + castbarOffY)
+        PU.SetHeight(row.castHolder, castbarHeight + borderSize * 2)
+      end
+    elseif castbarAnchor == "left" then
+      PU.SetPoint(row.castHolder, "RIGHT", barBorderLeft, "LEFT", -castbarSpacing + castbarOffX, castbarOffY)
+      local castW = (useCustomWidth and castbarWidthOverride or width) + borderSize * 2
+      PU.SetSize(row.castHolder, castW, castbarHeight + borderSize * 2)
+    elseif castbarAnchor == "right" then
+      PU.SetPoint(row.castHolder, "LEFT", row.hpBg, "RIGHT", castbarSpacing + castbarOffX, castbarOffY)
+      local castW = (useCustomWidth and castbarWidthOverride or width) + borderSize * 2
+      PU.SetSize(row.castHolder, castW, castbarHeight + borderSize * 2)
+    else
+      if useCustomWidth then
+        PU.SetPoint(row.castHolder, "TOP", row.ppBg, "BOTTOM", castbarOffX, -castbarSpacing + castbarOffY)
+        PU.SetSize(row.castHolder, castbarWidthOverride + borderSize * 2, castbarHeight + borderSize * 2)
+      else
+        PU.SetPoint(row.castHolder, "TOPLEFT", row.ppBg, "BOTTOMLEFT", -(hidePortrait and 0 or portraitSize) - borderSize + castbarOffX, -castbarSpacing + castbarOffY)
+        PU.SetPoint(row.castHolder, "TOPRIGHT", row.ppBg, "BOTTOMRIGHT", borderSize + castbarOffX, -castbarSpacing + castbarOffY)
+        PU.SetHeight(row.castHolder, castbarHeight + borderSize * 2)
+      end
+    end
+    row.castHolder:SetBackdrop({ bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = math.max(1, borderSize) })
+    row.castHolder:SetBackdropColor(0, 0, 0, 0)
+    row.castHolder:SetBackdropBorderColor(borderR, borderG, borderB, useBorder and 1 or 0)
+    local castIconVisible = castbarIconEnabled and not hidePortrait
+    local iconSpace = castIconVisible and castbarHeight or 0
+    if row.castIcon then
+      row.castIcon:ClearAllPoints()
+      PU.SetSize(row.castIcon, castbarHeight, castbarHeight)
+      PU.SetPoint(row.castIcon, "TOPLEFT", row.castHolder, "TOPLEFT", borderSize, -borderSize)
+      row.castIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+      row.castIcon:SetShown(castIconVisible)
+    end
+    if row.castBg then
+      row.castBg:ClearAllPoints()
+      PU.SetPoint(row.castBg, "TOPLEFT", row.castHolder, "TOPLEFT", borderSize + iconSpace, -borderSize)
+      PU.SetPoint(row.castBg, "BOTTOMRIGHT", row.castHolder, "BOTTOMRIGHT", -borderSize, borderSize)
+      pcall(row.castBg.SetStatusBarTexture, row.castBg, bossBarTexturePath)
+      row.castBg:SetStatusBarColor(0, 0, 0, barBgAlpha)
+    end
+    if row.cast then
+      row.cast:ClearAllPoints()
+      PU.SetPoint(row.cast, "TOPLEFT", row.castHolder, "TOPLEFT", borderSize + iconSpace, -borderSize)
+      PU.SetPoint(row.cast, "BOTTOMRIGHT", row.castHolder, "BOTTOMRIGHT", -borderSize, borderSize)
+    end
+    pcall(row.cast.SetStatusBarTexture, row.cast, bossBarTexturePath)
+    if row.castTextOverlay then
+      row.castTextOverlay:ClearAllPoints()
+      PU.SetPoint(row.castTextOverlay, "TOPLEFT", row.castHolder, "TOPLEFT", borderSize + iconSpace, -borderSize)
+      PU.SetPoint(row.castTextOverlay, "BOTTOMRIGHT", row.castHolder, "BOTTOMRIGHT", -borderSize, borderSize)
+    end
+    local castFontSize = math.max(6, math.floor(10 * castbarTextScale + 0.5))
+    if row.castText then
+      row.castText:ClearAllPoints()
+      PU.SetPoint(row.castText, "LEFT", row.castTextOverlay or row.cast, "LEFT", 4, 0)
+      if row.castText.SetFont then pcall(row.castText.SetFont, row.castText, gf, castFontSize, go or "") end
+      row.castText:SetTextColor(nameR, nameG, nameB)
+    end
+    if row.castTime then
+      row.castTime:ClearAllPoints()
+      PU.SetPoint(row.castTime, "RIGHT", row.castTextOverlay or row.cast, "RIGHT", -4, 0)
+      if row.castTime.SetFont then pcall(row.castTime.SetFont, row.castTime, gf, castFontSize, go or "") end
+      row.castTime:SetTextColor(nameR, nameG, nameB)
+    end
+    row.absorb:ClearAllPoints()
+    local hpTex = row.hp:GetStatusBarTexture()
+    PU.SetPoint(row.absorb, "TOPLEFT", hpTex, "TOPRIGHT", 0, 0)
+    PU.SetPoint(row.absorb, "BOTTOMLEFT", hpTex, "BOTTOMRIGHT", 0, 0)
+    row.absorb:SetWidth(row.hp:GetWidth() or width)
+    row.absorb:SetStatusBarTexture(bossBarTexturePath)
+    row.absorb:SetStatusBarColor(absorbR, absorbG, absorbB, absorbA)
+  end
+
+  CCM_ApplyBossBlizzardVisibility(true)
+end
+
 addonTable.ApplyUnitFrameCustomization = function()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   if not profile then return end
@@ -227,6 +948,596 @@ addonTable.ApplyUnitFrameCustomization = function()
   local useCustomTex = ufEnabled and profile.ufUseCustomTextures == true
   local selectedTexture = useCustomTex and (profile.ufHealthTexture or "lsm:Clean") or "blizzard"
   local selectedTexturePath = addonTable.FetchLSMStatusBar and addonTable:FetchLSMStatusBar(selectedTexture) or texturePaths[selectedTexture] or texturePaths.blizzard
+  local function CollectPoints(frameObj)
+    local points = {}
+    if not frameObj or not frameObj.GetNumPoints or not frameObj.GetPoint then return points end
+    local n = frameObj:GetNumPoints() or 0
+    for i = 1, n do
+      local p, rel, rp, x, y = frameObj:GetPoint(i)
+      if type(p) == "string" then
+        points[#points + 1] = {p, rel, rp, x, y}
+      end
+    end
+    return points
+  end
+  local function RestorePoints(frameObj, points)
+    if not frameObj or not frameObj.ClearAllPoints or not frameObj.SetPoint then return end
+    frameObj:ClearAllPoints()
+    if type(points) ~= "table" or #points == 0 then return end
+    for i = 1, #points do
+      local pt = points[i]
+      if pt and type(pt[1]) == "string" then
+        pcall(frameObj.SetPoint, frameObj, pt[1], pt[2], pt[3], pt[4], pt[5])
+      end
+    end
+  end
+  local function ResolveBossPowerColor(unitToken)
+    local pType, pToken = UnitPowerType(unitToken)
+    local color
+    if pToken and PowerBarColor and PowerBarColor[pToken] then
+      color = PowerBarColor[pToken]
+    elseif pType and PowerBarColor and PowerBarColor[pType] then
+      color = PowerBarColor[pType]
+    end
+    if type(color) == "table" then
+      return color.r or 0.35, color.g or 0.35, color.b or 0.95
+    end
+    return 0.35, 0.35, 0.95
+  end
+  local function ApplyBossFrameCustomization()
+    CCM_ApplyCustomBossFrames(profile, ufEnabled, useCustomTex, selectedTexturePath)
+    if false then
+    local enabled = ufEnabled and profile.ufBossFramesEnabled == true
+    orig.bossFrames = orig.bossFrames or {}
+    local anchor = profile.ufBossFrameAnchor or "TOPRIGHT"
+    local x = tonumber(profile.ufBossFrameX) or -245
+    local y = tonumber(profile.ufBossFrameY) or -280
+    local scale = tonumber(profile.ufBossFrameScale) or 1
+    local spacing = tonumber(profile.ufBossFrameSpacing) or 36
+    local width = tonumber(profile.ufBossFrameWidth) or 168
+    local healthH = tonumber(profile.ufBossFrameHealthHeight) or 20
+    local powerH = tonumber(profile.ufBossFramePowerHeight) or 8
+    local showLevel = profile.ufBossFrameShowLevel ~= false
+    local hidePortrait = profile.ufBossFrameHidePortrait == true
+    local useBorder = profile.ufBossFrameUseBorder == true
+    local blizzCastTextScale = tonumber(profile.ufBossCastbarTextScale) or 1
+    local bossBarTexturePath = (useCustomTex and type(selectedTexturePath) == "string" and selectedTexturePath ~= "") and selectedTexturePath or "Interface\\Buttons\\WHITE8x8"
+    local borderOn = profile.useCustomBorderColor == true
+    local borderR = borderOn and (profile.ufCustomBorderColorR or 0.22) or 0.22
+    local borderG = borderOn and (profile.ufCustomBorderColorG or 0.22) or 0.22
+    local borderB = borderOn and (profile.ufCustomBorderColorB or 0.26) or 0.26
+    local useNameColor = profile.ufUseCustomNameColor == true
+    local nameR = useNameColor and (profile.ufNameColorR or 1) or 1
+    local nameG = useNameColor and (profile.ufNameColorG or 1) or 1
+    local nameB = useNameColor and (profile.ufNameColorB or 1) or 1
+    local list = {}
+    local function ResolveBossSpellBar(frameObj, index)
+      if not frameObj then return nil end
+      return frameObj.spellbar or frameObj.castBar or frameObj.CastingBarFrame or _G["Boss" .. tostring(index or "") .. "TargetFrameSpellBar"]
+    end
+    local function SaveAndHideVisual(st, obj)
+      if not st or not obj then return end
+      st.hiddenDefaults = st.hiddenDefaults or {}
+      local rec = st.hiddenDefaults[obj]
+      if not rec then
+        rec = {
+          alpha = obj.GetAlpha and obj:GetAlpha() or nil,
+          shown = obj.IsShown and obj:IsShown() or nil,
+        }
+        st.hiddenDefaults[obj] = rec
+      end
+      if obj.SetAlpha then obj:SetAlpha(0) end
+      if obj.Hide then obj:Hide() end
+      if obj.HookScript and not rec.hookInstalled then
+        rec.hookInstalled = true
+        obj:HookScript("OnShow", function(self)
+          local p = addonTable.GetProfile and addonTable.GetProfile()
+          if not p or p.enableUnitFrameCustomization == false or p.ufBossFramesEnabled ~= true then return end
+          if self.SetAlpha then self:SetAlpha(0) end
+          if self.Hide then self:Hide() end
+        end)
+      end
+    end
+    local function HideAllRegions(st, frameObj)
+      if not st or not frameObj or not frameObj.GetRegions then return end
+      local regions = {frameObj:GetRegions()}
+      for i = 1, #regions do
+        local reg = regions[i]
+        if reg then
+          SaveAndHideVisual(st, reg)
+        end
+      end
+    end
+    local function RestoreHiddenVisuals(st)
+      if not st or type(st.hiddenDefaults) ~= "table" then return end
+      for obj, rec in pairs(st.hiddenDefaults) do
+        if obj and rec then
+          if obj.SetAlpha and rec.alpha ~= nil then obj:SetAlpha(rec.alpha) end
+          if rec.shown == true and obj.Show then
+            obj:Show()
+          elseif rec.shown == false and obj.Hide then
+            obj:Hide()
+          end
+        end
+      end
+    end
+    local ApplyBossHealthColor
+    local function UpdateCustomBossCastbar(st, unitToken)
+      if not st or not st.castHolder or not st.castBar then return end
+      local bar = st.castBar
+      local bossIdx = tonumber(unitToken:match("^boss(%d+)$"))
+      local csTable = State.customBoss and State.customBoss._castState
+      local cs = bossIdx and csTable and csTable[bossIdx]
+      if not cs then
+        st.castHolder:Hide()
+        return
+      end
+      local showing = cs.casting or cs.channeling
+      if showing then
+        local durationObject = nil
+        if cs.casting and UnitCastingDuration then
+          local okDur, durObj = pcall(UnitCastingDuration, unitToken)
+          if okDur then durationObject = durObj end
+        elseif cs.channeling and UnitChannelDuration then
+          local okDur, durObj = pcall(UnitChannelDuration, unitToken)
+          if okDur then durationObject = durObj end
+        end
+        if durationObject and bar.SetTimerDuration then
+          local interp = Enum and Enum.StatusBarInterpolation and Enum.StatusBarInterpolation.Immediate or nil
+          local dir = cs.casting and Enum.StatusBarTimerDirection.ElapsedTime or Enum.StatusBarTimerDirection.RemainingTime
+          pcall(bar.SetTimerDuration, bar, durationObject, interp, dir)
+        end
+        if st.castTime and durationObject then
+          local okRem, rem = pcall(function() return durationObject:GetRemainingDuration() end)
+          if okRem and rem ~= nil then st.castTime:SetText(string.format("%.1f", rem)) end
+        end
+        if cs.notInterruptible then
+          bar:SetStatusBarColor(0.50, 0.50, 0.50, 1)
+        else
+          bar:SetStatusBarColor(cs.casting and 1.00 or 0.34, cs.casting and 0.72 or 0.58, cs.casting and 0.12 or 1.00, 1)
+        end
+        if cs.spellName and st.castText then st.castText:SetText(cs.spellName) end
+      end
+      st.castHolder:SetShown(showing)
+    end
+    local function UpdateCustomBossResourceBars(st, unitToken)
+      if not st or not st.customHP or not st.customMP then return end
+      local function IsSecret(v)
+        return issecretvalue and issecretvalue(v) or false
+      end
+      local function SafeNum(v)
+        if type(v) ~= "number" then return nil end
+        if IsSecret(v) then return nil end
+        return v
+      end
+      local hpMaxRaw = UnitHealthMax(unitToken)
+      local hpCurRaw = UnitHealth(unitToken)
+      if IsSecret(hpMaxRaw) or IsSecret(hpCurRaw) then
+        if hpMaxRaw ~= nil then pcall(st.customHP.SetMinMaxValues, st.customHP, 0, hpMaxRaw) end
+        if hpCurRaw ~= nil then pcall(st.customHP.SetValue, st.customHP, hpCurRaw) end
+      else
+        local hpMax = SafeNum(hpMaxRaw) or 0
+        local hpCur = SafeNum(hpCurRaw) or 0
+        if hpMax <= 0 then hpMax = 1 end
+        if hpCur < 0 then hpCur = 0 end
+        if hpCur > hpMax then hpCur = hpMax end
+        st.customHP:SetMinMaxValues(0, hpMax)
+        st.customHP:SetValue(hpCur)
+      end
+      ApplyBossHealthColor(st.customHP, unitToken)
+      local pMaxRaw = UnitPowerMax(unitToken)
+      local pCurRaw = UnitPower(unitToken)
+      if IsSecret(pMaxRaw) or IsSecret(pCurRaw) then
+        if pMaxRaw ~= nil then pcall(st.customMP.SetMinMaxValues, st.customMP, 0, pMaxRaw) end
+        if pCurRaw ~= nil then pcall(st.customMP.SetValue, st.customMP, pCurRaw) end
+      else
+        local pMax = SafeNum(pMaxRaw) or 0
+        local pCur = SafeNum(pCurRaw) or 0
+        if pMax <= 0 then pMax = 1 end
+        if pCur < 0 then pCur = 0 end
+        if pCur > pMax then pCur = pMax end
+        st.customMP:SetMinMaxValues(0, pMax)
+        st.customMP:SetValue(pCur)
+      end
+      local pr, pg, pb = ResolveBossPowerColor(unitToken)
+      st.customMP:SetStatusBarColor(pr, pg, pb, 1)
+    end
+    ApplyBossHealthColor = function(bar, unitToken)
+      if not bar then return end
+      local r, g, b
+      if profile.ufClassColor == true and unitToken and UnitExists(unitToken) and UnitIsPlayer(unitToken) then
+        local _, classToken = UnitClass(unitToken)
+        local classColor = classToken and RAID_CLASS_COLORS and RAID_CLASS_COLORS[classToken]
+        if classColor then
+          r, g, b = classColor.r, classColor.g, classColor.b
+        end
+      end
+      if not r then
+        if unitToken and UnitExists(unitToken) then
+          if UnitIsFriend("player", unitToken) then
+            r, g, b = 0, 1, 0
+          elseif UnitCanAttack("player", unitToken) then
+            r, g, b = 1, 0.1, 0.1
+          else
+            r, g, b = 1, 1, 0
+          end
+        else
+          r, g, b = 1, 0.1, 0.1
+        end
+      end
+      bar:SetStatusBarColor(r, g, b, 1)
+      local tex = bar.GetStatusBarTexture and bar:GetStatusBarTexture()
+      if tex then tex:SetVertexColor(r, g, b, 1) end
+    end
+    for i = 1, 8 do
+      local frame = _G["Boss" .. i .. "TargetFrame"]
+      if frame then
+        list[#list + 1] = frame
+      end
+    end
+    for idx = 1, #list do
+      local frame = list[idx]
+      local st = orig.bossFrames[idx] or {}
+      orig.bossFrames[idx] = st
+      local main = frame.TargetFrameContent and frame.TargetFrameContent.TargetFrameContentMain
+      local hc = main and main.HealthBarsContainer
+      local hasHealthContainer = hc and hc.ClearAllPoints and hc.SetPoint
+      local hp = (hc and hc.HealthBar) or frame.healthbar
+      local mp = (main and main.ManaBar) or frame.manabar
+      local portrait = (main and main.Portrait) or frame.portrait
+      local nameFS = (main and main.Name) or frame.name
+      local levelFS = (main and main.LevelText) or frame.level
+      local frameTexture = frame.TargetFrameContainer and frame.TargetFrameContainer.FrameTexture
+      local frameContainer = frame.TargetFrameContainer
+      local spellbar = ResolveBossSpellBar(frame, idx)
+      if not st.saved then
+        st.saved = true
+        st.frameScale = frame.GetScale and frame:GetScale() or nil
+        st.frameWidth = frame.GetWidth and frame:GetWidth() or nil
+        st.frameHeight = frame.GetHeight and frame:GetHeight() or nil
+        st.framePoints = CollectPoints(frame)
+        if hp then
+          st.hpHeight = hp.GetHeight and hp:GetHeight() or nil
+          st.hpPoints = CollectPoints(hp)
+          st.hpTexture = hp.GetStatusBarTexture and hp:GetStatusBarTexture()
+        end
+        if hasHealthContainer then
+          st.hcPoints = CollectPoints(hc)
+          st.hcHeight = hc.GetHeight and hc:GetHeight() or nil
+        end
+        if mp then
+          st.mpHeight = mp.GetHeight and mp:GetHeight() or nil
+          st.mpPoints = CollectPoints(mp)
+          st.mpTexture = mp.GetStatusBarTexture and mp:GetStatusBarTexture()
+        end
+        if portrait then
+          st.portraitWidth = portrait.GetWidth and portrait:GetWidth() or nil
+          st.portraitHeight = portrait.GetHeight and portrait:GetHeight() or nil
+          st.portraitShown = portrait.IsShown and portrait:IsShown() or true
+        end
+        if nameFS then
+          st.namePoints = CollectPoints(nameFS)
+          if nameFS.GetFont then
+            st.nameFont, st.nameFontSize, st.nameFontFlags = nameFS:GetFont()
+          end
+        end
+        if levelFS then
+          st.levelPoints = CollectPoints(levelFS)
+          st.levelShown = levelFS.IsShown and levelFS:IsShown() or nil
+          if levelFS.GetFont then
+            st.levelFont, st.levelFontSize, st.levelFontFlags = levelFS:GetFont()
+          end
+        end
+        if frameTexture then
+          st.frameTextureAlpha = frameTexture.GetAlpha and frameTexture:GetAlpha() or nil
+        end
+        if spellbar then
+          st.spellbarShown = spellbar.IsShown and spellbar:IsShown() or nil
+          st.spellbarAlpha = spellbar.GetAlpha and spellbar:GetAlpha() or nil
+          if not st.spellbarHideHooked and spellbar.HookScript then
+            st.spellbarHideHooked = true
+            spellbar:HookScript("OnShow", function(sb)
+              local p = addonTable.GetProfile and addonTable.GetProfile()
+              if not p or p.enableUnitFrameCustomization == false or p.ufBossFramesEnabled ~= true then return end
+              if sb.SetAlpha then sb:SetAlpha(0) end
+              if sb.Hide then sb:Hide() end
+            end)
+          end
+        end
+      end
+      if enabled then
+        frame:ClearAllPoints()
+        if idx == 1 then
+          frame:SetPoint(anchor, UIParent, anchor, x, y)
+        else
+          local prev = list[idx - 1]
+          if string.find(anchor, "BOTTOM") then
+            frame:SetPoint("BOTTOM", prev, "TOP", 0, spacing)
+          else
+            frame:SetPoint("TOP", prev, "BOTTOM", 0, -spacing)
+          end
+        end
+        if frame.SetScale then frame:SetScale(scale) end
+        if frame.SetWidth then frame:SetWidth(width + 46) end
+        if frame.SetHeight then frame:SetHeight(healthH + powerH + 14) end
+        if frameTexture and frameTexture.SetAlpha then
+          frameTexture:SetAlpha(0)
+        end
+        -- Remove Blizzard default visuals (border/flash/status/castbar layers)
+        SaveAndHideVisual(st, frameTexture)
+        SaveAndHideVisual(st, frameContainer and frameContainer.Flash)
+        SaveAndHideVisual(st, frameContainer and frameContainer.FrameFlash)
+        SaveAndHideVisual(st, main and main.Flash)
+        SaveAndHideVisual(st, main and main.StatusTexture)
+        SaveAndHideVisual(st, main and main.AttentionIndicator)
+        SaveAndHideVisual(st, portrait and portrait.BossPortraitFrameTexture)
+        SaveAndHideVisual(st, hp and (hp.Border or hp.border))
+        SaveAndHideVisual(st, mp and (mp.Border or mp.border))
+        SaveAndHideVisual(st, spellbar)
+        SaveAndHideVisual(st, spellbar and spellbar.Border)
+        SaveAndHideVisual(st, spellbar and spellbar.Background)
+        SaveAndHideVisual(st, spellbar and spellbar.Icon)
+        SaveAndHideVisual(st, spellbar and spellbar.Spark)
+        SaveAndHideVisual(st, spellbar and spellbar.Flash)
+        SaveAndHideVisual(st, spellbar and spellbar.Shield)
+        SaveAndHideVisual(st, spellbar and spellbar.SafeZone)
+        SaveAndHideVisual(st, spellbar and spellbar.Text)
+        SaveAndHideVisual(st, spellbar and spellbar.Time)
+        SaveAndHideVisual(st, nameFS)
+        SaveAndHideVisual(st, levelFS)
+        HideAllRegions(st, frameContainer)
+        HideAllRegions(st, main)
+        HideAllRegions(st, hc)
+        HideAllRegions(st, hp)
+        HideAllRegions(st, mp)
+        HideAllRegions(st, spellbar)
+        if not st.skin then
+          st.skin = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+          st.skin:SetBackdrop({
+            bgFile = "Interface\\Buttons\\WHITE8x8",
+            edgeFile = "Interface\\Buttons\\WHITE8x8",
+            edgeSize = 1,
+          })
+        end
+        if st.skin then
+          st.skin:ClearAllPoints()
+          st.skin:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, 0)
+          st.skin:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", 0, 0)
+          st.skin:SetBackdropColor(0, 0, 0, 0)
+          st.skin:SetBackdropBorderColor(borderR, borderG, borderB, useBorder and 1 or 0)
+          st.skin:SetFrameStrata("BACKGROUND")
+          st.skin:SetFrameLevel(1)
+          st.skin:Show()
+        end
+        local hpLeftInset = hidePortrait and 5 or 43
+        if portrait and portrait.SetSize then
+          portrait:SetSize(healthH + powerH + 4, healthH + powerH + 4)
+          portrait:ClearAllPoints()
+          portrait:SetPoint("LEFT", frame, "LEFT", 3, 0)
+          portrait:SetShown(not hidePortrait)
+        end
+        -- Hide Blizzard resource bars completely (keep only as data source)
+        SaveAndHideVisual(st, hc)
+        SaveAndHideVisual(st, hp)
+        SaveAndHideVisual(st, hp and (hp.Background or hp.background))
+        SaveAndHideVisual(st, hp and hp.AnimatedLossBar)
+        SaveAndHideVisual(st, mp)
+        SaveAndHideVisual(st, mp and (mp.Background or mp.background))
+        if not st.customBarsHolder then
+          st.customBarsHolder = CreateFrame("Frame", nil, frame)
+          st.customBarsHolder:SetFrameStrata("MEDIUM")
+          st.customBarsHolder:SetFrameLevel((frame.GetFrameLevel and frame:GetFrameLevel() or 1) + 1)
+          st.customHPBg = CreateFrame("StatusBar", nil, st.customBarsHolder)
+          st.customHPBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+          st.customHPBg:SetStatusBarColor(0, 0, 0, 0.45)
+          st.customHP = CreateFrame("StatusBar", nil, st.customBarsHolder)
+          st.customHP:SetStatusBarTexture(bossBarTexturePath)
+          st.customMPBg = CreateFrame("StatusBar", nil, st.customBarsHolder)
+          st.customMPBg:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+          st.customMPBg:SetStatusBarColor(0, 0, 0, 0.45)
+          st.customMP = CreateFrame("StatusBar", nil, st.customBarsHolder)
+          st.customMP:SetStatusBarTexture(bossBarTexturePath)
+        end
+        if st.customBarsHolder and st.customHP and st.customMP and st.customHPBg and st.customMPBg then
+          st.customBarsHolder:ClearAllPoints()
+          st.customBarsHolder:SetPoint("TOPLEFT", frame, "TOPLEFT", hpLeftInset, -4)
+          st.customBarsHolder:SetPoint("TOPRIGHT", frame, "TOPRIGHT", -5, -4)
+          st.customBarsHolder:SetHeight(healthH + powerH + 2)
+          pcall(st.customHP.SetStatusBarTexture, st.customHP, bossBarTexturePath)
+          pcall(st.customMP.SetStatusBarTexture, st.customMP, bossBarTexturePath)
+          st.customHPBg:ClearAllPoints()
+          st.customHPBg:SetPoint("TOPLEFT", st.customBarsHolder, "TOPLEFT", 0, 0)
+          st.customHPBg:SetPoint("TOPRIGHT", st.customBarsHolder, "TOPRIGHT", 0, 0)
+          st.customHPBg:SetHeight(healthH)
+          st.customHPBg:SetMinMaxValues(0, 1)
+          st.customHPBg:SetValue(1)
+          st.customHP:ClearAllPoints()
+          st.customHP:SetPoint("TOPLEFT", st.customBarsHolder, "TOPLEFT", 0, 0)
+          st.customHP:SetPoint("TOPRIGHT", st.customBarsHolder, "TOPRIGHT", 0, 0)
+          st.customHP:SetHeight(healthH)
+          st.customMPBg:ClearAllPoints()
+          st.customMPBg:SetPoint("TOPLEFT", st.customHP, "BOTTOMLEFT", 0, -2)
+          st.customMPBg:SetPoint("TOPRIGHT", st.customHP, "BOTTOMRIGHT", 0, -2)
+          st.customMPBg:SetHeight(powerH)
+          st.customMPBg:SetMinMaxValues(0, 1)
+          st.customMPBg:SetValue(1)
+          st.customMP:ClearAllPoints()
+          st.customMP:SetPoint("TOPLEFT", st.customHP, "BOTTOMLEFT", 0, -2)
+          st.customMP:SetPoint("TOPRIGHT", st.customHP, "BOTTOMRIGHT", 0, -2)
+          st.customMP:SetHeight(powerH)
+          st._resAccum = st._resAccum or 0
+          st.customBarsHolder:SetScript("OnUpdate", function(_, elapsed)
+            st._resAccum = st._resAccum + (elapsed or 0)
+            if st._resAccum < 0.05 then return end
+            st._resAccum = 0
+            UpdateCustomBossResourceBars(st, "boss" .. idx)
+          end)
+          UpdateCustomBossResourceBars(st, "boss" .. idx)
+          st.customBarsHolder:Show()
+        end
+        if not st.customName then
+          st.customName = frame:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+          st.customName:SetJustifyH("LEFT")
+        end
+        if not st.customLevel then
+          st.customLevel = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+          st.customLevel:SetJustifyH("RIGHT")
+        end
+        if st.customName and st.customHP then
+          st.customName:ClearAllPoints()
+          st.customName:SetPoint("LEFT", st.customHP, "LEFT", 4, 0)
+          st.customName:SetTextColor(nameR, nameG, nameB)
+        end
+        if st.customLevel and st.customHP then
+          st.customLevel:ClearAllPoints()
+          st.customLevel:SetPoint("RIGHT", st.customHP, "RIGHT", -4, 0)
+          st.customLevel:SetTextColor(nameR, nameG, nameB)
+          st.customLevel:SetShown(showLevel)
+        end
+        if not st.castHolder then
+          st.castHolder = CreateFrame("Frame", nil, frame, "BackdropTemplate")
+          st.castHolder:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+          st.castHolder:SetBackdropColor(0.06, 0.06, 0.08, 0.92)
+          st.castHolder:SetBackdropBorderColor(borderR, borderG, borderB, 1)
+          st.castHolder:SetFrameStrata("MEDIUM")
+          st.castHolder:SetFrameLevel((frame.GetFrameLevel and frame:GetFrameLevel() or 1) + 2)
+          st.castBar = CreateFrame("StatusBar", nil, st.castHolder)
+          st.castBar:SetStatusBarTexture("Interface\\Buttons\\WHITE8x8")
+          st.castBar:SetMinMaxValues(0, 1)
+          st.castBar:SetValue(0.5)
+          st.castBg = st.castBar:CreateTexture(nil, "BACKGROUND")
+          st.castBg:SetAllPoints(st.castBar)
+          st.castBg:SetTexture("Interface\\Buttons\\WHITE8x8")
+          st.castBg:SetVertexColor(0, 0, 0, 0.45)
+          st.castText = st.castHolder:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+          st.castText:SetPoint("LEFT", st.castBar, "LEFT", 4, 0)
+          st.castText:SetJustifyH("LEFT")
+          st.castTime = st.castHolder:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+          st.castTime:SetPoint("RIGHT", st.castBar, "RIGHT", -4, 0)
+          st.castTime:SetJustifyH("RIGHT")
+        end
+        if st.castHolder and st.castBar then
+          local castLeftInset = hidePortrait and 5 or 43
+          st.castHolder:ClearAllPoints()
+          st.castHolder:SetPoint("TOPLEFT", frame, "BOTTOMLEFT", castLeftInset, -2)
+          st.castHolder:SetSize(width - 2, 12)
+          st.castBar:ClearAllPoints()
+          st.castBar:SetPoint("TOPLEFT", st.castHolder, "TOPLEFT", 1, -1)
+          st.castBar:SetPoint("BOTTOMRIGHT", st.castHolder, "BOTTOMRIGHT", -1, 1)
+          pcall(st.castBar.SetStatusBarTexture, st.castBar, bossBarTexturePath)
+          local blzCastFS = math.max(6, math.floor(10 * blizzCastTextScale + 0.5))
+          if st.castText and st.castText.SetFont then
+            pcall(st.castText.SetFont, st.castText, addonTable.GetGlobalFont and select(1, addonTable.GetGlobalFont()) or "Fonts\\FRIZQT__.TTF", blzCastFS, addonTable.GetGlobalFont and select(2, addonTable.GetGlobalFont()) or "")
+          end
+          if st.castTime and st.castTime.SetFont then
+            pcall(st.castTime.SetFont, st.castTime, addonTable.GetGlobalFont and select(1, addonTable.GetGlobalFont()) or "Fonts\\FRIZQT__.TTF", blzCastFS, addonTable.GetGlobalFont and select(2, addonTable.GetGlobalFont()) or "")
+          end
+          if st.customName and st.customName.SetFont then
+            pcall(st.customName.SetFont, st.customName, addonTable.GetGlobalFont and select(1, addonTable.GetGlobalFont()) or "Fonts\\FRIZQT__.TTF", 11, addonTable.GetGlobalFont and select(2, addonTable.GetGlobalFont()) or "")
+          end
+          if st.customLevel and st.customLevel.SetFont then
+            pcall(st.customLevel.SetFont, st.customLevel, addonTable.GetGlobalFont and select(1, addonTable.GetGlobalFont()) or "Fonts\\FRIZQT__.TTF", 10, addonTable.GetGlobalFont and select(2, addonTable.GetGlobalFont()) or "")
+          end
+          st.castHolder:SetBackdropColor(0, 0, 0, 0)
+          st.castHolder:SetBackdropBorderColor(borderR, borderG, borderB, useBorder and 1 or 0)
+          st._castAccum = st._castAccum or 0
+          if not st._castUpdateFrame then
+            st._castUpdateFrame = CreateFrame("Frame")
+          end
+          st._castUpdateFrame:SetScript("OnUpdate", function(_, elapsed)
+            st._castAccum = st._castAccum + (elapsed or 0)
+            if st._castAccum < 0.03 then return end
+            st._castAccum = 0
+            UpdateCustomBossCastbar(st, "boss" .. idx)
+          end)
+          st._castUpdateFrame:Show()
+          if st.customName then
+            local n = UnitName("boss" .. idx)
+            st.customName:SetText(n or ("Boss " .. idx))
+            st.customName:Show()
+          end
+          if st.customLevel then
+            local lv = UnitLevel("boss" .. idx)
+            if type(lv) == "number" and lv > 0 then
+              st.customLevel:SetText(lv)
+            else
+              st.customLevel:SetText("??")
+            end
+            st.customLevel:SetShown(showLevel)
+          end
+          UpdateCustomBossCastbar(st, "boss" .. idx)
+        end
+      else
+        if st.skin and st.skin.Hide then st.skin:Hide() end
+        if st.customBarsHolder then
+          st.customBarsHolder:SetScript("OnUpdate", nil)
+          st.customBarsHolder:Hide()
+        end
+        if st._castUpdateFrame then
+          st._castUpdateFrame:SetScript("OnUpdate", nil)
+          st._castUpdateFrame:Hide()
+        end
+        if st.castHolder then
+          st.castHolder:Hide()
+        end
+        if st.customName then st.customName:Hide() end
+        if st.customLevel then st.customLevel:Hide() end
+        RestoreHiddenVisuals(st)
+        if spellbar then
+          if st.spellbarAlpha ~= nil and spellbar.SetAlpha then spellbar:SetAlpha(st.spellbarAlpha) end
+          if st.spellbarShown == true and spellbar.Show then spellbar:Show() end
+        end
+        if frameTexture and frameTexture.SetAlpha and st.frameTextureAlpha ~= nil then
+          frameTexture:SetAlpha(st.frameTextureAlpha)
+        end
+        if frame.SetScale and st.frameScale then frame:SetScale(st.frameScale) end
+        if frame.SetWidth and st.frameWidth then frame:SetWidth(st.frameWidth) end
+        if frame.SetHeight and st.frameHeight then frame:SetHeight(st.frameHeight) end
+        RestorePoints(frame, st.framePoints)
+        if hasHealthContainer then
+          if st.hcHeight and hc.SetHeight then hc:SetHeight(st.hcHeight) end
+          RestorePoints(hc, st.hcPoints)
+        end
+        if hp then
+          if st.hpHeight and hp.SetHeight then hp:SetHeight(st.hpHeight) end
+          RestorePoints(hp, st.hpPoints)
+          if st.hpTexture and hp.SetStatusBarTexture then pcall(hp.SetStatusBarTexture, hp, st.hpTexture) end
+          local hpLoss = hp.AnimatedLossBar
+          if hpLoss then
+            if hpLoss.SetAlpha then hpLoss:SetAlpha(1) end
+            if hpLoss.Show then hpLoss:Show() end
+          end
+        end
+        if mp then
+          if st.mpHeight and mp.SetHeight then mp:SetHeight(st.mpHeight) end
+          RestorePoints(mp, st.mpPoints)
+          if st.mpTexture and mp.SetStatusBarTexture then pcall(mp.SetStatusBarTexture, mp, st.mpTexture) end
+        end
+        if portrait and portrait.SetSize and st.portraitWidth and st.portraitHeight then
+          portrait:SetSize(st.portraitWidth, st.portraitHeight)
+          if st.portraitShown ~= nil then
+            portrait:SetShown(st.portraitShown)
+          else
+            portrait:Show()
+          end
+        end
+        if nameFS then
+          RestorePoints(nameFS, st.namePoints)
+          if st.nameFont and st.nameFontSize and nameFS.SetFont then
+            pcall(nameFS.SetFont, nameFS, st.nameFont, st.nameFontSize, st.nameFontFlags or "")
+          end
+        end
+        if levelFS then
+          RestorePoints(levelFS, st.levelPoints)
+          if st.levelShown ~= nil then levelFS:SetShown(st.levelShown) end
+          if st.levelFont and st.levelFontSize and levelFS.SetFont then
+            pcall(levelFS.SetFont, levelFS, st.levelFont, st.levelFontSize, st.levelFontFlags or "")
+          end
+        end
+      end
+    end
+    end
+  end
   local function ResolveUnitHealthColor(unitToken, useClassColor)
     local r, g, b
     if useClassColor and unitToken and UnitExists(unitToken) and UnitIsPlayer(unitToken) then
@@ -266,19 +1577,6 @@ addonTable.ApplyUnitFrameCustomization = function()
       tex:SetAlpha(1)
       tex:SetVertexColor(r, g, b, 1)
     end
-  end
-  local function GetStatusBarUnitToken(statusBar, fallbackUnit)
-    if type(fallbackUnit) == "string" and fallbackUnit ~= "" then
-      return fallbackUnit
-    end
-    if statusBar and type(statusBar.unit) == "string" and statusBar.unit ~= "" then
-      return statusBar.unit
-    end
-    local uf = statusBar and statusBar.unitFrame
-    if uf and type(uf.unit) == "string" and uf.unit ~= "" then
-      return uf.unit
-    end
-    return nil
   end
   local function ApplyTargetFocusHealthCustomization(frame, unitToken)
     if not frame then return end
@@ -1019,14 +2317,32 @@ addonTable.ApplyUnitFrameCustomization = function()
   local function ApplyUFBigHBNameTransforms(name, unitToken, prof)
     if type(name) ~= "string" or name == "" then return name end
     if not prof then return name end
-    if unitToken ~= "target" and unitToken ~= "focus" then return name end
-    if prof.ufBigHBHideRealm then
+    local unitHideRealmKey = (unitToken == "player" and "ufBigHBPlayerHideRealm")
+      or (unitToken == "target" and "ufBigHBTargetHideRealm")
+      or (unitToken == "focus" and "ufBigHBFocusHideRealm")
+    local hideRealm = false
+    if unitHideRealmKey then
+      hideRealm = (prof[unitHideRealmKey] == true) or (prof.ufBigHBHideRealm == true)
+    end
+    if hideRealm then
       local dashPos = name:find("-")
       if dashPos then
         name = name:sub(1, dashPos - 1)
       end
     end
     return name
+  end
+  ApplyBossFrameCustomization()
+  local function GetUFBigHBNameMaxChars(prof, unitToken)
+    if type(prof) ~= "table" then return 0 end
+    local unitMaxKey = (unitToken == "player" and "ufBigHBPlayerNameMaxChars")
+      or (unitToken == "target" and "ufBigHBTargetNameMaxChars")
+      or (unitToken == "focus" and "ufBigHBFocusNameMaxChars")
+    local maxChars = unitMaxKey and tonumber(prof[unitMaxKey]) or nil
+    if maxChars == nil then
+      maxChars = tonumber(prof.ufBigHBNameMaxChars) or 0
+    end
+    return maxChars
   end
   local function GetSafeDmgAbsorbBoundsFromBar(srcBar, hpLeftBound, hpRightBound, hpWidthBound)
     if not srcBar then return nil, nil, nil end
@@ -1272,109 +2588,6 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
       return overPx and overPx > 0
     end
-    local function ShowDmgAbsorb(dmgAbsorbPx, fillRatio)
-      if not dmgAbsorbPx or dmgAbsorbPx < 1 then
-        HideDmgAbsorb(true)
-        return
-      end
-      local statusTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or nil
-      local ratio = Clamp01(fillRatio)
-      local healOff2 = o.healPredTotalPx or 0
-      local remainingVis = nil
-      if statusTex and statusTex.GetWidth then
-        local texW = SafeNumeric(statusTex:GetWidth())
-        if texW and w then
-          remainingVis = w - texW - healOff2
-        end
-      end
-      if remainingVis == nil then
-        remainingVis = visW * (1 - ratio) - healOff2
-      end
-      if remainingVis < 0 then remainingVis = 0 end
-      if remainingVis <= 1 then
-        HideDmgAbsorb(true)
-        return
-      end
-      if dmgAbsorbPx > remainingVis then dmgAbsorbPx = remainingVis end
-      if dmgAbsorbPx < 1 then
-        HideDmgAbsorb(true)
-        return
-      end
-      o.dmgAbsorbFrame:ClearAllPoints()
-      if statusTex then
-        local capRightRef = o.healthFrame
-        if o.bgFrame and o.bgFrame.GetRight and o.healthFrame.GetRight then
-          local bgRight = SafeNumeric(o.bgFrame:GetRight())
-          local hpRight = SafeNumeric(o.healthFrame:GetRight())
-          if bgRight and hpRight and bgRight < hpRight then
-            capRightRef = o.bgFrame
-          end
-        end
-        local hardCap = nil
-        if statusTex.GetRight and capRightRef.GetRight then
-          local leftEdge = SafeNumeric(statusTex:GetRight())
-          local rightEdge = SafeNumeric(capRightRef:GetRight())
-          if leftEdge and rightEdge then
-            hardCap = rightEdge - leftEdge - healOff2
-          end
-        end
-        if not hardCap or hardCap <= 0 then
-          hardCap = remainingVis
-        end
-        if not hardCap or hardCap <= 1 then
-          HideDmgAbsorb(true)
-          return
-        end
-        if dmgAbsorbPx > hardCap then dmgAbsorbPx = hardCap end
-        if dmgAbsorbPx < 1 then
-          HideDmgAbsorb(true)
-          return
-        end
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", statusTex, "TOPRIGHT", healOff2, 0)
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", statusTex, "BOTTOMRIGHT", healOff2, 0)
-        o.dmgAbsorbFrame:SetSize(hardCap, h)
-        o.dmgAbsorbFrame:SetMinMaxValues(0, hardCap)
-        o.dmgAbsorbFrame:SetValue(dmgAbsorbPx)
-      else
-        local offsetPx = visW * ratio + healOff2
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "TOPLEFT", o.healthFrame, "TOPLEFT", offsetPx, 0)
-        PixelUtil.SetPoint(o.dmgAbsorbFrame, "BOTTOMLEFT", o.healthFrame, "BOTTOMLEFT", offsetPx, 0)
-        o.dmgAbsorbFrame:SetSize(math.max(1, remainingVis), h)
-        o.dmgAbsorbFrame:SetMinMaxValues(0, math.max(1, remainingVis))
-        o.dmgAbsorbFrame:SetValue(dmgAbsorbPx)
-      end
-      if o.dmgAbsorbFrame.SetReverseFill then o.dmgAbsorbFrame:SetReverseFill(false) end
-      o.dmgAbsorbFrame:Show()
-      if o.fullDmgAbsorbFrame then o.fullDmgAbsorbFrame:Hide() end
-    end
-    local function ShowFullDmgAbsorb(dmgAbsorbPx)
-      if not o.fullDmgAbsorbFrame or not o.fullDmgAbsorbTex then
-        return false
-      end
-      if not dmgAbsorbPx or dmgAbsorbPx < 1 then
-        o.fullDmgAbsorbFrame:Hide()
-        return false
-      end
-      local maxW = visW
-      if maxW <= 1 then
-        o.fullDmgAbsorbFrame:Hide()
-        return false
-      end
-      if dmgAbsorbPx > maxW then dmgAbsorbPx = maxW end
-      o.fullDmgAbsorbFrame:ClearAllPoints()
-      o.fullDmgAbsorbFrame:SetPoint("TOPRIGHT", o.healthFrame, "TOPRIGHT", 0, 0)
-      o.fullDmgAbsorbFrame:SetPoint("BOTTOMRIGHT", o.healthFrame, "BOTTOMRIGHT", 0, 0)
-      o.fullDmgAbsorbFrame:SetWidth(dmgAbsorbPx)
-      if o.fullDmgAbsorbTex.SetTexCoord then
-        local left = 1 - (dmgAbsorbPx / maxW)
-        if left < 0 then left = 0 end
-        if left > 1 then left = 1 end
-        o.fullDmgAbsorbTex:SetTexCoord(left, 1, 0, 1)
-      end
-      o.fullDmgAbsorbFrame:Show()
-      if o.dmgAbsorbFrame then o.dmgAbsorbFrame:Hide() end
-      return true
-    end
     local function ShowDmgAbsorbFromBarValues(srcDmgAbsorbBar)
       if not srcDmgAbsorbBar or not srcDmgAbsorbBar.GetMinMaxValues or not srcDmgAbsorbBar.GetValue then return false end
       local okMM, minV, maxV = pcall(srcDmgAbsorbBar.GetMinMaxValues, srcDmgAbsorbBar)
@@ -1461,7 +2674,7 @@ addonTable.ApplyUnitFrameCustomization = function()
       if (not dmgAbsorbW or dmgAbsorbW <= 0) and srcDmgAbsorbBar.GetStatusBarTexture then
         local tex = srcDmgAbsorbBar:GetStatusBarTexture()
         if tex and tex.GetTexCoord then
-          local ulx, uly, llx, lly, urx, ury, lrx, lry = tex:GetTexCoord()
+          local ulx, _, llx, _, urx, _, lrx = tex:GetTexCoord()
           if type(ulx) == "number" and type(llx) == "number" and type(urx) == "number" and type(lrx) == "number" then
             local minx = math.min(ulx, llx, urx, lrx)
             local maxx = math.max(ulx, llx, urx, lrx)
@@ -1803,7 +3016,7 @@ addonTable.ApplyUnitFrameCustomization = function()
     local statusTex = o.healthFrame.GetStatusBarTexture and o.healthFrame:GetStatusBarTexture() or nil
     local maxHealthRaw = nil
     if o.origHP.GetMinMaxValues then
-      local okMM, minV, maxV = pcall(o.origHP.GetMinMaxValues, o.origHP)
+      local okMM, _, maxV = pcall(o.origHP.GetMinMaxValues, o.origHP)
       if okMM and maxV ~= nil then maxHealthRaw = maxV end
     end
     if maxHealthRaw == nil and UnitHealthMax then
@@ -3127,7 +4340,9 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
       end
     end
-    local maxNameChars = tonumber(profile.ufBigHBNameMaxChars) or 0
+    local targetMaxNameChars = GetUFBigHBNameMaxChars(profile, "target")
+    local focusMaxNameChars = GetUFBigHBNameMaxChars(profile, "focus")
+    local playerMaxNameChars = GetUFBigHBNameMaxChars(profile, "player")
     local function ApplyConsistentFontShadow(fontString, outlineFlag)
       if not fontString then return end
       local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
@@ -3271,7 +4486,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor then
             nameEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
-          local targetName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("target"), "target", profile), maxNameChars)
+          local targetName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("target"), "target", profile), targetMaxNameChars)
           if targetName and nameEl.SetText then nameEl:SetText(targetName) end
           ApplyUFBigHBScaledFont(nameEl, o.targetNameFont, o.targetNameFontSize, o.targetNameFontFlags, profile.ufBigHBTargetNameTextScale or profile.ufBigHBTargetTextScale)
         end
@@ -3282,7 +4497,7 @@ addonTable.ApplyUnitFrameCustomization = function()
             pcall(function()
               local p = addonTable.GetProfile and addonTable.GetProfile()
               if not p or p.ufBigHBHideTargetName then return end
-              local mc = tonumber(p.ufBigHBNameMaxChars) or 0
+              local mc = GetUFBigHBNameMaxChars(p, "target")
               if mc <= 0 then return end
               local rawName = UnitName("target")
               if not rawName or rawName == "" then return end
@@ -3408,7 +4623,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor then
             nameEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
-          local focusName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("focus"), "focus", profile), maxNameChars)
+          local focusName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("focus"), "focus", profile), focusMaxNameChars)
           if focusName and nameEl.SetText then nameEl:SetText(focusName) end
           ApplyUFBigHBScaledFont(nameEl, o.nameOrigFont, o.nameOrigFontSize, o.nameOrigFontFlags, profile.ufBigHBFocusNameTextScale or profile.ufBigHBFocusTextScale)
         end
@@ -3419,7 +4634,7 @@ addonTable.ApplyUnitFrameCustomization = function()
             pcall(function()
               local p = addonTable.GetProfile and addonTable.GetProfile()
               if not p or p.ufBigHBHideFocusName then return end
-              local mc = tonumber(p.ufBigHBNameMaxChars) or 0
+              local mc = GetUFBigHBNameMaxChars(p, "focus")
               if mc <= 0 then return end
               local rawName = UnitName("focus")
               if not rawName or rawName == "" then return end
@@ -3548,7 +4763,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor then
             nameEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
-          local playerName = TrimUFBigHBName(GetUFBigHBUnitName("player"), maxNameChars)
+          local playerName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("player"), "player", profile), playerMaxNameChars)
           if playerName and nameEl.SetText then nameEl:SetText(playerName) end
           ApplyUFBigHBScaledFont(nameEl, o.nameOrigFont, o.nameOrigFontSize, o.nameOrigFontFlags, profile.ufBigHBPlayerNameTextScale or profile.ufBigHBPlayerTextScale)
         end
@@ -3667,19 +4882,23 @@ addonTable.ApplyUnitFrameCustomization = function()
       end)
     end
   end
+  if not orig.bossFrameUpdateHooked and type(hooksecurefunc) == "function" and type(BossTargetFrame_Update) == "function" then
+    orig.bossFrameUpdateHooked = true
+    hooksecurefunc("BossTargetFrame_Update", function()
+      local p = addonTable.GetProfile and addonTable.GetProfile()
+      if not p or p.enableUnitFrameCustomization == false or p.ufBossFramesEnabled ~= true then return end
+      if not C_Timer or not C_Timer.After then return end
+      if State.ufBossDeferredApply then return end
+      State.ufBossDeferredApply = true
+      C_Timer.After(0, function()
+        State.ufBossDeferredApply = false
+        if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
+      end)
+    end)
+  end
   if not orig.ufFontHooked then
     orig.ufFontHooked = true
     orig.ufFontObjects = orig.ufFontObjects or {}
-    local function GetOrCreateFontObject(size)
-      local key = math.floor(size + 0.5)
-      if not orig.ufFontObjects[key] then
-        orig.ufFontObjects[key] = CreateFont("CCM_UFFont_" .. key)
-      end
-      local gf, go = GetGlobalFont()
-      local oFlag = go or ""
-      orig.ufFontObjects[key]:SetFont(gf, key, oFlag)
-      return orig.ufFontObjects[key]
-    end
     local function ApplyGlobalFontToUFs()
       local ufProf = addonTable.GetProfile and addonTable.GetProfile()
       if not ufProf or ufProf.enableUnitFrameCustomization == false then return end
@@ -3725,6 +4944,10 @@ addonTable.ApplyUnitFrameCustomization = function()
       end
       afsUnit(TargetFrame)
       afsUnit(FocusFrame)
+      for i = 1, 8 do
+        local bf = _G["Boss" .. i .. "TargetFrame"]
+        if bf then afsUnit(bf) end
+      end
       local prof = addonTable.GetProfile and addonTable.GetProfile()
       if prof and prof.ufUseCustomNameColor == true then
         local nr = prof.ufNameColorR or 1

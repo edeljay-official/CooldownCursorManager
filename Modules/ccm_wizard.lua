@@ -227,6 +227,7 @@ local WizardState = {
   ufUseBiggerHealthbars = true,
   ufAbsorbTracking = true,
   ufClassColor = true,
+  ufBossFrames = false,
   enableCustomBars = true,
   customBarsCount = 1,
   useSpellGlows = false,
@@ -271,6 +272,7 @@ local function PopulateStateFromProfile()
     (p.ufBigHBFocusHealAbsorb or "off") ~= "off" or
     (p.ufBigHBFocusDmgAbsorb or "off") ~= "off"
   WizardState.ufClassColor = p.ufClassColor == true
+  WizardState.ufBossFrames = p.ufBossFramesEnabled == true
   WizardState.customBarsCount = math.max(0, math.min(5, tonumber(p.customBarsCount) or 1))
   WizardState.enableCustomBars = WizardState.customBarsCount > 0
   WizardState.useSpellGlows = p.useSpellGlows == true
@@ -326,6 +328,7 @@ local function ApplyWizardToProfile()
   p.ufBigHBPlayerEnabled = WizardState.ufUseBiggerHealthbars == true
   p.ufBigHBTargetEnabled = WizardState.ufUseBiggerHealthbars == true
   p.ufBigHBFocusEnabled = WizardState.ufUseBiggerHealthbars == true
+  p.ufBossFramesEnabled = WizardState.ufBossFrames == true
   if WizardState.ufAbsorbTracking == true then
     p.ufBigHBPlayerHealAbsorb = "on"
     p.ufBigHBPlayerDmgAbsorb = "bar_glow"
@@ -396,7 +399,7 @@ local function ApplyWizardToProfile()
 
   if CooldownCursorManagerDB then
     CooldownCursorManagerDB.wizardCompleted = true
-    CooldownCursorManagerDB.wizardCompletedVersion = "7.1.0"
+    CooldownCursorManagerDB.wizardCompletedVersion = "7.3.1"
   end
 
   if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
@@ -535,7 +538,7 @@ local function BuildStep1(parent)
   local h3 = AddHeader(b2, "Combat UI", -18)
   local b3 = AddBody(h3, table.concat({
     "- Castbars: Custom player/focus/target castbars.",
-    "- Unit Frames: Bigger healthbars, absorbs, class color options.",
+    "- Unit Frames: Bigger healthbars, absorbs, class color, boss frames.",
     "- Combat widgets: Combat timer, CR timer, combat status, self highlight.",
   }, "\n"))
 
@@ -641,17 +644,17 @@ local function BuildStep2(parent)
     return cb
   end
 
-  local leftHead1 = AddHeader(COL1_X, -6, "Cooldown Tracking")
-  local rightHead1 = AddHeader(COL2_X, -6, "Castbars")
+  AddHeader(COL1_X, -6, "Cooldown Tracking")
+  AddHeader(COL2_X, -6, "Castbars")
 
-  local c1 = AddOptionAt(COL1_X, -32, "Use Cursor CDM", function() return WizardState.cursorIconsEnabled end, function(v) WizardState.cursorIconsEnabled = v end)
+  AddOptionAt(COL1_X, -32, "Use Cursor CDM", function() return WizardState.cursorIconsEnabled end, function(v) WizardState.cursorIconsEnabled = v end)
   local c2 = AddOptionAt(COL1_X, -60, "Use Blizz CDM", function() return WizardState.useBlizzCDM end, function(v) WizardState.useBlizzCDM = v end)
   local c2a = AddOptionAt(COL1_X + SUB_INDENT, -88, "Blizz CDM: Skin standalone bars", function() return WizardState.blizzSkinning end, function(v) WizardState.blizzSkinning = v end)
   local c2b = AddOptionAt(COL1_X + SUB_INDENT, -116, "Blizz CDM: Center standalone bars", function() return WizardState.blizzCentered end, function(v) WizardState.blizzCentered = v end)
 
-  local c4 = AddOptionAt(COL2_X, -32, "Use Custom Castbar", function() return WizardState.useCastbar end, function(v) WizardState.useCastbar = v end)
-  local c5 = AddOptionAt(COL2_X, -60, "Use Focus Castbar", function() return WizardState.useFocusCastbar end, function(v) WizardState.useFocusCastbar = v end)
-  local c6 = AddOptionAt(COL2_X, -88, "Use Target Castbar", function() return WizardState.useTargetCastbar end, function(v) WizardState.useTargetCastbar = v end)
+  AddOptionAt(COL2_X, -32, "Use Custom Castbar", function() return WizardState.useCastbar end, function(v) WizardState.useCastbar = v end)
+  AddOptionAt(COL2_X, -60, "Use Focus Castbar", function() return WizardState.useFocusCastbar end, function(v) WizardState.useFocusCastbar = v end)
+  AddOptionAt(COL2_X, -88, "Use Target Castbar", function() return WizardState.useTargetCastbar end, function(v) WizardState.useTargetCastbar = v end)
 
   local function UpdateBlizzSubOptions()
     local enabled = WizardState.useBlizzCDM == true
@@ -666,20 +669,21 @@ local function BuildStep2(parent)
   end
   UpdateBlizzSubOptions()
 
-  local leftHead2 = AddHeader(COL1_X, -170, "Resources")
-  local rightHead2 = AddHeader(COL2_X, -170, "Unit Frames")
+  AddHeader(COL1_X, -170, "Resources")
+  AddHeader(COL2_X, -170, "Unit Frames")
 
   local c3 = AddOptionAt(COL1_X, -196, "Enable Custom Bars", function() return WizardState.enableCustomBars end, function(v) WizardState.enableCustomBars = v end)
   local c3b = AddOptionAt(COL1_X, -224, "Use Personal Resource Bar", function() return WizardState.usePersonalResourceBar end, function(v) WizardState.usePersonalResourceBar = v end)
   local c3c = AddOptionAt(COL1_X + SUB_INDENT, -252, "PRB: Show Health", function() return WizardState.prbShowHealth end, function(v) WizardState.prbShowHealth = v end)
   local c3d = AddOptionAt(COL1_X + SUB_INDENT, -280, "PRB: Show Power", function() return WizardState.prbShowPower end, function(v) WizardState.prbShowPower = v end)
   local c3e = AddOptionAt(COL1_X + SUB_INDENT, -308, "PRB: Show Class Power", function() return WizardState.prbShowClassPower end, function(v) WizardState.prbShowClassPower = v end)
-  local c7 = AddOptionAt(COL1_X, -336, "Enable Player Debuffs", function() return WizardState.enablePlayerDebuffs end, function(v) WizardState.enablePlayerDebuffs = v end)
+  AddOptionAt(COL1_X, -336, "Enable Player Debuffs", function() return WizardState.enablePlayerDebuffs end, function(v) WizardState.enablePlayerDebuffs = v end)
 
   local c8 = AddOptionAt(COL2_X, -196, "Enable Unit Frame Customization", function() return WizardState.enableUnitFrameCustomization end, function(v) WizardState.enableUnitFrameCustomization = v end)
   local c8a = AddOptionAt(COL2_X + SUB_INDENT, -224, "UF: Use Bigger Healthbars (Player/Target/Focus)", function() return WizardState.ufUseBiggerHealthbars end, function(v) WizardState.ufUseBiggerHealthbars = v end)
   local c8b = AddOptionAt(COL2_X + SUB_INDENT, -252, "UF: Absorb Tracking", function() return WizardState.ufAbsorbTracking end, function(v) WizardState.ufAbsorbTracking = v end)
   local c8c = AddOptionAt(COL2_X + SUB_INDENT, -280, "UF: Use Class Color", function() return WizardState.ufClassColor end, function(v) WizardState.ufClassColor = v end)
+  local c8d = AddOptionAt(COL2_X + SUB_INDENT, -308, "UF: Boss Frames", function() return WizardState.ufBossFrames end, function(v) WizardState.ufBossFrames = v end)
 
   local function UpdateUFSubOptions()
     local ufEnabled = WizardState.enableUnitFrameCustomization == true
@@ -687,9 +691,11 @@ local function BuildStep2(parent)
     c8a:SetEnabled(ufEnabled)
     c8b:SetEnabled(ufEnabled and biggerHB)
     c8c:SetEnabled(ufEnabled)
+    c8d:SetEnabled(ufEnabled)
     c8a:SetAlpha(ufEnabled and 1 or 0.45)
     c8b:SetAlpha((ufEnabled and biggerHB) and 1 or 0.45)
     c8c:SetAlpha(ufEnabled and 1 or 0.45)
+    c8d:SetAlpha(ufEnabled and 1 or 0.45)
   end
   c8.customOnClick = function(self)
     WizardState.enableUnitFrameCustomization = self:GetChecked() == true
@@ -914,6 +920,7 @@ local function BuildReviewSummaryText()
     lines[#lines + 1] = string.format("- UF Bigger Healthbars: %s", onoff(WizardState.ufUseBiggerHealthbars))
     lines[#lines + 1] = string.format("- UF Absorb Tracking: %s", onoff(WizardState.ufAbsorbTracking))
     lines[#lines + 1] = string.format("- UF Class Color: %s", onoff(WizardState.ufClassColor))
+    lines[#lines + 1] = string.format("- UF Boss Frames: %s", onoff(WizardState.ufBossFrames))
   end
   lines[#lines + 1] = string.format("- Track Buffs: %s", onoff(WizardState.trackBuffs))
   lines[#lines + 1] = string.format("- Use Spell Glows: %s", onoff(WizardState.useSpellGlows))
@@ -1104,3 +1111,4 @@ wizardEventFrame:SetScript("OnEvent", function(_, event)
     end
   end
 end)
+

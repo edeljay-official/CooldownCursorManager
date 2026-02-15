@@ -1,11 +1,13 @@
-﻿local _, addonTable = ...
+﻿if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_QOL") == 0 then return end
+
+local _, addonTable = ...
 local State = addonTable.State
 local GetGlobalFont = addonTable.GetGlobalFont
 local selfHighlightFrame = CreateFrame("Frame", "CCMSelfHighlight", UIParent)
 selfHighlightFrame:SetSize(40, 40)
 selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-selfHighlightFrame:SetFrameStrata("TOOLTIP")
-selfHighlightFrame:SetFrameLevel(1000)
+selfHighlightFrame:SetFrameStrata("MEDIUM")
+selfHighlightFrame:SetFrameLevel(10)
 selfHighlightFrame:Hide()
 local function SnapToPixel(v)
   if addonTable.SnapToPixel then return addonTable:SnapToPixel(v, UIParent) end
@@ -485,22 +487,6 @@ local function FormatMMSS(seconds)
   local m = math.floor(s / 60)
   local r = math.floor(s - (m * 60))
   return string.format("%d:%02d", m, r)
-end
-local function GetPlayerAuraRemainingByIDs(idList)
-  if not C_UnitAuras or not C_UnitAuras.GetPlayerAuraBySpellID then return 0 end
-  local now = GetTime()
-  local bestRemaining = 0
-  for i = 1, #idList do
-    local okAura, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, idList[i])
-    if okAura and aura and aura.expirationTime then
-      local okExp, exp = pcall(tonumber, aura.expirationTime)
-      if okExp and type(exp) == "number" and exp > 0 then
-        local rem = exp - now
-        if rem > bestRemaining then bestRemaining = rem end
-      end
-    end
-  end
-  return bestRemaining
 end
 function addonTable.RefreshCRTimerText()
   local frame = addonTable.crTimerFrame
@@ -2725,7 +2711,8 @@ local function CacheGreetingFrequencies()
   end
   local numActive = GetNumActiveQuests and GetNumActiveQuests() or 0
   for i = 1, numActive do
-    local title, _, _, _, _, frequency = GetActiveQuestInfo and GetActiveQuestInfo(i)
+    local activeInfo = {GetActiveQuestInfo and GetActiveQuestInfo(i)}
+    local title, frequency = activeInfo[1], activeInfo[6]
     if title and frequency then questFreqCache["t:" .. title] = frequency end
   end
 end

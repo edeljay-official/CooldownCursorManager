@@ -218,7 +218,7 @@ end
 addonTable.GetClassPowerConfig = GetClassPowerConfig
 local GetGlobalFont
 local IsClassPowerRedundant
-IsClassPowerRedundant = function()
+function IsClassPowerRedundant()
   local cpConfig = GetClassPowerConfig()
   if not cpConfig then return false end
   if cpConfig.buffID then return false end
@@ -274,17 +274,6 @@ local function ResolveBuffDurations()
       end
     end
   end
-end
-local function GetActiveBuffOverlay(spellID)
-  local duration = BuffDurationCache[spellID]
-  if not duration or duration <= 0 then return nil, nil end
-  local startTime = ActiveBuffStart[spellID]
-  if not startTime then return nil, nil end
-  if GetTime() >= startTime + duration then
-    ActiveBuffStart[spellID] = nil
-    return nil, nil
-  end
-  return startTime, duration
 end
 local function IsRealChargeSpell(charges, spellID)
   if not charges then
@@ -578,14 +567,6 @@ local function GetSafeCurrentCharges(charges, spellID, cooldownFrame, originalSp
   end
   return nil
 end
-local function ShouldHideLargeStackValue(value)
-  if value == nil then return false end
-  if issecretvalue and issecretvalue(value) then return false end
-  local okNum, n = pcall(tonumber, value)
-  if not okNum or type(n) ~= "number" then return false end
-  local okCmp, tooLarge = pcall(function() return n > 100 end)
-  return okCmp and tooLarge == true
-end
 local function GetSpellUsabilityState(spellID)
   local usableInfo, insufficientPower = C_Spell.IsSpellUsable(spellID)
   if usableInfo == nil then
@@ -599,6 +580,190 @@ local function ToPublicNumber(v)
   local ok, n = pcall(tonumber, v)
   if ok and type(n) == "number" then return n end
   return nil
+end
+addonTable.IsAlterTimeSpellID = function(spellID)
+  if type(spellID) ~= "number" or spellID <= 0 then return false end
+  if spellID == 342245 or spellID == 342246 then return true end
+  local cache = addonTable._ccmBlockedBuffTrackSpellCache
+  if type(cache) ~= "table" then
+    cache = {}
+    addonTable._ccmBlockedBuffTrackSpellCache = cache
+  end
+  local cached = cache[spellID]
+  if cached ~= nil then
+    return cached == true
+  end
+  local baseInfo = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(342245) or nil
+  local info = C_Spell and C_Spell.GetSpellInfo and C_Spell.GetSpellInfo(spellID) or nil
+  local blocked = type(baseInfo) == "table"
+    and type(info) == "table"
+    and type(baseInfo.name) == "string"
+    and baseInfo.name ~= ""
+    and info.name == baseInfo.name
+  cache[spellID] = blocked == true
+  return blocked == true
+end
+addonTable.IsBuffTrackingBlockedSpell = function(activeSpellID, originalSpellID)
+  return addonTable.IsAlterTimeSpellID(activeSpellID) or addonTable.IsAlterTimeSpellID(originalSpellID)
+end
+addonTable.IsOverrideRecastSpell = function(activeSpellID, originalSpellID)
+  if type(activeSpellID) == "number" and type(originalSpellID) == "number"
+    and activeSpellID > 0 and originalSpellID > 0 and activeSpellID ~= originalSpellID then
+    return true
+  end
+  if type(originalSpellID) == "number" and originalSpellID > 0 and type(addonTable.ResolveTrackedSpellID) == "function" then
+    local resolved = addonTable.ResolveTrackedSpellID(originalSpellID)
+    if type(resolved) == "number" and resolved > 0 and resolved ~= originalSpellID then
+      return true
+    end
+  end
+  return false
+end
+addonTable.AreSpellIDsLinked = function(leftID, rightID)
+  if type(leftID) ~= "number" or type(rightID) ~= "number" then return false end
+  if leftID <= 0 or rightID <= 0 then return false end
+  if leftID == rightID then return true end
+  local resolve = addonTable.ResolveTrackedSpellID
+  if type(resolve) == "function" then
+    local l = resolve(leftID)
+    local r = resolve(rightID)
+    if l == rightID or r == leftID then return true end
+    if type(l) == "number" and type(r) == "number" and l > 0 and r > 0 and l == r then
+      return true
+    end
+  end
+  if not (C_Spell and C_Spell.GetSpellInfo) then return false end
+  local li = C_Spell.GetSpellInfo(leftID)
+  local ri = C_Spell.GetSpellInfo(rightID)
+  if type(li) ~= "table" or type(ri) ~= "table" then return false end
+  local ln, rn = li.name, ri.name
+  if type(ln) == "string" and ln ~= "" and ln == rn then
+    if li.iconID and ri.iconID then
+      return li.iconID == ri.iconID
+    end
+    return true
+  end
+  return false
+end
+addonTable.HasActivePlayerAuraForSpell = function(activeSpellID, originalSpellID)
+  if not (C_UnitAuras and C_UnitAuras.GetPlayerAuraBySpellID) then return false end
+  local function HasAuraByID(spellID)
+    if type(spellID) ~= "number" or spellID <= 0 then return false end
+    local okAura, aura = pcall(C_UnitAuras.GetPlayerAuraBySpellID, spellID)
+    return okAura and type(aura) == "table"
+  end
+  if HasAuraByID(activeSpellID) or HasAuraByID(originalSpellID) then
+    return true
+  end
+  return false
+end
+addonTable.IsRecastLikeSpell = function(activeSpellID, originalSpellID)
+  if addonTable.IsOverrideRecastSpell(activeSpellID, originalSpellID) then
+    return true
+  end
+  return addonTable.HasActivePlayerAuraForSpell(activeSpellID, originalSpellID)
+end
+addonTable.IsNoHideRevealSpell = function(activeSpellID, originalSpellID)
+  if addonTable.IsBuffTrackingBlockedSpell(activeSpellID, originalSpellID) then
+    return true
+  end
+  return addonTable.IsRecastLikeSpell(activeSpellID, originalSpellID)
+end
+addonTable.ShouldIgnoreShowGCDForSpell = function(activeSpellID, originalSpellID)
+  if addonTable.IsBuffTrackingBlockedSpell(activeSpellID, originalSpellID) then
+    return true
+  end
+  if addonTable.IsOverrideRecastSpell(activeSpellID, originalSpellID) then
+    return true
+  end
+  return addonTable.IsRecastLikeSpell(activeSpellID, originalSpellID)
+end
+addonTable.GetKnownCooldownDurationForSpell = function(activeSpellID, originalSpellID)
+  local function ReadDuration(spellID)
+    if type(spellID) ~= "number" or spellID <= 0 then return nil end
+    local d = nil
+    if type(State.spellCdDurations) == "table" then
+      d = State.spellCdDurations[spellID]
+    end
+    if (type(d) ~= "number" or d <= 1.5) and type(State.spellBaseCdDurations) == "table" then
+      d = State.spellBaseCdDurations[spellID]
+    end
+    if (type(d) ~= "number" or d <= 1.5) and GetSpellBaseCooldown then
+      local okBase, baseCd = pcall(GetSpellBaseCooldown, spellID)
+      if okBase and type(baseCd) == "number" and baseCd > 1500 then
+        d = baseCd / 1000
+      end
+    end
+    if type(d) == "number" and d > 1.5 then return d end
+    return nil
+  end
+  local d1 = ReadDuration(activeSpellID)
+  local d2 = ReadDuration(originalSpellID)
+  if type(d1) == "number" and type(d2) == "number" then
+    return math.max(d1, d2)
+  end
+  return d1 or d2
+end
+addonTable.GetOverrideAwareCooldownInfo = function(activeSpellID, originalSpellID, inCombat)
+  if not (C_Spell and C_Spell.GetSpellCooldown) then return nil end
+  local function FetchCooldown(spellID)
+    if type(spellID) ~= "number" or spellID <= 0 then return nil end
+    if inCombat then
+      local okCd, ci = pcall(C_Spell.GetSpellCooldown, spellID)
+      if okCd and type(ci) == "table" then return ci end
+      return nil
+    end
+    return C_Spell.GetSpellCooldown(spellID)
+  end
+  local primary = FetchCooldown(activeSpellID)
+  if not addonTable.IsOverrideRecastSpell(activeSpellID, originalSpellID) then
+    return primary
+  end
+  local secondary = FetchCooldown(originalSpellID)
+  local function Score(info)
+    local st = ToPublicNumber(info and info.startTime) or 0
+    local dur = ToPublicNumber(info and info.duration) or 0
+    if st > 0 and dur > 1.5 then return 4 end
+    if dur > 1.5 then return 3 end
+    if st > 0 and dur > 0 then return 2 end
+    if dur > 0 then return 1 end
+    return 0
+  end
+  if Score(secondary) > Score(primary) then
+    return secondary
+  end
+  return primary
+end
+addonTable.ApplyOverrideCooldownLatch = function(icon, activeSpellID, originalSpellID, nowTs, inCombat)
+  if not inCombat then return false end
+  if not icon or type(nowTs) ~= "number" then return false end
+  local isOverride = addonTable.IsOverrideRecastSpell(activeSpellID, originalSpellID)
+  local hasRecastAura = addonTable.HasActivePlayerAuraForSpell(activeSpellID, originalSpellID)
+  if (not isOverride) and (not hasRecastAura) then return false end
+  if icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs then
+    return true
+  end
+  local castAt = nil
+  if type(State.spellCastTimes) == "table" then
+    local ca = State.spellCastTimes[activeSpellID]
+    local co = State.spellCastTimes[originalSpellID]
+    if type(ca) == "number" and type(co) == "number" then
+      castAt = math.max(ca, co)
+    elseif type(ca) == "number" then
+      castAt = ca
+    elseif type(co) == "number" then
+      castAt = co
+    end
+  end
+  if type(castAt) ~= "number" then return false end
+  local duration = addonTable.GetKnownCooldownDurationForSpell(activeSpellID, originalSpellID)
+  if type(duration) ~= "number" or duration <= 1.5 then return false end
+  local expectedEnd = castAt + duration
+  if expectedEnd > nowTs then
+    icon._cdExpectedEnd = expectedEnd
+    return true
+  end
+  return false
 end
 local CCM = CreateFrame("Frame")
 addonTable.Frame = CCM
@@ -2143,7 +2308,7 @@ local function GetClassColor()
   return 0, 1, 0
 end
 addonTable.GetClassColor = GetClassColor
-GetGlobalFont = function()
+function GetGlobalFont()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local fontPath = "Fonts\\FRIZQT__.TTF"
   local fontOutline = "OUTLINE"
@@ -2231,6 +2396,9 @@ local function CreateBlizzBarPreview(barType)
   frame:RegisterForDrag("LeftButton")
   frame:SetClampedToScreen(true)
   frame.barType = barType
+  local function NormalizeHalf(v)
+    return math.floor((tonumber(v) or 0) * 2 + 0.5) / 2
+  end
   frame:SetScript("OnDragStart", function(self)
     self:StartMoving()
   end)
@@ -2243,6 +2411,8 @@ local function CreateBlizzBarPreview(barType)
       local screenHeight = UIParent:GetHeight()
       local relX = x - screenWidth / 2
       local relY = y - screenHeight / 2
+      relX = NormalizeHalf(relX)
+      relY = NormalizeHalf(relY)
       local centered = false
       if barType == "buff" then centered = profile.standaloneBuffCentered == true
       elseif barType == "essential" then centered = profile.standaloneEssentialCentered == true
@@ -2253,21 +2423,21 @@ local function CreateBlizzBarPreview(barType)
         profile.blizzBarBuffY = relY
         profile.standaloneBuffY = relY
         if addonTable.standalone and addonTable.standalone.buffYSlider then
-          addonTable.standalone.buffYSlider:SetValue(math.floor(relY))
+          addonTable.standalone.buffYSlider:SetValue(relY)
         end
       elseif barType == "essential" then
         profile.blizzBarEssentialX = relX
         profile.blizzBarEssentialY = relY
         profile.standaloneEssentialY = relY
         if addonTable.standalone and addonTable.standalone.essentialYSlider then
-          addonTable.standalone.essentialYSlider:SetValue(math.floor(relY))
+          addonTable.standalone.essentialYSlider:SetValue(relY)
         end
       elseif barType == "utility" then
         profile.blizzBarUtilityX = relX
         profile.blizzBarUtilityY = relY
         profile.standaloneUtilityY = relY
         if addonTable.standalone and addonTable.standalone.utilityYSlider then
-          addonTable.standalone.utilityYSlider:SetValue(math.floor(relY))
+          addonTable.standalone.utilityYSlider:SetValue(relY)
         end
       end
       if centered then
@@ -2332,7 +2502,7 @@ local function ShowBlizzBarPreviews()
     if preview then preview:Show() end
   end
 end
-HideBlizzBarPreviews = function()
+function HideBlizzBarPreviews()
   for _, frame in pairs(State.blizzBarPreviewFrames) do
     if frame then frame:Hide() end
   end
@@ -2352,6 +2522,9 @@ local function CreateBlizzBarDragOverlay(barType, targetBar)
   frame:RegisterForDrag("LeftButton")
   frame:SetClampedToScreen(true)
   frame.barType = barType
+  local function NormalizeHalf(v)
+    return math.floor((tonumber(v) or 0) * 2 + 0.5) / 2
+  end
   frame.targetBar = targetBar
   frame.clickStartTime = 0
   frame.clickStartX = 0
@@ -2418,6 +2591,8 @@ local function CreateBlizzBarDragOverlay(barType, targetBar)
       local screenHeight = UIParent:GetHeight()
       local relX = x - screenWidth / 2
       local relY = y - screenHeight / 2
+      relX = NormalizeHalf(relX)
+      relY = NormalizeHalf(relY)
       local centered = false
       if barType == "buff" then centered = profile.standaloneBuffCentered == true
       elseif barType == "essential" then centered = profile.standaloneEssentialCentered == true
@@ -2428,21 +2603,21 @@ local function CreateBlizzBarDragOverlay(barType, targetBar)
         profile.blizzBarBuffY = relY
         profile.standaloneBuffY = relY
         if addonTable.standalone and addonTable.standalone.buffYSlider then
-          addonTable.standalone.buffYSlider:SetValue(math.floor(relY))
+          addonTable.standalone.buffYSlider:SetValue(relY)
         end
       elseif barType == "essential" then
         profile.blizzBarEssentialX = relX
         profile.blizzBarEssentialY = relY
         profile.standaloneEssentialY = relY
         if addonTable.standalone and addonTable.standalone.essentialYSlider then
-          addonTable.standalone.essentialYSlider:SetValue(math.floor(relY))
+          addonTable.standalone.essentialYSlider:SetValue(relY)
         end
       elseif barType == "utility" then
         profile.blizzBarUtilityX = relX
         profile.blizzBarUtilityY = relY
         profile.standaloneUtilityY = relY
         if addonTable.standalone and addonTable.standalone.utilityYSlider then
-          addonTable.standalone.utilityYSlider:SetValue(math.floor(relY))
+          addonTable.standalone.utilityYSlider:SetValue(relY)
         end
       end
       if centered then
@@ -2559,7 +2734,7 @@ local function ShowBlizzBarDragOverlays(showHighlight)
   end
   showOverlay("utility", UtilityCooldownViewer, 0, 150)
 end
-HideBlizzBarDragOverlays = function()
+function HideBlizzBarDragOverlays()
   for _, frame in pairs(State.blizzBarDragOverlays) do
     if frame then frame:Hide() end
   end
@@ -2770,7 +2945,6 @@ local function HighlightCustomBar(tabIdx)
             if pos.bottom < minY then minY = pos.bottom end
           end
         end
-        local highlightHeight = maxY - minY + 8
         local highlight = CreateHighlightFrame(1)
         highlight:ClearAllPoints()
         highlight:SetPoint("TOPLEFT", addonTable.PRBFrame, "TOPLEFT", -14, maxY + 14)
@@ -2963,6 +3137,57 @@ local function EnsureIconRestored(icon)
     icon:SetAlpha(1)
   end
 end
+addonTable.ApplyConfigPreviewCountdown = function(cooldownFrame, cdTextScale, inCombat)
+  if not cooldownFrame then return end
+  if type(cdTextScale) ~= "number" or cdTextScale <= 0 then return end
+  local startTime = GetTime() - 2
+  if inCombat then
+    pcall(cooldownFrame.SetCooldown, cooldownFrame, startTime, 12)
+  else
+    cooldownFrame:SetCooldown(startTime, 12)
+  end
+  cooldownFrame:SetDrawSwipe(true)
+  cooldownFrame:SetHideCountdownNumbers(false)
+  cooldownFrame._ccmConfigPreviewActive = true
+end
+addonTable.ClearConfigPreviewCountdowns = function()
+  local function ClearIconPreview(icon)
+    if not icon then return end
+    local cd = icon.cooldown or icon.Cooldown or icon.ccmCooldown
+    if cd and cd._ccmConfigPreviewActive then
+      cd._ccmConfigPreviewActive = nil
+      if cd.Clear then
+        pcall(cd.Clear, cd)
+      elseif cd.SetCooldown then
+        pcall(cd.SetCooldown, cd, 0, 0)
+      end
+    end
+  end
+  for _, icon in ipairs(State.cursorIcons or {}) do
+    ClearIconPreview(icon)
+  end
+  for _, icon in ipairs(State.customBar1Icons or {}) do
+    ClearIconPreview(icon)
+  end
+  for _, icon in ipairs(State.customBar2Icons or {}) do
+    ClearIconPreview(icon)
+  end
+  for _, icon in ipairs(State.customBar3Icons or {}) do
+    ClearIconPreview(icon)
+  end
+  for _, icon in ipairs(State.customBar4Icons or {}) do
+    ClearIconPreview(icon)
+  end
+  for _, icon in ipairs(State.customBar5Icons or {}) do
+    ClearIconPreview(icon)
+  end
+  if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+  if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+  if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+  if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+  if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+  if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+end
 addonTable.ShowCursorIconPreview = function()
   State.cursorIconPreviewActive = true
   for _, icon in ipairs(State.cursorIcons) do
@@ -2994,6 +3219,9 @@ addonTable.StopCursorIconPreview = function()
 end
 addonTable.SetGUIOpen = function(open) 
   State.guiIsOpen = open
+  if not open and addonTable.ClearConfigPreviewCountdowns then
+    addonTable.ClearConfigPreviewCountdowns()
+  end
   local rf = addonTable.ringFrame
   if rf then
     if not State.ringFrameOriginalStrata then
@@ -3119,6 +3347,16 @@ local function ApplyDefaults()
   if not CooldownCursorManagerDB.characterCustomBar3SpellGlowType then
     CooldownCursorManagerDB.characterCustomBar3SpellGlowType = {}
   end
+  if type(CooldownCursorManagerDB.moduleStates) ~= "table" then
+    CooldownCursorManagerDB.moduleStates = {}
+  end
+  local ms = CooldownCursorManagerDB.moduleStates
+  if ms.custombars == nil then ms.custombars = true end
+  if ms.blizzcdm == nil then ms.blizzcdm = true end
+  if ms.prb == nil then ms.prb = true end
+  if ms.castbars == nil then ms.castbars = true end
+  if ms.debuffs == nil then ms.debuffs = true end
+  if ms.qol == nil then ms.qol = true end
 end
 local function MigrateOldCustomBarData()
   if not CooldownCursorManagerDB then return end
@@ -3294,6 +3532,91 @@ end
 addonTable.GetProfile = GetProfile
 addonTable.GetGlobalFont = GetGlobalFont
 addonTable.IsClassPowerRedundant = IsClassPowerRedundant
+addonTable.ModuleCompanionAddOns = addonTable.ModuleCompanionAddOns or {
+  custombars = "CooldownCursorManager_CustomBars",
+  blizzcdm = "CooldownCursorManager_BlizzCDM",
+  prb = "CooldownCursorManager_PRB",
+  castbars = "CooldownCursorManager_Castbars",
+  debuffs = "CooldownCursorManager_Debuffs",
+  unitframes = "CooldownCursorManager_UnitFrames",
+  qol = "CooldownCursorManager_QOL",
+}
+addonTable.GetModuleStates = function()
+  CooldownCursorManagerDB = CooldownCursorManagerDB or {}
+  if type(CooldownCursorManagerDB.moduleStates) ~= "table" then
+    CooldownCursorManagerDB.moduleStates = {}
+  end
+  local ms = CooldownCursorManagerDB.moduleStates
+  if not CooldownCursorManagerDB._moduleStatesMigrated71 then
+    CooldownCursorManagerDB._moduleStatesMigrated71 = true
+    local allFalse = true
+    for _, v in pairs(ms) do
+      if v ~= false then allFalse = false break end
+    end
+    if allFalse and next(ms) ~= nil then
+      for k in pairs(ms) do ms[k] = nil end
+    end
+  end
+  if ms.custombars == nil then ms.custombars = true end
+  if ms.blizzcdm == nil then ms.blizzcdm = true end
+  if ms.prb == nil then ms.prb = true end
+  if ms.castbars == nil then ms.castbars = true end
+  if ms.debuffs == nil then ms.debuffs = true end
+  if ms.unitframes == nil then ms.unitframes = true end
+  if ms.qol == nil then ms.qol = true end
+  return ms
+end
+addonTable.IsModuleEnabled = function(moduleKey)
+  if moduleKey == "cursor" then
+    return true
+  end
+  local companionAddon = addonTable.ModuleCompanionAddOns[moduleKey]
+  if companionAddon and C_AddOns and C_AddOns.GetAddOnEnableState then
+    if C_AddOns.GetAddOnEnableState(companionAddon) == 0 then return false end
+  end
+  local ms = addonTable.GetModuleStates()
+  return ms[moduleKey] ~= false
+end
+addonTable.ApplyModuleStateToProfile = function(profile)
+  if type(profile) ~= "table" then return end
+  local ms = addonTable.GetModuleStates()
+  if ms.blizzcdm == false then
+    profile.disableBlizzCDM = true
+  end
+end
+addonTable.SetModuleEnabled = function(moduleKey, enabled)
+  if moduleKey == "cursor" then
+    return false
+  end
+  local changed = false
+  local needsReload = false
+  local ms = addonTable.GetModuleStates()
+  local targetEnabled = enabled == true
+  if ms[moduleKey] ~= targetEnabled then
+    ms[moduleKey] = targetEnabled
+    changed = true
+  end
+  local companionAddon = addonTable.ModuleCompanionAddOns[moduleKey]
+  if companionAddon and C_AddOns then
+    local isEnabledNow = true
+    if C_AddOns.GetAddOnEnableState then
+      isEnabledNow = C_AddOns.GetAddOnEnableState(companionAddon) ~= 0
+    end
+    if targetEnabled and not isEnabledNow and C_AddOns.EnableAddOn then
+      pcall(C_AddOns.EnableAddOn, companionAddon)
+      changed = true
+    elseif (not targetEnabled) and isEnabledNow and C_AddOns.DisableAddOn then
+      pcall(C_AddOns.DisableAddOn, companionAddon)
+      changed = true
+    end
+  end
+  local profile = addonTable.GetProfile and addonTable.GetProfile()
+  addonTable.ApplyModuleStateToProfile(profile)
+  if changed then
+    needsReload = true
+  end
+  return changed, needsReload
+end
 local function NormalizeHideRevealThresholdValue(value)
   local n = tonumber(value)
   if not n then return 0 end
@@ -3826,6 +4149,18 @@ local function IsSpellKnownByPlayer(spellID)
   return false
 end
 addonTable.IsSpellKnownByPlayer = IsSpellKnownByPlayer
+local function IsKnownCdmBuffSpell(spellID)
+  if type(spellID) ~= "number" or spellID <= 0 then return false end
+  local known = addonTable.GetCdmKnownBuffSpellIDs and addonTable.GetCdmKnownBuffSpellIDs()
+  if type(known) == "table" and known[spellID] == true then
+    return true
+  end
+  local pure = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs()
+  if type(pure) == "table" and pure[spellID] == true then
+    return true
+  end
+  return false
+end
 local function IsTrackedEntryAvailable(isItem, originalID, activeID, allowUnknownSpellInfo)
   if isItem then
     local count = C_Item.GetItemCount(originalID, true, true)
@@ -3837,10 +4172,13 @@ local function IsTrackedEntryAvailable(isItem, originalID, activeID, allowUnknow
   if IsSpellKnownByPlayer(activeID) then return true end
   if IsSpellKnownByPlayer(originalID) then return true end
   if allowUnknownSpellInfo then
-    local activeInfo = type(activeID) == "number" and C_Spell.GetSpellInfo(activeID)
-    if activeInfo and activeInfo.iconID then return true end
-    local originalInfo = type(originalID) == "number" and C_Spell.GetSpellInfo(originalID)
-    if originalInfo and originalInfo.iconID then return true end
+    if IsKnownCdmBuffSpell(activeID) or IsKnownCdmBuffSpell(originalID) then
+      return true
+    end
+    local resolved = addonTable.ResolveTrackedSpellID and addonTable.ResolveTrackedSpellID(activeID) or nil
+    if type(resolved) == "number" and resolved > 0 and IsKnownCdmBuffSpell(resolved) then
+      return true
+    end
   end
   return false
 end
@@ -4287,12 +4625,6 @@ local function ResetCdTextGradient(cooldownFrame)
     fontStrings[i]:SetTextColor(1, 1, 1, 1)
   end
 end
-local _buffBarBackdrop = {
-  bgFile = "Interface\\Buttons\\WHITE8x8",
-  edgeFile = "Interface\\Buttons\\WHITE8x8",
-  edgeSize = 1,
-  insets = { left = 0, right = 0, top = 0, bottom = 0 }
-}
 local function UpdateBuffBarPosition(cursorX, cursorY, uiScale, profile)
   local buffs = BuffIconCooldownViewer
   if not buffs or not profile.useBuffBar then return end
@@ -4559,12 +4891,6 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
   local totalWidth = count * targetSize + (count - 1) * spacing
   return totalWidth, 1
 end
-local _essentialBarBackdrop = {
-  bgFile = "Interface\\Buttons\\WHITE8x8",
-  edgeFile = "Interface\\Buttons\\WHITE8x8",
-  edgeSize = 1,
-  insets = { left = 0, right = 0, top = 0, bottom = 0 }
-}
 local function UpdateEssentialBarPosition(cursorX, cursorY, uiScale, profile, buffBarWidth)
   local main = EssentialCooldownViewer
   if not main or not profile.useEssentialBar then return end
@@ -4607,7 +4933,6 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
   State.essentialBarActive = true
   local spacing = type(profile.iconSpacing) == "number" and profile.iconSpacing or 2
   State.essentialBarSpacing = spacing
-  local targetSize = type(profile.iconSize) == "number" and profile.iconSize or 23
   main:SetScale(1)
   local iconStrata = profile.iconStrata or "FULLSCREEN"
   main:SetFrameStrata(iconStrata)
@@ -4833,7 +5158,6 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
   return totalWidth, 1
 end
 local function ResetBlizzardBarSkinning()
-  local profile = addonTable.GetProfile()
   local buffs = BuffIconCooldownViewer
   if buffs then
     local childCount = addonTable.CollectChildren(buffs, State.tmpChildren)
@@ -4940,7 +5264,7 @@ local function SetPointIfChanged(frame, point, relativeTo, relativePoint, xOfs, 
   frame:ClearAllPoints()
   SetPointSnapped(frame, point, relativeTo, relativePoint, xOfs, yOfs)
 end
-SanitizeCooldownViewerChargeState = function(icon)
+function SanitizeCooldownViewerChargeState(icon)
   if not icon then return end
   local function IsSecretValue(v)
     return issecretvalue and issecretvalue(v) or false
@@ -4951,11 +5275,6 @@ SanitizeCooldownViewerChargeState = function(icon)
     local ok, n = pcall(tonumber, v)
     if ok and type(n) == "number" then return n end
     return defaultValue
-  end
-  local function ToSafeSpellID(v)
-    local n = ToSafeNumber(v, nil)
-    if type(n) ~= "number" or n <= 0 then return nil end
-    return math.floor(n + 0.5)
   end
   local function SanitizeChargeTable(tbl)
     if type(tbl) ~= "table" then return end
@@ -5057,17 +5376,6 @@ end
 local function GetPublicSpellCooldownInfo(spellID)
   local info = { startTime = 0, duration = 0, isEnabled = false, modRate = 1 }
   local sid = CooldownViewerToSafeSpellID(spellID)
-  if sid and GetSpellCooldown then
-    local ok, st, dur, en, mod = pcall(GetSpellCooldown, sid)
-    if ok then
-      info.startTime = CooldownViewerToSafeNumber(st, info.startTime)
-      info.duration = CooldownViewerToSafeNumber(dur, info.duration)
-      if en ~= nil then
-        info.isEnabled = (en == true or en == 1)
-      end
-      info.modRate = CooldownViewerToSafeNumber(mod, info.modRate)
-    end
-  end
   if sid and C_Spell and C_Spell.GetSpellCooldown then
     local ok, cd = pcall(C_Spell.GetSpellCooldown, sid)
     if ok and type(cd) == "table" then
@@ -5265,14 +5573,14 @@ local function PatchCooldownViewerMethodContainer(container)
   end)
 
 end
-PatchCooldownViewerIconChargeMethods = function(icon)
+function PatchCooldownViewerIconChargeMethods(icon)
   if not icon then return end
   if icon.GetObjectType and icon:GetObjectType() ~= "Frame" then return end
 
   SanitizeCooldownViewerChargeState(icon)
   PatchCooldownViewerMethodContainer(icon)
 end
-PatchAllCooldownViewerChargeMethods = function()
+function PatchAllCooldownViewerChargeMethods()
   local now = GetTime and GetTime() or 0
   if (not State.cooldownViewerLastGlobalWrapScan) or ((now - State.cooldownViewerLastGlobalWrapScan) >= 2) then
     for gName, gValue in pairs(_G) do
@@ -5298,9 +5606,9 @@ PatchAllCooldownViewerChargeMethods = function()
   PatchFrameChildren(EssentialCooldownViewer, 0)
   PatchFrameChildren(UtilityCooldownViewer, 0)
 end
-SanitizeCooldownViewerChargeState = function() end
-PatchCooldownViewerIconChargeMethods = function() end
-PatchAllCooldownViewerChargeMethods = function() end
+function SanitizeCooldownViewerChargeState() end
+function PatchCooldownViewerIconChargeMethods() end
+function PatchAllCooldownViewerChargeMethods() end
 addonTable.LayoutStandaloneRows = function(frame, visibleIcons, numCols, firstRowSize, secondRowSize, spacing, centered, growLeft, growUp, maxRows, pinFirstRowY)
   if not frame or not visibleIcons or #visibleIcons == 0 then return 0, 0 end
   local function SnapHalf(v)
@@ -5622,30 +5930,31 @@ end
 local function UpdateStandaloneBlizzardBars()
   local profile = addonTable.GetProfile()
   if not profile then return end
-  local canReposition = not InCombatLockdown()
+  local function CanRepositionFrame(frame)
+    if not frame then return false end
+    if not InCombatLockdown() then return true end
+    if frame.IsProtected and frame:IsProtected() then return false end
+    return true
+  end
   if profile.disableBlizzCDM == true then
-    if canReposition then
-      if State.standaloneBuffOriginals.saved and BuffIconCooldownViewer then
+    if State.standaloneBuffOriginals.saved and BuffIconCooldownViewer and CanRepositionFrame(BuffIconCooldownViewer) then
         RestoreStandaloneBar(BuffIconCooldownViewer, State.standaloneBuffOriginals)
-      end
-      if State.standaloneEssentialOriginals.saved and EssentialCooldownViewer then
+    end
+    if State.standaloneEssentialOriginals.saved and EssentialCooldownViewer and CanRepositionFrame(EssentialCooldownViewer) then
         RestoreStandaloneBar(EssentialCooldownViewer, State.standaloneEssentialOriginals)
-      end
-      if State.standaloneUtilityOriginals.saved and UtilityCooldownViewer then
+    end
+    if State.standaloneUtilityOriginals.saved and UtilityCooldownViewer and CanRepositionFrame(UtilityCooldownViewer) then
         RestoreStandaloneBar(UtilityCooldownViewer, State.standaloneUtilityOriginals)
-      end
     end
     State.standaloneSkinActive = false
     State.standaloneNeedsSkinning = false
     return
   end
-  if canReposition then
-    if profile.useBuffBar and State.standaloneBuffOriginals.saved and BuffIconCooldownViewer then
-      RestoreStandaloneBar(BuffIconCooldownViewer, State.standaloneBuffOriginals)
-    end
-    if profile.useEssentialBar and State.standaloneEssentialOriginals.saved and EssentialCooldownViewer then
-      RestoreStandaloneBar(EssentialCooldownViewer, State.standaloneEssentialOriginals)
-    end
+  if profile.useBuffBar and State.standaloneBuffOriginals.saved and BuffIconCooldownViewer and CanRepositionFrame(BuffIconCooldownViewer) then
+    RestoreStandaloneBar(BuffIconCooldownViewer, State.standaloneBuffOriginals)
+  end
+  if profile.useEssentialBar and State.standaloneEssentialOriginals.saved and EssentialCooldownViewer and CanRepositionFrame(EssentialCooldownViewer) then
+    RestoreStandaloneBar(EssentialCooldownViewer, State.standaloneEssentialOriginals)
   end
   if EditModeManagerFrame and EditModeManagerFrame:IsShown() then
     return
@@ -5690,7 +5999,6 @@ local function UpdateStandaloneBlizzardBars()
   local utilityGrowLeft = (profile.standaloneUtilityGrowDirection or "right") == "left"
   local utilityGrowUp = (profile.standaloneUtilityRowGrowDirection or "down") == "up"
   local utilityAutoWidthSource = profile.standaloneUtilityAutoWidth or "off"
-  local essentialBarWidth = 0
   local anyActive = false
   local buffEnabled = profile.standaloneSkinBuff == true
   local essentialEnabled = profile.standaloneSkinEssential == true
@@ -5761,7 +6069,7 @@ local function UpdateStandaloneBlizzardBars()
         numCols = math.max(1, math.min(numCols, #visibleIcons))
         local buffPosX = buffCentered and 0 or (profile.blizzBarBuffX or 0)
         local buffPosY = profile.blizzBarBuffY or buffY
-        if canReposition and (buffCentered or profile.blizzBarBuffX ~= nil or profile.blizzBarBuffY ~= nil or State.guiIsOpen) then
+        if CanRepositionFrame(buffs) and (buffCentered or profile.blizzBarBuffX ~= nil or profile.blizzBarBuffY ~= nil or State.guiIsOpen) then
           SetPointIfChanged(buffs, "CENTER", UIParent, "CENTER", buffPosX, buffPosY)
         end
         local buffKeyParts = {
@@ -5794,7 +6102,7 @@ local function UpdateStandaloneBlizzardBars()
       end
     end
   elseif State.standaloneBuffOriginals.saved and BuffIconCooldownViewer then
-    if canReposition then
+    if CanRepositionFrame(BuffIconCooldownViewer) then
       RestoreStandaloneBar(BuffIconCooldownViewer, State.standaloneBuffOriginals)
     end
     State.standaloneBuffLayoutKey = nil
@@ -5867,7 +6175,7 @@ local function UpdateStandaloneBlizzardBars()
         end
         local essentialPosX = essentialCentered and 0 or (profile.blizzBarEssentialX or 0)
         local essentialPosY = profile.blizzBarEssentialY or essentialY
-        if canReposition and (essentialCentered or profile.blizzBarEssentialX ~= nil or profile.blizzBarEssentialY ~= nil or State.guiIsOpen) then
+        if CanRepositionFrame(main) and (essentialCentered or profile.blizzBarEssentialX ~= nil or profile.blizzBarEssentialY ~= nil or State.guiIsOpen) then
           SetPointIfChanged(main, "CENTER", UIParent, "CENTER", essentialPosX, essentialPosY)
         end
         local essentialKeyParts = {
@@ -5911,7 +6219,7 @@ local function UpdateStandaloneBlizzardBars()
       end
     end
   elseif State.standaloneEssentialOriginals.saved and EssentialCooldownViewer then
-    if canReposition then
+    if CanRepositionFrame(EssentialCooldownViewer) then
       RestoreStandaloneBar(EssentialCooldownViewer, State.standaloneEssentialOriginals)
     end
     State.standaloneEssentialLayoutKey = nil
@@ -6025,7 +6333,7 @@ local function UpdateStandaloneBlizzardBars()
         utilitySecondRowSize = iconSize
         local utilityPosX = utilityCentered and 0 or (profile.blizzBarUtilityX or 0)
         local utilityPosY = profile.blizzBarUtilityY or utilityY
-        if canReposition and (utilityCentered or profile.blizzBarUtilityX ~= nil or profile.blizzBarUtilityY ~= nil or State.guiIsOpen) then
+        if CanRepositionFrame(utility) and (utilityCentered or profile.blizzBarUtilityX ~= nil or profile.blizzBarUtilityY ~= nil or State.guiIsOpen) then
           SetPointIfChanged(utility, "CENTER", UIParent, "CENTER", utilityPosX, utilityPosY)
         end
         local utilityKeyParts = {
@@ -6057,7 +6365,7 @@ local function UpdateStandaloneBlizzardBars()
       end
     end
   elseif State.standaloneUtilityOriginals.saved and UtilityCooldownViewer then
-    if canReposition then
+    if CanRepositionFrame(UtilityCooldownViewer) then
       RestoreStandaloneBar(UtilityCooldownViewer, State.standaloneUtilityOriginals)
     end
     State.standaloneUtilityLayoutKey = nil
@@ -6368,6 +6676,7 @@ local function UpdateCustomBar()
   RefreshGlowParams()
   wipe(State.customBarVisibleIcons)
   local visibleIcons = State.customBarVisibleIcons
+  local demoCdApplied = false
   for originalIdx, icon in ipairs(State.customBar1Icons) do
     icon.hideRevealThreshold = tonumber(entryHRT and entryHRT[icon.entryIndex or originalIdx]) or 0
     local isItem = icon.isItem
@@ -6394,7 +6703,7 @@ local function UpdateCustomBar()
       cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
-        if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+        if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
           shouldShowSwipe = false
         end
       end
@@ -6425,7 +6734,7 @@ local function UpdateCustomBar()
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
           local shouldShowSwipe = true
-          if (not isChargeSpell) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+          if (not isChargeSpell) and (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
             shouldShowSwipe = false
           end
           if shouldShowSwipe and cdStart and cdDuration then
@@ -6436,11 +6745,11 @@ local function UpdateCustomBar()
             icon.cooldown:Clear()
           end
         else
-          local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+          local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, actualID, inCombat)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
             local shouldShowSwipe = true
-            if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+            if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
               shouldShowSwipe = false
             end
             if shouldShowSwipe then
@@ -6457,7 +6766,7 @@ local function UpdateCustomBar()
       end
     end
     local buffOverlayActive = false
-    if not isItem and cbTrackBuffs then
+    if not isItem and cbTrackBuffs and (not addonTable.IsBuffTrackingBlockedSpell(activeSpellID, actualID)) then
       local overlayApplied = false
       if cbTrackBuffs and addonTable.TryApplyLiveAuraOverlay then
         overlayApplied = addonTable.TryApplyLiveAuraOverlay(icon.cooldown, activeSpellID)
@@ -6469,54 +6778,74 @@ local function UpdateCustomBar()
     end
     if inCombat then pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive) else icon.cooldown:SetReverse(buffOverlayActive) end
     if not isItem and not isChargeSpell then
-      if cdStart and cdDuration then
+      local cdStartPublic = ToPublicNumber(cdStart)
+      local cdDurationPublic = ToPublicNumber(cdDuration)
+      if cdStartPublic and cdDurationPublic then
         if inCombat then
-          local okZero, isZero = pcall(function() return cdStart == 0 end)
+          local okZero, isZero = pcall(function() return cdStartPublic == 0 end)
           if okZero and isZero then
-            icon._cdExpectedEnd = 0
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 local okGcd, isGcdMatch = pcall(function()
-                  return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+                  local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                  local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                  return gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+            local okCD, isCD = pcall(function() return cdStartPublic > 0 and cdDurationPublic > 1.5 end)
             if okCD and isCD then
               isOnCooldown = true
-              local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+              local ok2, endTime = pcall(function() return cdStartPublic + cdDurationPublic end)
               if ok2 and endTime then
                 icon._cdExpectedEnd = endTime
-                State.spellCdDurations[activeSpellID] = cdDuration
+                State.spellCdDurations[activeSpellID] = cdDurationPublic
                 if actualID ~= activeSpellID then
-                  State.spellCdDurations[actualID] = cdDuration
+                  State.spellCdDurations[actualID] = cdDurationPublic
                 end
               end
             end
           end
         else
-          if cdStart == 0 then
-            icon._cdExpectedEnd = 0
+          if cdStartPublic == 0 then
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
-                if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                if gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration then
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            if cdStart > 0 and cdDuration > 1.5 then
+            if cdStartPublic > 0 and cdDurationPublic > 1.5 then
               isOnCooldown = true
-              icon._cdExpectedEnd = cdStart + cdDuration
-              State.spellCdDurations[activeSpellID] = cdDuration
+              icon._cdExpectedEnd = cdStartPublic + cdDurationPublic
+              State.spellCdDurations[activeSpellID] = cdDurationPublic
               if actualID ~= activeSpellID then
-                State.spellCdDurations[actualID] = cdDuration
+                State.spellCdDurations[actualID] = cdDurationPublic
               end
             end
           end
@@ -6526,7 +6855,18 @@ local function UpdateCustomBar()
         if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and nowCB < icon._cdExpectedEnd then
           isOnCooldown = true
         end
+        if (not isOnCooldown) and addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat) then
+          isOnCooldown = true
+        end
       end
+    end
+    if (not isOnCooldown) and inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      if addonTable.HasActivePlayerAuraForSpell(activeSpellID, actualID) then
+        isOnCooldown = true
+      end
+    end
+    if inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat)
     end
     local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
@@ -6538,22 +6878,16 @@ local function UpdateCustomBar()
         if hasUsability == false then
           isUsable = false
         end
-        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
     local hasChargeRecharge = false
     if (not isItem) and isChargeSpell and chargesData then
-      if inCombat then
-        local okRecharge, recharge = pcall(function()
-          return chargesData.cooldownStartTime and chargesData.cooldownDuration
-            and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
-        end)
-        hasChargeRecharge = okRecharge and recharge or false
-      else
-        hasChargeRecharge = chargesData.cooldownStartTime and chargesData.cooldownDuration
-          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0 or false
-      end
+      local okRecharge, recharge = pcall(function()
+        return chargesData.cooldownStartTime and chargesData.cooldownDuration
+          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
+      end)
+      hasChargeRecharge = okRecharge and recharge or false
     end
     if buffOverlayActive or isOnCooldown or hasChargeRecharge then
       barHasActiveTimers = true
@@ -6576,7 +6910,7 @@ local function UpdateCustomBar()
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
     local isPureBuff = pureBuffSpellIDs[activeSpellID] == true or pureBuffSpellIDs[actualID] == true
-    if isPureBuff then
+    if isPureBuff and (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID)) then
       if not cbTrackBuffs or not buffOverlayActive then
         shouldShow = false
       end
@@ -6587,11 +6921,15 @@ local function UpdateCustomBar()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
+        if isOnCooldown and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           if not icon.isItem and profile.customBarUseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
             local expectedEnd = icon._cdExpectedEnd or 0
             if expectedEnd <= 0 and cdStart and cdDuration then
-              expectedEnd = cdStart + cdDuration
+              local startPublic = ToPublicNumber(cdStart)
+              local durationPublic = ToPublicNumber(cdDuration)
+              if startPublic and durationPublic then
+                expectedEnd = startPublic + durationPublic
+              end
             end
             local remaining = expectedEnd - nowCB
             if remaining <= 0 or remaining > icon.hideRevealThreshold then
@@ -6600,7 +6938,7 @@ local function UpdateCustomBar()
           else
             shouldShow = false
           end
-        elseif notEnoughResources then
+        elseif notEnoughResources and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           shouldShow = false
         end
       end
@@ -6854,12 +7192,16 @@ local function UpdateCustomBar()
     else
       StopReadyGlow(icon)
     end
-    if _cbGradT > 0 and not buffOverlayActive then
+    if _cbGradT > 0 and not buffOverlayActive and (not isChargeSpell) and (isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
       ApplyCdTextGradient(icon.cooldown, _cbGradT, _cbGradR, _cbGradG, _cbGradB, (not isItem) and activeSpellID or nil)
       icon._cdGradApplied = true
     elseif icon._cdGradApplied then
       ResetCdTextGradient(icon.cooldown)
       icon._cdGradApplied = false
+    end
+    if onMyTab and not demoCdApplied and cdTextScale > 0 and not isOnCooldown and not buffOverlayActive then
+      addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, inCombat)
+      demoCdApplied = true
     end
   end
   if layoutChanged then
@@ -7063,6 +7405,7 @@ local function UpdateCustomBar2()
   RefreshGlowParams()
   wipe(State.customBar2VisibleIcons)
   local visibleIcons = State.customBar2VisibleIcons
+  local demoCdApplied = false
   for originalIdx, icon in ipairs(State.customBar2Icons) do
     icon.hideRevealThreshold = tonumber(entryHRT and entryHRT[icon.entryIndex or originalIdx]) or 0
     local isItem = icon.isItem
@@ -7089,7 +7432,7 @@ local function UpdateCustomBar2()
       cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
-        if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+        if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
           shouldShowSwipe = false
         end
       end
@@ -7120,7 +7463,7 @@ local function UpdateCustomBar2()
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
           local shouldShowSwipe = true
-          if (not isChargeSpell) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+          if (not isChargeSpell) and (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
             shouldShowSwipe = false
           end
           if shouldShowSwipe and cdStart and cdDuration then
@@ -7131,11 +7474,11 @@ local function UpdateCustomBar2()
             icon.cooldown:Clear()
           end
         else
-          local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+          local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, actualID, inCombat)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
             local shouldShowSwipe = true
-            if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+            if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
               shouldShowSwipe = false
             end
             if shouldShowSwipe then
@@ -7152,7 +7495,7 @@ local function UpdateCustomBar2()
       end
     end
     local buffOverlayActive = false
-    if not isItem and cbTrackBuffs then
+    if not isItem and cbTrackBuffs and (not addonTable.IsBuffTrackingBlockedSpell(activeSpellID, actualID)) then
       local overlayApplied = false
       if cbTrackBuffs and addonTable.TryApplyLiveAuraOverlay then
         overlayApplied = addonTable.TryApplyLiveAuraOverlay(icon.cooldown, activeSpellID)
@@ -7164,54 +7507,74 @@ local function UpdateCustomBar2()
     end
     if inCombat then pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive) else icon.cooldown:SetReverse(buffOverlayActive) end
     if not isItem and not isChargeSpell then
-      if cdStart and cdDuration then
+      local cdStartPublic = ToPublicNumber(cdStart)
+      local cdDurationPublic = ToPublicNumber(cdDuration)
+      if cdStartPublic and cdDurationPublic then
         if inCombat then
-          local okZero, isZero = pcall(function() return cdStart == 0 end)
+          local okZero, isZero = pcall(function() return cdStartPublic == 0 end)
           if okZero and isZero then
-            icon._cdExpectedEnd = 0
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 local okGcd, isGcdMatch = pcall(function()
-                  return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+                  local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                  local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                  return gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+            local okCD, isCD = pcall(function() return cdStartPublic > 0 and cdDurationPublic > 1.5 end)
             if okCD and isCD then
               isOnCooldown = true
-              local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+              local ok2, endTime = pcall(function() return cdStartPublic + cdDurationPublic end)
               if ok2 and endTime then
                 icon._cdExpectedEnd = endTime
-                State.spellCdDurations[activeSpellID] = cdDuration
+                State.spellCdDurations[activeSpellID] = cdDurationPublic
                 if actualID ~= activeSpellID then
-                  State.spellCdDurations[actualID] = cdDuration
+                  State.spellCdDurations[actualID] = cdDurationPublic
                 end
               end
             end
           end
         else
-          if cdStart == 0 then
-            icon._cdExpectedEnd = 0
+          if cdStartPublic == 0 then
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
-                if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                if gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration then
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            if cdStart > 0 and cdDuration > 1.5 then
+            if cdStartPublic > 0 and cdDurationPublic > 1.5 then
               isOnCooldown = true
-              icon._cdExpectedEnd = cdStart + cdDuration
-              State.spellCdDurations[activeSpellID] = cdDuration
+              icon._cdExpectedEnd = cdStartPublic + cdDurationPublic
+              State.spellCdDurations[activeSpellID] = cdDurationPublic
               if actualID ~= activeSpellID then
-                State.spellCdDurations[actualID] = cdDuration
+                State.spellCdDurations[actualID] = cdDurationPublic
               end
             end
           end
@@ -7221,7 +7584,18 @@ local function UpdateCustomBar2()
         if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and nowCB < icon._cdExpectedEnd then
           isOnCooldown = true
         end
+        if (not isOnCooldown) and addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat) then
+          isOnCooldown = true
+        end
       end
+    end
+    if (not isOnCooldown) and inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      if addonTable.HasActivePlayerAuraForSpell(activeSpellID, actualID) then
+        isOnCooldown = true
+      end
+    end
+    if inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat)
     end
     local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
@@ -7233,22 +7607,16 @@ local function UpdateCustomBar2()
         if hasUsability == false then
           isUsable = false
         end
-        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
     local hasChargeRecharge = false
     if (not isItem) and isChargeSpell and chargesData then
-      if inCombat then
-        local okRecharge, recharge = pcall(function()
-          return chargesData.cooldownStartTime and chargesData.cooldownDuration
-            and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
-        end)
-        hasChargeRecharge = okRecharge and recharge or false
-      else
-        hasChargeRecharge = chargesData.cooldownStartTime and chargesData.cooldownDuration
-          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0 or false
-      end
+      local okRecharge, recharge = pcall(function()
+        return chargesData.cooldownStartTime and chargesData.cooldownDuration
+          and chargesData.cooldownStartTime > 0 and chargesData.cooldownDuration > 0
+      end)
+      hasChargeRecharge = okRecharge and recharge or false
     end
     if buffOverlayActive or isOnCooldown or hasChargeRecharge then
       barHasActiveTimers = true
@@ -7271,7 +7639,7 @@ local function UpdateCustomBar2()
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
     local isPureBuff = pureBuffSpellIDs[activeSpellID] == true or pureBuffSpellIDs[actualID] == true
-    if isPureBuff then
+    if isPureBuff and (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID)) then
       if not cbTrackBuffs or not buffOverlayActive then
         shouldShow = false
       end
@@ -7282,11 +7650,15 @@ local function UpdateCustomBar2()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
+        if isOnCooldown and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           if not icon.isItem and profile.customBar2UseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
             local expectedEnd = icon._cdExpectedEnd or 0
             if expectedEnd <= 0 and cdStart and cdDuration then
-              expectedEnd = cdStart + cdDuration
+              local startPublic = ToPublicNumber(cdStart)
+              local durationPublic = ToPublicNumber(cdDuration)
+              if startPublic and durationPublic then
+                expectedEnd = startPublic + durationPublic
+              end
             end
             local remaining = expectedEnd - nowCB
             if remaining <= 0 or remaining > icon.hideRevealThreshold then
@@ -7295,7 +7667,7 @@ local function UpdateCustomBar2()
           else
             shouldShow = false
           end
-        elseif notEnoughResources then
+        elseif notEnoughResources and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           shouldShow = false
         end
       end
@@ -7549,12 +7921,16 @@ local function UpdateCustomBar2()
     else
       StopReadyGlow(icon)
     end
-    if _cbGradT > 0 and not buffOverlayActive then
+    if _cbGradT > 0 and not buffOverlayActive and (not isChargeSpell) and (isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
       ApplyCdTextGradient(icon.cooldown, _cbGradT, _cbGradR, _cbGradG, _cbGradB, (not isItem) and activeSpellID or nil)
       icon._cdGradApplied = true
     elseif icon._cdGradApplied then
       ResetCdTextGradient(icon.cooldown)
       icon._cdGradApplied = false
+    end
+    if onMyTab and not demoCdApplied and cdTextScale > 0 and not isOnCooldown and not buffOverlayActive then
+      addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, inCombat)
+      demoCdApplied = true
     end
   end
   if layoutChanged then
@@ -7756,6 +8132,7 @@ local function UpdateCustomBar3()
   RefreshGlowParams()
   wipe(State.customBar3VisibleIcons)
   local visibleIcons = State.customBar3VisibleIcons
+  local demoCdApplied = false
   for originalIdx, icon in ipairs(State.customBar3Icons) do
     icon.hideRevealThreshold = tonumber(entryHRT and entryHRT[icon.entryIndex or originalIdx]) or 0
     local isItem = icon.isItem
@@ -7782,7 +8159,7 @@ local function UpdateCustomBar3()
       cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
-        if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+        if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
           shouldShowSwipe = false
         end
       end
@@ -7813,7 +8190,7 @@ local function UpdateCustomBar3()
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
           local shouldShowSwipe = true
-          if (not isChargeSpell) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+          if (not isChargeSpell) and (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
             shouldShowSwipe = false
           end
           if shouldShowSwipe and cdStart and cdDuration then
@@ -7824,11 +8201,11 @@ local function UpdateCustomBar3()
             icon.cooldown:Clear()
           end
         else
-          local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+          local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, actualID, inCombat)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
             local shouldShowSwipe = true
-            if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+            if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
               shouldShowSwipe = false
             end
             if shouldShowSwipe then
@@ -7845,7 +8222,7 @@ local function UpdateCustomBar3()
       end
     end
     local buffOverlayActive = false
-    if not isItem and cbTrackBuffs then
+    if not isItem and cbTrackBuffs and (not addonTable.IsBuffTrackingBlockedSpell(activeSpellID, actualID)) then
       local overlayApplied = false
       if cbTrackBuffs and addonTable.TryApplyLiveAuraOverlay then
         overlayApplied = addonTable.TryApplyLiveAuraOverlay(icon.cooldown, activeSpellID)
@@ -7857,54 +8234,74 @@ local function UpdateCustomBar3()
     end
     if inCombat then pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive) else icon.cooldown:SetReverse(buffOverlayActive) end
     if not isItem and not isChargeSpell then
-      if cdStart and cdDuration then
+      local cdStartPublic = ToPublicNumber(cdStart)
+      local cdDurationPublic = ToPublicNumber(cdDuration)
+      if cdStartPublic and cdDurationPublic then
         if inCombat then
-          local okZero, isZero = pcall(function() return cdStart == 0 end)
+          local okZero, isZero = pcall(function() return cdStartPublic == 0 end)
           if okZero and isZero then
-            icon._cdExpectedEnd = 0
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 local okGcd, isGcdMatch = pcall(function()
-                  return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+                  local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                  local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                  return gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+            local okCD, isCD = pcall(function() return cdStartPublic > 0 and cdDurationPublic > 1.5 end)
             if okCD and isCD then
               isOnCooldown = true
-              local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+              local ok2, endTime = pcall(function() return cdStartPublic + cdDurationPublic end)
               if ok2 and endTime then
                 icon._cdExpectedEnd = endTime
-                State.spellCdDurations[activeSpellID] = cdDuration
+                State.spellCdDurations[activeSpellID] = cdDurationPublic
                 if actualID ~= activeSpellID then
-                  State.spellCdDurations[actualID] = cdDuration
+                  State.spellCdDurations[actualID] = cdDurationPublic
                 end
               end
             end
           end
         else
-          if cdStart == 0 then
-            icon._cdExpectedEnd = 0
+          if cdStartPublic == 0 then
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
-                if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                if gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration then
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            if cdStart > 0 and cdDuration > 1.5 then
+            if cdStartPublic > 0 and cdDurationPublic > 1.5 then
               isOnCooldown = true
-              icon._cdExpectedEnd = cdStart + cdDuration
-              State.spellCdDurations[activeSpellID] = cdDuration
+              icon._cdExpectedEnd = cdStartPublic + cdDurationPublic
+              State.spellCdDurations[activeSpellID] = cdDurationPublic
               if actualID ~= activeSpellID then
-                State.spellCdDurations[actualID] = cdDuration
+                State.spellCdDurations[actualID] = cdDurationPublic
               end
             end
           end
@@ -7914,7 +8311,18 @@ local function UpdateCustomBar3()
         if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and nowCB < icon._cdExpectedEnd then
           isOnCooldown = true
         end
+        if (not isOnCooldown) and addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat) then
+          isOnCooldown = true
+        end
       end
+    end
+    if (not isOnCooldown) and inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      if addonTable.HasActivePlayerAuraForSpell(activeSpellID, actualID) then
+        isOnCooldown = true
+      end
+    end
+    if inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat)
     end
     local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
@@ -7926,7 +8334,6 @@ local function UpdateCustomBar3()
         if hasUsability == false then
           isUsable = false
         end
-        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
@@ -7948,7 +8355,7 @@ local function UpdateCustomBar3()
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
     local isPureBuff = pureBuffSpellIDs[activeSpellID] == true or pureBuffSpellIDs[actualID] == true
-    if isPureBuff then
+    if isPureBuff and (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID)) then
       if not cbTrackBuffs or not buffOverlayActive then
         shouldShow = false
       end
@@ -7959,11 +8366,15 @@ local function UpdateCustomBar3()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
+        if isOnCooldown and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           if not icon.isItem and profile.customBar3UseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
             local expectedEnd = icon._cdExpectedEnd or 0
             if expectedEnd <= 0 and cdStart and cdDuration then
-              expectedEnd = cdStart + cdDuration
+              local startPublic = ToPublicNumber(cdStart)
+              local durationPublic = ToPublicNumber(cdDuration)
+              if startPublic and durationPublic then
+                expectedEnd = startPublic + durationPublic
+              end
             end
             local remaining = expectedEnd - nowCB
             if remaining <= 0 or remaining > icon.hideRevealThreshold then
@@ -7972,7 +8383,7 @@ local function UpdateCustomBar3()
           else
             shouldShow = false
           end
-        elseif notEnoughResources then
+        elseif notEnoughResources and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           shouldShow = false
         end
       end
@@ -8225,12 +8636,16 @@ local function UpdateCustomBar3()
     else
       StopReadyGlow(icon)
     end
-    if _cbGradT > 0 and not buffOverlayActive then
+    if _cbGradT > 0 and not buffOverlayActive and (not isChargeSpell) and (isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
       ApplyCdTextGradient(icon.cooldown, _cbGradT, _cbGradR, _cbGradG, _cbGradB, (not isItem) and activeSpellID or nil)
       icon._cdGradApplied = true
     elseif icon._cdGradApplied then
       ResetCdTextGradient(icon.cooldown)
       icon._cdGradApplied = false
+    end
+    if onMyTab and not demoCdApplied and cdTextScale > 0 and not isOnCooldown and not buffOverlayActive then
+      addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, inCombat)
+      demoCdApplied = true
     end
   end
   if layoutChanged then
@@ -8431,6 +8846,7 @@ local function UpdateCustomBar4()
   RefreshGlowParams()
   wipe(State.customBar4VisibleIcons)
   local visibleIcons = State.customBar4VisibleIcons
+  local demoCdApplied = false
   for originalIdx, icon in ipairs(State.customBar4Icons) do
     icon.hideRevealThreshold = tonumber(entryHRT and entryHRT[icon.entryIndex or originalIdx]) or 0
     local isItem = icon.isItem
@@ -8457,7 +8873,7 @@ local function UpdateCustomBar4()
       cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
-        if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+        if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
           shouldShowSwipe = false
         end
       end
@@ -8488,7 +8904,7 @@ local function UpdateCustomBar4()
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
           local shouldShowSwipe = true
-          if (not isChargeSpell) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+          if (not isChargeSpell) and (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
             shouldShowSwipe = false
           end
           if shouldShowSwipe and cdStart and cdDuration then
@@ -8499,11 +8915,11 @@ local function UpdateCustomBar4()
             icon.cooldown:Clear()
           end
         else
-          local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+          local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, actualID, inCombat)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
             local shouldShowSwipe = true
-            if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+            if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
               shouldShowSwipe = false
             end
             if shouldShowSwipe then
@@ -8520,7 +8936,7 @@ local function UpdateCustomBar4()
       end
     end
     local buffOverlayActive = false
-    if not isItem and cbTrackBuffs then
+    if not isItem and cbTrackBuffs and (not addonTable.IsBuffTrackingBlockedSpell(activeSpellID, actualID)) then
       local overlayApplied = false
       if cbTrackBuffs and addonTable.TryApplyLiveAuraOverlay then
         overlayApplied = addonTable.TryApplyLiveAuraOverlay(icon.cooldown, activeSpellID)
@@ -8532,54 +8948,74 @@ local function UpdateCustomBar4()
     end
     if inCombat then pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive) else icon.cooldown:SetReverse(buffOverlayActive) end
     if not isItem and not isChargeSpell then
-      if cdStart and cdDuration then
+      local cdStartPublic = ToPublicNumber(cdStart)
+      local cdDurationPublic = ToPublicNumber(cdDuration)
+      if cdStartPublic and cdDurationPublic then
         if inCombat then
-          local okZero, isZero = pcall(function() return cdStart == 0 end)
+          local okZero, isZero = pcall(function() return cdStartPublic == 0 end)
           if okZero and isZero then
-            icon._cdExpectedEnd = 0
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 local okGcd, isGcdMatch = pcall(function()
-                  return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+                  local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                  local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                  return gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+            local okCD, isCD = pcall(function() return cdStartPublic > 0 and cdDurationPublic > 1.5 end)
             if okCD and isCD then
               isOnCooldown = true
-              local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+              local ok2, endTime = pcall(function() return cdStartPublic + cdDurationPublic end)
               if ok2 and endTime then
                 icon._cdExpectedEnd = endTime
-                State.spellCdDurations[activeSpellID] = cdDuration
+                State.spellCdDurations[activeSpellID] = cdDurationPublic
                 if actualID ~= activeSpellID then
-                  State.spellCdDurations[actualID] = cdDuration
+                  State.spellCdDurations[actualID] = cdDurationPublic
                 end
               end
             end
           end
         else
-          if cdStart == 0 then
-            icon._cdExpectedEnd = 0
+          if cdStartPublic == 0 then
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
-                if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                if gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration then
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            if cdStart > 0 and cdDuration > 1.5 then
+            if cdStartPublic > 0 and cdDurationPublic > 1.5 then
               isOnCooldown = true
-              icon._cdExpectedEnd = cdStart + cdDuration
-              State.spellCdDurations[activeSpellID] = cdDuration
+              icon._cdExpectedEnd = cdStartPublic + cdDurationPublic
+              State.spellCdDurations[activeSpellID] = cdDurationPublic
               if actualID ~= activeSpellID then
-                State.spellCdDurations[actualID] = cdDuration
+                State.spellCdDurations[actualID] = cdDurationPublic
               end
             end
           end
@@ -8589,7 +9025,18 @@ local function UpdateCustomBar4()
         if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and nowCB < icon._cdExpectedEnd then
           isOnCooldown = true
         end
+        if (not isOnCooldown) and addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat) then
+          isOnCooldown = true
+        end
       end
+    end
+    if (not isOnCooldown) and inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      if addonTable.HasActivePlayerAuraForSpell(activeSpellID, actualID) then
+        isOnCooldown = true
+      end
+    end
+    if inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat)
     end
     local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
@@ -8601,7 +9048,6 @@ local function UpdateCustomBar4()
         if hasUsability == false then
           isUsable = false
         end
-        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
@@ -8623,7 +9069,7 @@ local function UpdateCustomBar4()
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
     local isPureBuff = pureBuffSpellIDs[activeSpellID] == true or pureBuffSpellIDs[actualID] == true
-    if isPureBuff then
+    if isPureBuff and (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID)) then
       if not cbTrackBuffs or not buffOverlayActive then
         shouldShow = false
       end
@@ -8634,11 +9080,15 @@ local function UpdateCustomBar4()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
+        if isOnCooldown and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           if not icon.isItem and profile.customBar4UseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
             local expectedEnd = icon._cdExpectedEnd or 0
             if expectedEnd <= 0 and cdStart and cdDuration then
-              expectedEnd = cdStart + cdDuration
+              local startPublic = ToPublicNumber(cdStart)
+              local durationPublic = ToPublicNumber(cdDuration)
+              if startPublic and durationPublic then
+                expectedEnd = startPublic + durationPublic
+              end
             end
             local remaining = expectedEnd - nowCB
             if remaining <= 0 or remaining > icon.hideRevealThreshold then
@@ -8647,7 +9097,7 @@ local function UpdateCustomBar4()
           else
             shouldShow = false
           end
-        elseif notEnoughResources then
+        elseif notEnoughResources and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           shouldShow = false
         end
       end
@@ -8900,12 +9350,16 @@ local function UpdateCustomBar4()
     else
       StopReadyGlow(icon)
     end
-    if _cbGradT > 0 and not buffOverlayActive then
+    if _cbGradT > 0 and not buffOverlayActive and (not isChargeSpell) and (isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
       ApplyCdTextGradient(icon.cooldown, _cbGradT, _cbGradR, _cbGradG, _cbGradB, (not isItem) and activeSpellID or nil)
       icon._cdGradApplied = true
     elseif icon._cdGradApplied then
       ResetCdTextGradient(icon.cooldown)
       icon._cdGradApplied = false
+    end
+    if onMyTab and not demoCdApplied and cdTextScale > 0 and not isOnCooldown and not buffOverlayActive then
+      addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, inCombat)
+      demoCdApplied = true
     end
   end
   if layoutChanged then
@@ -9106,6 +9560,7 @@ local function UpdateCustomBar5()
   RefreshGlowParams()
   wipe(State.customBar5VisibleIcons)
   local visibleIcons = State.customBar5VisibleIcons
+  local demoCdApplied = false
   for originalIdx, icon in ipairs(State.customBar5Icons) do
     icon.hideRevealThreshold = tonumber(entryHRT and entryHRT[icon.entryIndex or originalIdx]) or 0
     local isItem = icon.isItem
@@ -9132,7 +9587,7 @@ local function UpdateCustomBar5()
       cdStart, cdDuration = C_Item.GetItemCooldown(actualID)
       local shouldShowSwipe = true
       if cdStart and cdDuration and cdStart > 0 and cdDuration > 0 then
-        if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+        if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
           shouldShowSwipe = false
         end
       end
@@ -9163,7 +9618,7 @@ local function UpdateCustomBar5()
           isChargeSpell = IsRealChargeSpell(chargesData, actualID)
           cdStart, cdDuration = chargesData.cooldownStartTime, chargesData.cooldownDuration
           local shouldShowSwipe = true
-          if (not isChargeSpell) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+          if (not isChargeSpell) and (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
             shouldShowSwipe = false
           end
           if shouldShowSwipe and cdStart and cdDuration then
@@ -9174,11 +9629,11 @@ local function UpdateCustomBar5()
             icon.cooldown:Clear()
           end
         else
-          local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+          local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, actualID, inCombat)
           if cdInfo then
             cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
             local shouldShowSwipe = true
-            if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+            if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, actualID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
               shouldShowSwipe = false
             end
             if shouldShowSwipe then
@@ -9195,7 +9650,7 @@ local function UpdateCustomBar5()
       end
     end
     local buffOverlayActive = false
-    if not isItem and cbTrackBuffs then
+    if not isItem and cbTrackBuffs and (not addonTable.IsBuffTrackingBlockedSpell(activeSpellID, actualID)) then
       local overlayApplied = false
       if cbTrackBuffs and addonTable.TryApplyLiveAuraOverlay then
         overlayApplied = addonTable.TryApplyLiveAuraOverlay(icon.cooldown, activeSpellID)
@@ -9207,54 +9662,74 @@ local function UpdateCustomBar5()
     end
     if inCombat then pcall(icon.cooldown.SetReverse, icon.cooldown, buffOverlayActive) else icon.cooldown:SetReverse(buffOverlayActive) end
     if not isItem and not isChargeSpell then
-      if cdStart and cdDuration then
+      local cdStartPublic = ToPublicNumber(cdStart)
+      local cdDurationPublic = ToPublicNumber(cdDuration)
+      if cdStartPublic and cdDurationPublic then
         if inCombat then
-          local okZero, isZero = pcall(function() return cdStart == 0 end)
+          local okZero, isZero = pcall(function() return cdStartPublic == 0 end)
           if okZero and isZero then
-            icon._cdExpectedEnd = 0
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
                 local okGcd, isGcdMatch = pcall(function()
-                  return cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration
+                  local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                  local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                  return gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration
                 end)
                 if okGcd and isGcdMatch then
-                  icon._cdExpectedEnd = 0
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            local okCD, isCD = pcall(function() return cdStart > 0 and cdDuration > 1.5 end)
+            local okCD, isCD = pcall(function() return cdStartPublic > 0 and cdDurationPublic > 1.5 end)
             if okCD and isCD then
               isOnCooldown = true
-              local ok2, endTime = pcall(function() return cdStart + cdDuration end)
+              local ok2, endTime = pcall(function() return cdStartPublic + cdDurationPublic end)
               if ok2 and endTime then
                 icon._cdExpectedEnd = endTime
-                State.spellCdDurations[activeSpellID] = cdDuration
+                State.spellCdDurations[activeSpellID] = cdDurationPublic
                 if actualID ~= activeSpellID then
-                  State.spellCdDurations[actualID] = cdDuration
+                  State.spellCdDurations[actualID] = cdDurationPublic
                 end
               end
             end
           end
         else
-          if cdStart == 0 then
-            icon._cdExpectedEnd = 0
+          if cdStartPublic == 0 then
+            if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowCB) then
+              icon._cdExpectedEnd = 0
+            else
+              isOnCooldown = true
+            end
           else
             if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
               local gcdInfo = cachedGcdInfo
               if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
-                if cdStart == gcdInfo.startTime and cdDuration == gcdInfo.duration then
-                  icon._cdExpectedEnd = 0
+                local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                if gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration then
+                  local nowTs = nowCB or GetTime()
+                  if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                    icon._cdExpectedEnd = 0
+                  end
                 end
               end
             end
-            if cdStart > 0 and cdDuration > 1.5 then
+            if cdStartPublic > 0 and cdDurationPublic > 1.5 then
               isOnCooldown = true
-              icon._cdExpectedEnd = cdStart + cdDuration
-              State.spellCdDurations[activeSpellID] = cdDuration
+              icon._cdExpectedEnd = cdStartPublic + cdDurationPublic
+              State.spellCdDurations[activeSpellID] = cdDurationPublic
               if actualID ~= activeSpellID then
-                State.spellCdDurations[actualID] = cdDuration
+                State.spellCdDurations[actualID] = cdDurationPublic
               end
             end
           end
@@ -9264,7 +9739,18 @@ local function UpdateCustomBar5()
         if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and nowCB < icon._cdExpectedEnd then
           isOnCooldown = true
         end
+        if (not isOnCooldown) and addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat) then
+          isOnCooldown = true
+        end
       end
+    end
+    if (not isOnCooldown) and inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      if addonTable.HasActivePlayerAuraForSpell(activeSpellID, actualID) then
+        isOnCooldown = true
+      end
+    end
+    if inCombat and addonTable.IsRecastLikeSpell(activeSpellID, actualID) then
+      addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, actualID, nowCB, inCombat)
     end
     local isUsable, notEnoughResources, hasUsability = true, false, false
     if not isItem then
@@ -9276,7 +9762,6 @@ local function UpdateCustomBar5()
         if hasUsability == false then
           isUsable = false
         end
-        isOnCooldown = not isUsable
         notEnoughResources = false
       end
     end
@@ -9298,7 +9783,7 @@ local function UpdateCustomBar5()
     local isUnavailable = isOnCooldown or notEnoughResources
     local shouldShow = true
     local isPureBuff = pureBuffSpellIDs[activeSpellID] == true or pureBuffSpellIDs[actualID] == true
-    if isPureBuff then
+    if isPureBuff and (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID)) then
       if not cbTrackBuffs or not buffOverlayActive then
         shouldShow = false
       end
@@ -9309,11 +9794,15 @@ local function UpdateCustomBar5()
           shouldShow = false
         end
       elseif cooldownMode == "hide" then
-        if isOnCooldown then
+        if isOnCooldown and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           if not icon.isItem and profile.customBar5UseCustomHideReveal and icon.hideRevealThreshold and icon.hideRevealThreshold > 0 then
             local expectedEnd = icon._cdExpectedEnd or 0
             if expectedEnd <= 0 and cdStart and cdDuration then
-              expectedEnd = cdStart + cdDuration
+              local startPublic = ToPublicNumber(cdStart)
+              local durationPublic = ToPublicNumber(cdDuration)
+              if startPublic and durationPublic then
+                expectedEnd = startPublic + durationPublic
+              end
             end
             local remaining = expectedEnd - nowCB
             if remaining <= 0 or remaining > icon.hideRevealThreshold then
@@ -9322,7 +9811,7 @@ local function UpdateCustomBar5()
           else
             shouldShow = false
           end
-        elseif notEnoughResources then
+        elseif notEnoughResources and (icon.isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
           shouldShow = false
         end
       end
@@ -9575,12 +10064,16 @@ local function UpdateCustomBar5()
     else
       StopReadyGlow(icon)
     end
-    if _cbGradT > 0 and not buffOverlayActive then
+    if _cbGradT > 0 and not buffOverlayActive and (not isChargeSpell) and (isItem or (not addonTable.IsNoHideRevealSpell(activeSpellID, actualID))) then
       ApplyCdTextGradient(icon.cooldown, _cbGradT, _cbGradR, _cbGradG, _cbGradB, (not isItem) and activeSpellID or nil)
       icon._cdGradApplied = true
     elseif icon._cdGradApplied then
       ResetCdTextGradient(icon.cooldown)
       icon._cdGradApplied = false
+    end
+    if onMyTab and not demoCdApplied and cdTextScale > 0 and not isOnCooldown and not buffOverlayActive then
+      addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, inCombat)
+      demoCdApplied = true
     end
   end
   if layoutChanged then
@@ -9627,7 +10120,8 @@ end
 addonTable.CreateCustomBar5Icons = CreateCustomBar5Icons
 addonTable.UpdateCustomBar5 = UpdateCustomBar5
 addonTable.UpdateCustomBar5Position = UpdateCustomBar5Position
-addonTable.UpdateCustomBar5StackTextPositions = UpdateCustomBar5StackTextPositions
+addonTable.UpdateCustomBar5StackTextPositions = UpdateCustomBar5StackTextPositions
+
 local cursorIconContainer = CreateFrame("Frame", "CCMCursorIconContainer", UIParent)
 cursorIconContainer:SetSize(1, 1)
 cursorIconContainer:EnableMouse(false)
@@ -10012,7 +10506,7 @@ addonTable.EvaluateOnUpdateHandlers = function(profile)
 end
 cursorTrackingFrame:SetScript("OnUpdate", addonTable.CursorTrackingOnUpdate)
 CCM:SetScript("OnUpdate", addonTable.MainOnUpdate)
-UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
+function UpdateSpellIcon(icon, profile, cachedGcdInfo, tickCtx)
   profile = profile or addonTable.GetProfile()
   if not profile then return end
   if State.cursorIconPreviewActive then
@@ -10039,6 +10533,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
         icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       else
         icon.cooldown:Clear()
+        addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, false)
       end
       local stackTextScale = type(profile.stackTextScale) == "number" and profile.stackTextScale or 1.0
       icon.stackText:SetScale(stackTextScale)
@@ -10069,7 +10564,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
       else
         icon.stackText:Hide()
       end
-      local cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
+      local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, spellID, false)
       if charges and charges.cooldownStartTime and charges.cooldownDuration then
         pcall(icon.cooldown.SetCooldown, icon.cooldown, charges.cooldownStartTime, charges.cooldownDuration)
         icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
@@ -10078,6 +10573,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
         icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
       else
         icon.cooldown:Clear()
+        addonTable.ApplyConfigPreviewCountdown(icon.cooldown, cdTextScale, false)
       end
     end
     EnsureIconRestored(icon)
@@ -10260,13 +10756,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
     safeCharges = GetSafeCurrentCharges(charges, activeSpellID, icon.cooldown, spellID)
   end
   local inCombat = tickCtx and tickCtx.inCombat or InCombatLockdown()
-  local cdInfo
-  if inCombat then
-    local okCd, ci = pcall(C_Spell.GetSpellCooldown, activeSpellID)
-    if okCd and type(ci) == "table" then cdInfo = ci end
-  else
-    cdInfo = C_Spell.GetSpellCooldown(activeSpellID)
-  end
+  local cdInfo = addonTable.GetOverrideAwareCooldownInfo(activeSpellID, spellID, inCombat)
   if safeCharges ~= nil then
     icon.stackText:SetText(tostring(safeCharges))
     icon.stackText:SetScale(stackTextScale)
@@ -10278,7 +10768,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
       cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
     end
     local shouldShowSwipe = true
-    if (not isChargeSpell) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+    if (not isChargeSpell) and (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, spellID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
       shouldShowSwipe = false
     end
     if shouldShowSwipe and cdStart and cdDuration then
@@ -10295,7 +10785,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
     if cdInfo then
       local cdStart, cdDuration = cdInfo.startTime, cdInfo.duration
       local shouldShowSwipe = true
-      if ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
+      if (not addonTable.ShouldIgnoreShowGCDForSpell(activeSpellID, spellID)) and ShouldSuppressGCDSwipe(showGCD, cdStart, cdDuration, activeSpellID, icon._cdExpectedEnd, cachedGcdInfo) then
         shouldShowSwipe = false
       end
       if shouldShowSwipe then
@@ -10312,7 +10802,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
     end
   end
   local buffOverlayActive = false
-  if cursorTrackBuffs then
+  if cursorTrackBuffs and (not addonTable.IsBuffTrackingBlockedSpell(activeSpellID, spellID)) then
     local overlayApplied = false
     if addonTable.TryApplyLiveAuraOverlay then
       overlayApplied = addonTable.TryApplyLiveAuraOverlay(icon.cooldown, activeSpellID)
@@ -10353,53 +10843,72 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
   end
   local isOnCooldown = false
   if not isChargeSpell then
-    if cdInfo and cdInfo.startTime and cdInfo.duration then
+    local cdStartPublic = cdInfo and ToPublicNumber(cdInfo.startTime) or nil
+    local cdDurationPublic = cdInfo and ToPublicNumber(cdInfo.duration) or nil
+    if cdStartPublic and cdDurationPublic then
       if inCombat then
-        local okZero, isZero = pcall(function() return cdInfo.startTime == 0 end)
+        local okZero, isZero = pcall(function() return cdStartPublic == 0 end)
         if okZero and isZero then
-          icon._cdExpectedEnd = 0
+          if not (icon._cdExpectedEnd and icon._cdExpectedEnd > ((tickCtx and tickCtx.now) or GetTime())) then
+            icon._cdExpectedEnd = 0
+          else
+            isOnCooldown = true
+          end
         else
           if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
             local gcdInfo = cachedGcdInfo
             if gcdInfo and gcdInfo.startTime and gcdInfo.duration then
               local okGcd, isGcdMatch = pcall(function()
-                return cdInfo.startTime == gcdInfo.startTime and cdInfo.duration == gcdInfo.duration
+                local gcdStart = ToPublicNumber(gcdInfo.startTime)
+                local gcdDuration = ToPublicNumber(gcdInfo.duration)
+                return gcdStart and gcdDuration and cdStartPublic == gcdStart and cdDurationPublic == gcdDuration
               end)
               if okGcd and isGcdMatch then
-                icon._cdExpectedEnd = 0
+                local nowTs = (tickCtx and tickCtx.now) or GetTime()
+                if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                  icon._cdExpectedEnd = 0
+                end
               end
             end
           end
-          local okCD, isCD = pcall(function() return cdInfo.startTime > 0 and cdInfo.duration > 1.5 end)
+          local okCD, isCD = pcall(function() return cdStartPublic > 0 and cdDurationPublic > 1.5 end)
           if okCD and isCD then
             isOnCooldown = true
-            local ok2, endTime = pcall(function() return cdInfo.startTime + cdInfo.duration end)
+            local ok2, endTime = pcall(function() return cdStartPublic + cdDurationPublic end)
             if ok2 and endTime then
               icon._cdExpectedEnd = endTime
-              State.spellCdDurations[activeSpellID] = cdInfo.duration
+              State.spellCdDurations[activeSpellID] = cdDurationPublic
               if spellID ~= activeSpellID then
-                State.spellCdDurations[spellID] = cdInfo.duration
+                State.spellCdDurations[spellID] = cdDurationPublic
               end
             end
           end
         end
       else
-        if cdInfo.startTime == 0 then
-          icon._cdExpectedEnd = 0
+        if cdStartPublic == 0 then
+          if not (icon._cdExpectedEnd and icon._cdExpectedEnd > ((tickCtx and tickCtx.now) or GetTime())) then
+            icon._cdExpectedEnd = 0
+          else
+            isOnCooldown = true
+          end
         else
           if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 then
             local gcdInfo = cachedGcdInfo
             if gcdInfo and gcdInfo.startTime and gcdInfo.duration
-               and cdInfo.startTime == gcdInfo.startTime and cdInfo.duration == gcdInfo.duration then
-              icon._cdExpectedEnd = 0
+               and ToPublicNumber(gcdInfo.startTime) and ToPublicNumber(gcdInfo.duration)
+               and cdStartPublic == ToPublicNumber(gcdInfo.startTime) and cdDurationPublic == ToPublicNumber(gcdInfo.duration) then
+              local nowTs = (tickCtx and tickCtx.now) or GetTime()
+              if not (icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs) then
+                icon._cdExpectedEnd = 0
+              end
             end
           end
-          if cdInfo.startTime > 0 and cdInfo.duration > 1.5 then
+          if cdStartPublic > 0 and cdDurationPublic > 1.5 then
             isOnCooldown = true
-            icon._cdExpectedEnd = cdInfo.startTime + cdInfo.duration
-            State.spellCdDurations[activeSpellID] = cdInfo.duration
+            icon._cdExpectedEnd = cdStartPublic + cdDurationPublic
+            State.spellCdDurations[activeSpellID] = cdDurationPublic
             if spellID ~= activeSpellID then
-              State.spellCdDurations[spellID] = cdInfo.duration
+              State.spellCdDurations[spellID] = cdDurationPublic
             end
           end
         end
@@ -10410,7 +10919,37 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
       if icon._cdExpectedEnd and icon._cdExpectedEnd > 0 and now < icon._cdExpectedEnd then
         isOnCooldown = true
       end
+      if (not isOnCooldown) and addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, spellID, now, inCombat) then
+        isOnCooldown = true
+      end
     end
+  end
+  if (not isOnCooldown) and inCombat and addonTable.IsRecastLikeSpell(activeSpellID, spellID) then
+    if addonTable.HasActivePlayerAuraForSpell(activeSpellID, spellID) then
+      isOnCooldown = true
+    end
+  end
+  if isOnCooldown and addonTable.IsRecastLikeSpell(activeSpellID, spellID) then
+    local nowTs = tickCtx and tickCtx.now or GetTime()
+    local cdStartPublic = cdInfo and ToPublicNumber(cdInfo.startTime) or 0
+    local cdDurationPublic = cdInfo and ToPublicNumber(cdInfo.duration) or 0
+    local hasStableCdInfo = cdStartPublic > 0 and cdDurationPublic > 1.5
+    if (not hasStableCdInfo) and icon._cdExpectedEnd and icon._cdExpectedEnd > nowTs then
+      local remaining = icon._cdExpectedEnd - nowTs
+      if remaining > 0 then
+        icon.cooldown:SetDrawSwipe(true)
+        if inCombat then
+          pcall(icon.cooldown.SetCooldown, icon.cooldown, nowTs, remaining)
+        else
+          icon.cooldown:SetCooldown(nowTs, remaining)
+        end
+        icon.cooldown:SetHideCountdownNumbers(cdTextScale <= 0)
+        icon.cooldown:SetDrawEdge(false)
+      end
+    end
+  end
+  if inCombat and addonTable.IsRecastLikeSpell(activeSpellID, spellID) then
+    addonTable.ApplyOverrideCooldownLatch(icon, activeSpellID, spellID, (tickCtx and tickCtx.now or GetTime()), inCombat)
   end
   local isUsable, notEnoughResources, hasUsability = GetSpellUsabilityState(activeSpellID)
   if notEnoughResources and isOnCooldown then
@@ -10420,13 +10959,12 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
     if hasUsability == false then
       isUsable = false
     end
-    isOnCooldown = not isUsable
     notEnoughResources = false
   end
   local isUnavailable = isOnCooldown or notEnoughResources
   local pureBuffSpellIDs = State._ccmPureBuffSpellIDs or (addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs() or {})
   local isPureBuff = pureBuffSpellIDs[activeSpellID] == true or pureBuffSpellIDs[spellID] == true
-  if isPureBuff then
+  if isPureBuff and (not addonTable.IsNoHideRevealSpell(activeSpellID, spellID)) then
     if not cursorTrackBuffs or not buffOverlayActive then
       HideIconByScale(icon)
       return
@@ -10451,7 +10989,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
         icon.icon:SetDesaturated(chargeDesat > 0)
       end
     elseif cooldownMode == "hide" then
-      if isOnCooldown then
+      if isOnCooldown and (not addonTable.IsNoHideRevealSpell(activeSpellID, spellID)) then
         local hrThreshold = 0
         if profile.useCustomHideReveal and icon.spellIndex then
           local hrThresholds = GetActiveSpellHideRevealThresholds(profile)
@@ -10499,7 +11037,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
       end
       icon.icon:SetDesaturated(false)
     elseif cooldownMode == "hide" then
-      if isOnCooldown then
+      if isOnCooldown and (not addonTable.IsNoHideRevealSpell(activeSpellID, spellID)) then
         local hrThreshold = 0
         if profile.useCustomHideReveal and icon.spellIndex then
           local hrThresholds = GetActiveSpellHideRevealThresholds(profile)
@@ -10521,7 +11059,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
           return
         end
       end
-      if notEnoughResources then
+      if notEnoughResources and (not addonTable.IsNoHideRevealSpell(activeSpellID, spellID)) then
         HideIconByScale(icon)
         return
       end
@@ -10544,7 +11082,7 @@ UpdateSpellIcon = function(icon, profile, cachedGcdInfo, tickCtx)
     StopReadyGlow(icon)
   end
   local cdGradT = tickCtx and tickCtx.cdGradT or (type(profile.cdTextGradientThreshold) == "number" and profile.cdTextGradientThreshold or 0)
-  if cdGradT > 0 and not buffOverlayActive then
+  if cdGradT > 0 and not buffOverlayActive and (not isChargeSpell) and (not addonTable.IsNoHideRevealSpell(activeSpellID, spellID)) then
     local gR = tickCtx and tickCtx.cdGradR or (type(profile.cdTextGradientR) == "number" and profile.cdTextGradientR or 1)
     local gG = tickCtx and tickCtx.cdGradG or (type(profile.cdTextGradientG) == "number" and profile.cdTextGradientG or 0)
     local gB = tickCtx and tickCtx.cdGradB or (type(profile.cdTextGradientB) == "number" and profile.cdTextGradientB or 0)
@@ -10927,8 +11465,6 @@ addonTable.RequestCustomBarUpdate = function()
   if State.customBarUpdatePending then return end
   State.customBarUpdatePending = true
   local profile = GetProfile()
-  local inCombat = InCombatLockdown()
-  local guiOpen = State.guiIsOpen == true
   local minInterval = nil
   local function ComputeAdaptiveBarInterval(baseInterval, cooldownMode, trackBuffsEnabled)
     local interval = baseInterval or 0.12
@@ -11059,7 +11595,7 @@ local function UpdateStackTextPositions()
   end
 end
 addonTable.UpdateStackTextPositions = UpdateStackTextPositions
-UpdateGCD = function()
+function UpdateGCD()
   local profile = addonTable.GetProfile()
   if not profile then
     State.gcdStartTime = 0
@@ -11198,24 +11734,17 @@ end
 addonTable.SaveCurrentProfileForSpec = SaveCurrentProfileForSpec
 addonTable.GetCharacterSpecKey = GetCharacterSpecKey
 local ChangelogPopupFrame
-local CHANGELOG_V710_TEXT = table.concat({
-  "|cff9ad0ff- added CCM Installer for first time users or when press installer button in profile tab|r",
-  "|cff9ad0ff- removed damage reduction tracker, works now with track buffs|r",
-  "|cff9ad0ff- bugfixes|r",
-  "|cff9ad0ff- performance fixes|r",
-  "|cff9ad0ff- fixed gui elements for different scalings|r",
-  "|cff9ad0ff- optimized buff tracker for Cursor CDM and Custom Bars|r",
+local CHANGELOG_V730_TEXT = table.concat({
+  "|cff9ad0ff- Split addon into modules: Core now focuses on Cursor CDM spell tracking|r",
+  "|cff9ad0ff- Added Boss Unit Frames with full customization (health, power, castbar, absorb)|r",
+  "|cff9ad0ff- GUI layout overhaul: consistent grid system across all tabs|r",
 }, "\n")
 local CHANGELOG_TEXT_BY_VERSION = {
-  ["7.1.0"] = CHANGELOG_V710_TEXT,
+  ["7.3.1"] = CHANGELOG_V730_TEXT,
 }
 local function GetCurrentAddonVersion()
   if C_AddOns and C_AddOns.GetAddOnMetadata then
     local v = C_AddOns.GetAddOnMetadata(addonName, "Version")
-    if type(v) == "string" and v ~= "" then return v end
-  end
-  if GetAddOnMetadata then
-    local v = GetAddOnMetadata(addonName, "Version")
     if type(v) == "string" and v ~= "" then return v end
   end
   return "0.0.0"
@@ -11294,9 +11823,15 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
   if event == "ADDON_LOADED" and arg1 == addonName then
     addonTable.WasFreshInstall = (type(CooldownCursorManagerDB) ~= "table")
     ApplyDefaults()
+    CooldownCursorManagerDB = CooldownCursorManagerDB or {}
+
+
     InitCurves()
     InitMasque()
     if CCM.RegisterMedia then CCM:RegisterMedia() end
+    if addonTable.ApplyModuleStateToProfile then
+      addonTable.ApplyModuleStateToProfile(addonTable.GetProfile and addonTable.GetProfile() or nil)
+    end
     CreateIcons()
     CreateCustomBarIcons()
     CreateCustomBar2Icons()
@@ -11317,15 +11852,20 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end
     if addonTable.SetupEnhancedTooltipHook then addonTable.SetupEnhancedTooltipHook() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
-    if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-    if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
-    if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("qol") then
+      if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+      if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
+      if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+    end
   elseif event == "PLAYER_LOGIN" then
     ApplyCharacterProfile()
     MigrateOldCustomBarData()
     MigrateRenamedProfileKeys()
     local profile = addonTable.GetProfile()
     if profile then
+      if addonTable.ApplyModuleStateToProfile then
+        addonTable.ApplyModuleStateToProfile(profile)
+      end
       if profile.uiScaleMode ~= "disabled" and profile.uiScale then
         SetCVar("uiScale", profile.uiScale)
         UIParent:SetScale(profile.uiScale)
@@ -11362,14 +11902,38 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     UpdateCustomBar5()
     UpdateStandaloneBlizzardBars()
     PreCacheSpellDurations()
-    C_Timer.After(1, function() ScanSpellBookCharges() PreCacheSpellDurations() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
-    C_Timer.After(3, function() ScanSpellBookCharges() PreCacheSpellDurations() State.standaloneNeedsSkinning = true UpdateStandaloneBlizzardBars() end)
+    C_Timer.After(1, function()
+      ScanSpellBookCharges()
+      PreCacheSpellDurations()
+      State.standaloneNeedsSkinning = true
+      UpdateStandaloneBlizzardBars()
+      UpdateAllIcons()
+      UpdateCustomBar()
+      UpdateCustomBar2()
+      UpdateCustomBar3()
+      UpdateCustomBar4()
+      UpdateCustomBar5()
+      if addonTable.RequestCustomBarUpdate then addonTable.RequestCustomBarUpdate() end
+    end)
+    C_Timer.After(3, function()
+      ScanSpellBookCharges()
+      PreCacheSpellDurations()
+      State.standaloneNeedsSkinning = true
+      UpdateStandaloneBlizzardBars()
+      UpdateAllIcons()
+      UpdateCustomBar()
+      UpdateCustomBar2()
+      UpdateCustomBar3()
+      UpdateCustomBar4()
+      UpdateCustomBar5()
+      if addonTable.RequestCustomBarUpdate then addonTable.RequestCustomBarUpdate() end
+    end)
     if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
     if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
-    if profile and profile.usePersonalResourceBar then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("prb") and profile and profile.usePersonalResourceBar then
       if addonTable.StartPRBTicker then addonTable.StartPRBTicker() end
     end
-    if profile and profile.useCastbar then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("castbars") and profile and profile.useCastbar then
       if addonTable.SetBlizzardCastbarVisibility then
         addonTable.SetBlizzardCastbarVisibility(false)
       end
@@ -11381,7 +11945,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         addonTable.CastbarFrame:Hide()
       end
     end
-    if profile and profile.useFocusCastbar then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("castbars") and profile and profile.useFocusCastbar then
       if addonTable.SetupFocusCastbarEvents then
         addonTable.SetupFocusCastbarEvents()
       end
@@ -11390,7 +11954,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         addonTable.FocusCastbarFrame:Hide()
       end
     end
-    if profile and profile.useTargetCastbar then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("castbars") and profile and profile.useTargetCastbar then
       if addonTable.SetupTargetCastbarEvents then
         addonTable.SetupTargetCastbarEvents()
       end
@@ -11399,7 +11963,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         addonTable.TargetCastbarFrame:Hide()
       end
     end
-    if profile and profile.enablePlayerDebuffs then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("debuffs") and profile and profile.enablePlayerDebuffs then
       if addonTable.ApplyPlayerDebuffsSkinning then
         addonTable.ApplyPlayerDebuffsSkinning()
       end
@@ -11416,15 +11980,17 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.SetupTooltipIDHooks then addonTable.SetupTooltipIDHooks() end
     if addonTable.SetupEnhancedTooltipHook then addonTable.SetupEnhancedTooltipHook() end
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
-    if addonTable.SetCombatTimerActive then addonTable.SetCombatTimerActive(UnitAffectingCombat("player") == true) end
-    if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-    if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
-    if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
-    if addonTable.SetupChatEnhancements then addonTable.SetupChatEnhancements() end
-    if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end
-    if addonTable.SetupAutoQuest then addonTable.SetupAutoQuest() end
-    if addonTable.SetupAutoFillDelete then addonTable.SetupAutoFillDelete() end
-    if addonTable.SetupQuickRoleSignup then addonTable.SetupQuickRoleSignup() end
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("qol") then
+      if addonTable.SetCombatTimerActive then addonTable.SetCombatTimerActive(UnitAffectingCombat("player") == true) end
+      if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+      if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
+      if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+      if addonTable.SetupChatEnhancements then addonTable.SetupChatEnhancements() end
+      if addonTable.SetupSkyriding then addonTable.SetupSkyriding() end
+      if addonTable.SetupAutoQuest then addonTable.SetupAutoQuest() end
+      if addonTable.SetupAutoFillDelete then addonTable.SetupAutoFillDelete() end
+      if addonTable.SetupQuickRoleSignup then addonTable.SetupQuickRoleSignup() end
+    end
   elseif event == "PLAYER_ENTERING_WORLD" then
     ScanSpellBookCharges()
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
@@ -11436,13 +12002,27 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
     end)
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
-    if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
-    if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("qol") then
+      if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+      if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+    end
+    C_Timer.After(0.35, function()
+      ScanSpellBookCharges()
+      UpdateAllIcons()
+      UpdateCustomBar()
+      UpdateCustomBar2()
+      UpdateCustomBar3()
+      UpdateCustomBar4()
+      UpdateCustomBar5()
+      if addonTable.RequestCustomBarUpdate then addonTable.RequestCustomBarUpdate() end
+    end)
   elseif event == "MERCHANT_SHOW" then
-    if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
-    if addonTable.TryAutoSellJunk then addonTable.TryAutoSellJunk() end
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("qol") then
+      if addonTable.TryAutoRepair then addonTable.TryAutoRepair() end
+      if addonTable.TryAutoSellJunk then addonTable.TryAutoSellJunk() end
+    end
   elseif event == "PLAYER_TARGET_CHANGED" or event == "PLAYER_FOCUS_CHANGED" then
-    if event == "PLAYER_FOCUS_CHANGED" then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("castbars") and event == "PLAYER_FOCUS_CHANGED" then
       local profile = addonTable.GetProfile and addonTable.GetProfile()
       if profile and profile.useFocusCastbar then
         if UnitExists("focus") then
@@ -11460,7 +12040,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         end
       end
     end
-    if event == "PLAYER_TARGET_CHANGED" then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("castbars") and event == "PLAYER_TARGET_CHANGED" then
       local profile = addonTable.GetProfile and addonTable.GetProfile()
       if profile and profile.useTargetCastbar then
         if UnitExists("target") then
@@ -11555,7 +12135,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         addonTable.UpdateUFBigHBDmgAbsorb(ov, arg1)
       end
     end
-    if arg1 == "player" and addonTable.UpdatePRB then
+    if addonTable.IsModuleEnabled and addonTable.IsModuleEnabled("prb") and arg1 == "player" and addonTable.UpdatePRB then
       addonTable.UpdatePRB()
     end
   elseif event == "SPELL_UPDATE_COOLDOWN" or event == "SPELL_UPDATE_CHARGES" or event == "BAG_UPDATE_COOLDOWN" or event == "BAG_UPDATE" then
@@ -11651,7 +12231,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         for _, icon in ipairs(State.cursorIcons) do
           if not icon.isItem then
             local sid = icon.spellID
-            if sid == spellID or ResolveTrackedSpellID(sid) == spellID then
+            if addonTable.AreSpellIDsLinked(sid, spellID) then
               icon._cdExpectedEnd = endTime
             end
           end
@@ -11659,7 +12239,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         for _, icon in ipairs(State.customBar1Icons) do
           if not icon.isItem then
             local aid = icon.actualID
-            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+            if addonTable.AreSpellIDsLinked(aid, spellID) then
               icon._cdExpectedEnd = endTime
             end
           end
@@ -11667,7 +12247,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         for _, icon in ipairs(State.customBar2Icons) do
           if not icon.isItem then
             local aid = icon.actualID
-            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+            if addonTable.AreSpellIDsLinked(aid, spellID) then
               icon._cdExpectedEnd = endTime
             end
           end
@@ -11675,7 +12255,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         for _, icon in ipairs(State.customBar3Icons) do
           if not icon.isItem then
             local aid = icon.actualID
-            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+            if addonTable.AreSpellIDsLinked(aid, spellID) then
               icon._cdExpectedEnd = endTime
             end
           end
@@ -11683,7 +12263,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         for _, icon in ipairs(State.customBar4Icons) do
           if not icon.isItem then
             local aid = icon.actualID
-            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+            if addonTable.AreSpellIDsLinked(aid, spellID) then
               icon._cdExpectedEnd = endTime
             end
           end
@@ -11691,7 +12271,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
         for _, icon in ipairs(State.customBar5Icons) do
           if not icon.isItem then
             local aid = icon.actualID
-            if aid == spellID or ResolveTrackedSpellID(aid) == spellID then
+            if addonTable.AreSpellIDsLinked(aid, spellID) then
               icon._cdExpectedEnd = endTime
             end
           end
@@ -11775,6 +12355,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     end
   elseif event == "PLAYER_SPECIALIZATION_CHANGED" and arg1 == "player" then
     addonTable.InvalidateResolveCache()
+    wipe(ChargeSpellCache)
     wipe(State.spellCdDurations)
     wipe(State.spellBaseCdDurations)
     ScanSpellBookCharges()
@@ -11811,10 +12392,30 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
     if addonTable.ApplyCompactMinimapIcons then addonTable.ApplyCompactMinimapIcons() end
   elseif event == "TRAIT_CONFIG_UPDATED" then
     addonTable.InvalidateResolveCache()
+    wipe(ChargeSpellCache)
     wipe(State.spellCdDurations)
     wipe(State.spellBaseCdDurations)
+    ScanSpellBookCharges()
     ResolveBuffDurations()
     PreCacheSpellDurations()
+    CreateIcons()
+    CreateCustomBarIcons()
+    CreateCustomBar2Icons()
+    CreateCustomBar3Icons()
+    CreateCustomBar4Icons()
+    CreateCustomBar5Icons()
+    UpdateAllIcons()
+    UpdateCustomBar()
+    UpdateCustomBar2()
+    UpdateCustomBar3()
+    UpdateCustomBar4()
+    UpdateCustomBar5()
+    if addonTable.RefreshCursorSpellList then addonTable.RefreshCursorSpellList() end
+    if addonTable.RefreshCB1SpellList then addonTable.RefreshCB1SpellList() end
+    if addonTable.RefreshCB2SpellList then addonTable.RefreshCB2SpellList() end
+    if addonTable.RefreshCB3SpellList then addonTable.RefreshCB3SpellList() end
+    if addonTable.RefreshCB4SpellList then addonTable.RefreshCB4SpellList() end
+    if addonTable.RefreshCB5SpellList then addonTable.RefreshCB5SpellList() end
   elseif event == "UNIT_DISPLAYPOWER" and arg1 == "player" then
     if addonTable.InvalidateUFBigHBPlayerOverlay then addonTable.InvalidateUFBigHBPlayerOverlay() end
     if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
@@ -11867,3 +12468,12 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
   end
 end)
 if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+
+
+
+
+
+
+
+
+

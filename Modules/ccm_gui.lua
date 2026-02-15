@@ -3,7 +3,7 @@
 -- Reusable GUI widget factories and UI component builders
 -- Author: Edeljay
 --------------------------------------------------------------------------------
-local addonName, CCM = ...
+local _, CCM = ...
 local addonTable = CCM
 local _activeDropdownList = nil
 local _dropdownClickCatcher = nil
@@ -144,6 +144,12 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   vt:SetScript("OnEditFocusLost", ApplyEditBoxValue)
   s:SetScript("OnValueChanged", function(self, value)
     if self._updating then return end
+    if self._ccmDisabled then
+      self._updating = true
+      self:SetValue(self._ccmDisabledValue or value)
+      self._updating = false
+      return
+    end
     local step = self.step or 1
     local rounded = math.floor(value / step + 0.5) * step
     if math.abs(value - rounded) > 0.001 then
@@ -171,8 +177,8 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   upTex:SetAllPoints()
   upTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up.tga")
   upBtn:SetScript("OnClick", function()
-    local step = 1
-    local minVal, maxVal = s:GetMinMaxValues()
+    local step = s.step or s:GetValueStep() or 1
+    local _, maxVal = s:GetMinMaxValues()
     local currentVal = s:GetValue()
     local newVal = currentVal + step
     if newVal > maxVal then newVal = maxVal end
@@ -187,8 +193,8 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   downTex:SetAllPoints()
   downTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
   downBtn:SetScript("OnClick", function()
-    local step = 1
-    local minVal, maxVal = s:GetMinMaxValues()
+    local step = s.step or s:GetValueStep() or 1
+    local minVal = s:GetMinMaxValues()
     local currentVal = s:GetValue()
     local newVal = currentVal - step
     if newVal < minVal then newVal = minVal end
@@ -200,24 +206,32 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   s.downBtn = downBtn
   s.label = l
   s.SetEnabled = function(self, enabled)
+    self._ccmDisabled = not enabled
+    if not enabled then self._ccmDisabledValue = self:GetValue() end
     if enabled then
       self:Enable()
+      self:EnableMouse(true)
       l:SetTextColor(0.9, 0.9, 0.9)
       self:SetBackdropBorderColor(0.25, 0.25, 0.28, 1)
       thumb:SetColorTexture(0.4, 0.4, 0.45, 1)
       vt:SetTextColor(1, 1, 1)
       vt:EnableMouse(true)
       upBtn:Enable()
+      upBtn:EnableMouse(true)
       downBtn:Enable()
+      downBtn:EnableMouse(true)
     else
       self:Disable()
+      self:EnableMouse(false)
       l:SetTextColor(0.4, 0.4, 0.4)
       self:SetBackdropBorderColor(0.15, 0.15, 0.18, 1)
       thumb:SetColorTexture(0.25, 0.25, 0.28, 1)
       vt:SetTextColor(0.4, 0.4, 0.4)
       vt:EnableMouse(false)
       upBtn:Disable()
+      upBtn:EnableMouse(false)
       downBtn:Disable()
+      downBtn:EnableMouse(false)
     end
   end
   return s
@@ -341,11 +355,9 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   arrow:SetVertexColor(0.6, 0.6, 0.6)
   local list = CreateFrame("Frame", nil, UIParent, "BackdropTemplate")
   list:SetWidth(w)
-  list:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
-  list:SetBackdropColor(0.1, 0.1, 0.12, 0.98)
-  list:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
   list:SetFrameStrata("TOOLTIP")
   list:SetFrameLevel(math.max((dd:GetFrameLevel() or 1) + 200, 2000))
+  list._ccmBackdropReady = false
   list:Hide()
   list:SetScript("OnHide", function()
     if _activeDropdownList == list then
@@ -506,6 +518,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
   function dd:SetOptions(opts)
     dd.options = opts or {}
     dd._scrollOffset = 0
+    dd._needsRender = true
     local maxTextW = 0
     local oldText = txt:GetText()
     for _, opt in ipairs(dd.options) do
@@ -514,9 +527,7 @@ local function StyledDropdown(p, labelTxt, x, y, w)
       if tw > maxTextW then maxTextW = tw end
     end
     txt:SetText(oldText or "")
-    local neededW = math.max(w, maxTextW + 30)
-    dd._effectiveWidth = neededW
-    RenderDropdownOptions()
+    dd._effectiveWidth = math.max(w, maxTextW + 30)
     if dd.value ~= nil then
       dd:SetValue(dd.value)
     end
@@ -551,6 +562,12 @@ local function StyledDropdown(p, labelTxt, x, y, w)
       end
       dd._scrollOffset = 0
       RenderDropdownOptions()
+      if not list._ccmBackdropReady then
+        list._ccmBackdropReady = true
+        list:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
+        list:SetBackdropColor(0.1, 0.1, 0.12, 0.98)
+        list:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
+      end
       list:ClearAllPoints()
       list:SetPoint("TOPLEFT", dd, "BOTTOMLEFT", 0, -2)
       list:SetFrameStrata("TOOLTIP")
@@ -737,6 +754,16 @@ local function ShowColorPicker(params)
     if ColorPickerFrame.NineSlice then ColorPickerFrame.NineSlice:Hide() end
     if ColorPickerFrame.Bg then ColorPickerFrame.Bg:SetAlpha(0) end
     if ColorPickerFrame.Background then ColorPickerFrame.Background:SetAlpha(0) end
+    local cpWidget = ColorPickerFrame.Content and ColorPickerFrame.Content.ColorPicker
+    if cpWidget and cpWidget.GetColorAlphaTexture then
+      local alphaTex = cpWidget:GetColorAlphaTexture()
+      if alphaTex then
+        alphaTex:SetTexCoord(0, 1, 1, 0)
+        hooksecurefunc(alphaTex, "SetTexCoord", function(self, a1, a2, a3, a4)
+          if a4 and a3 < a4 then self:SetTexCoord(a1, a2, a4, a3) end
+        end)
+      end
+    end
   end
   if ColorPickerFrame then
     local function StyleBtn(btn)
@@ -870,7 +897,7 @@ local SPELL_GLOW_TYPE_OPTIONS = {
   { text = "Proc", value = "proc" },
 }
 
-local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, hasRealCooldown, useCustomHideReveal, hideRevealThreshold, onHideRevealChange, isPureBuffDisabled)
+local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelete, onMoveUp, onMoveDown, onReorder, isGlobalGlowEnabled, spellGlowType, onGlowTypeSelect, isChargeSpell, isHideRevealBlocked, hasRealCooldown, useCustomHideReveal, hideRevealThreshold, onHideRevealChange, isPureBuffDisabled, isPureBuffEntry)
   local row = CreateFrame("Button", nil, parent, "BackdropTemplate")
   local rowY = -4 - (idx - 1) * 34
   row:SetHeight(32)
@@ -916,16 +943,39 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
   local isItem = entryID < 0
   local actualID = math.abs(entryID)
   local iconTexture, nameText, idText
+  local isNotSkilled = false
   if isItem then
     iconTexture = C_Item.GetItemIconByID(actualID)
     local itemName = C_Item.GetItemInfo(actualID)
     nameText = itemName or "Loading..."
     idText = " |cff888888(" .. actualID .. ")|r"
   else
-    local spellInfo = C_Spell.GetSpellInfo(actualID)
+    local resolvedID = actualID
+    if addonTable.ResolveTrackedSpellID then
+      local rid = addonTable.ResolveTrackedSpellID(actualID)
+      if type(rid) == "number" and rid > 0 then
+        resolvedID = rid
+      end
+    end
+    local spellInfo = C_Spell.GetSpellInfo(resolvedID) or C_Spell.GetSpellInfo(actualID)
     iconTexture = spellInfo and spellInfo.iconID
     nameText = spellInfo and spellInfo.name or "Loading..."
     idText = " |cff888888(" .. actualID .. ")|r"
+    if addonTable.IsSpellKnownByPlayer then
+      isNotSkilled = not addonTable.IsSpellKnownByPlayer(resolvedID) and not addonTable.IsSpellKnownByPlayer(actualID)
+    end
+    if isNotSkilled then
+      local knownBuffs = addonTable.GetCdmKnownBuffSpellIDs and addonTable.GetCdmKnownBuffSpellIDs()
+      local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs()
+      local isCdmBuff = (type(knownBuffs) == "table" and (knownBuffs[resolvedID] or knownBuffs[actualID])) or
+                        (type(pureBuffs) == "table" and (pureBuffs[resolvedID] or pureBuffs[actualID]))
+      if isCdmBuff then
+        isNotSkilled = false
+      end
+    end
+    if isNotSkilled then
+      idText = idText .. " |cffff6666(not skilled)|r"
+    end
   end
   local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
   cb:SetPoint("LEFT", row, "LEFT", 2, 0)
@@ -941,7 +991,16 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
   name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
   name:SetJustifyH("LEFT")
   name:SetText(nameText .. idText)
-  name:SetTextColor(0.9, 0.9, 0.9)
+  if isNotSkilled then
+    name:SetTextColor(0.75, 0.75, 0.75)
+  else
+    name:SetTextColor(0.9, 0.9, 0.9)
+  end
+  if isNotSkilled then
+    row:SetAlpha(0.55)
+    cb:SetChecked(false)
+    cb:Disable()
+  end
   local delBtn = CreateDeleteButton(row, 20, 20)
   delBtn:SetPoint("RIGHT", row, "RIGHT", -1, 0)
   delBtn:SetScript("OnClick", function() onDelete(idx) end)
@@ -1058,11 +1117,18 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
   hrBox:SetScript("OnEnterPressed", HRApplyEditBox)
   hrBox:SetScript("OnEscapePressed", function(s) s:ClearFocus() end)
   hrBox:SetScript("OnEditFocusLost", HRApplyEditBox)
-  local showGlow = isGlobalGlowEnabled == true and not isChargeSpell
-  local showHR = useCustomHideReveal == true and hasRealCooldown == true and not isChargeSpell
+  local showGlow = isGlobalGlowEnabled == true and not isChargeSpell and not isHideRevealBlocked
+  local showHR = useCustomHideReveal == true and hasRealCooldown == true and not isChargeSpell and not isHideRevealBlocked and not isItem
+  local showHRItemNote = useCustomHideReveal == true and isItem and not isHideRevealBlocked
   glowDD:SetShown(showGlow)
   glowDD:SetEnabled(showGlow)
   hrFrame:SetShown(showHR)
+  local hrItemNote
+  if showHRItemNote then
+    hrItemNote = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hrItemNote:SetText("no hide reveal for items")
+    hrItemNote:SetTextColor(1, 0.55, 0, 1)
+  end
   glowDD:ClearAllPoints()
   glowDD:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
   if showHR then
@@ -1075,6 +1141,13 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
       hrFrame:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
       name:SetPoint("RIGHT", hrFrame, "LEFT", -6, 0)
     end
+  elseif showHRItemNote then
+    if showGlow then
+      hrItemNote:SetPoint("RIGHT", glowDD, "LEFT", -6, 0)
+    else
+      hrItemNote:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+    end
+    name:SetPoint("RIGHT", hrItemNote, "LEFT", -6, 0)
   elseif showGlow then
     name:SetPoint("RIGHT", glowDD, "LEFT", -6, 0)
   else
@@ -1100,6 +1173,30 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
     hint:SetPoint("LEFT", name, "RIGHT", 6, 0)
     hint:SetTextColor(1, 0.5, 0.1)
     hint:SetText("Enable Track Buffs")
+  end
+  if useCustomHideReveal == true and isHideRevealBlocked then
+    local hrHint = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    hrHint:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+    hrHint:SetJustifyH("RIGHT")
+    hrHint:SetTextColor(1, 0.5, 0.1)
+    hrHint:SetText("(no hide reveal & no glow for this spell)")
+    name:ClearAllPoints()
+    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    name:SetPoint("RIGHT", hrHint, "LEFT", -6, 0)
+  end
+  if useCustomHideReveal == true and isPureBuffEntry and (not showHR) and (not isHideRevealBlocked) then
+    local buffHint = row:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    if showGlow then
+      buffHint:SetPoint("RIGHT", glowDD, "LEFT", -6, 0)
+    else
+      buffHint:SetPoint("RIGHT", upBtn, "LEFT", -6, 0)
+    end
+    buffHint:SetJustifyH("RIGHT")
+    buffHint:SetTextColor(1, 0.5, 0.1)
+    buffHint:SetText("(no hide reveal for this buff)")
+    name:ClearAllPoints()
+    name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
+    name:SetPoint("RIGHT", buffHint, "LEFT", -6, 0)
   end
   return row
 end

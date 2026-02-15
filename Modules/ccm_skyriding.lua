@@ -3,6 +3,8 @@
 -- Skyriding Enhancement: charge bar, speed display, ability cooldown bars
 -- Author: Edeljay
 --------------------------------------------------------------------------------
+if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_QOL") == 0 then return end
+
 local _, addonTable = ...
 
 local GetProfile = addonTable.GetProfile
@@ -51,7 +53,6 @@ local UpdatePreviewButtonState
 local math_floor = math.floor
 local math_min = math.min
 local math_max = math.max
-local math_sqrt = math.sqrt
 local string_format = string.format
 local function GetPixelScale(frame)
   local s = (frame and frame.GetEffectiveScale and frame:GetEffectiveScale()) or (UIParent and UIParent.GetEffectiveScale and UIParent:GetEffectiveScale()) or 1
@@ -96,12 +97,15 @@ local function FindChargeSpell()
 end
 
 local function IsOnSkyridingMount()
-  local _, canGlide = C_PlayerInfo.GetGlidingInfo()
-  if not canGlide then return false end
-  if IsMounted() then return FindChargeSpell() ~= nil end
-  local _, playerClass = UnitClass("player")
-  if playerClass == "DRUID" then return FindChargeSpell() ~= nil end
-  return false
+  if not IsMounted() then return false end
+  if C_PlayerInfo and C_PlayerInfo.GetGlidingInfo then
+    local _, canGlide = C_PlayerInfo.GetGlidingInfo()
+    if canGlide == true then
+      return true
+    end
+    return false
+  end
+  return FindChargeSpell() ~= nil
 end
 
 local function InvalidateColors()

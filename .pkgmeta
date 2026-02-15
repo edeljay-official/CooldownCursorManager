@@ -7,3 +7,12 @@ ignore:
   - .gitignore
   - README.md
   - CHANGELOG.md
+
+move-folders:
+  CooldownCursorManager/CooldownCursorManager_CustomBars: CooldownCursorManager_CustomBars
+  CooldownCursorManager/CooldownCursorManager_BlizzCDM: CooldownCursorManager_BlizzCDM
+  CooldownCursorManager/CooldownCursorManager_PRB: CooldownCursorManager_PRB
+  CooldownCursorManager/CooldownCursorManager_Castbars: CooldownCursorManager_Castbars
+  CooldownCursorManager/CooldownCursorManager_Debuffs: CooldownCursorManager_Debuffs
+  CooldownCursorManager/CooldownCursorManager_UnitFrames: CooldownCursorManager_UnitFrames
+  CooldownCursorManager/CooldownCursorManager_QOL: CooldownCursorManager_QOL

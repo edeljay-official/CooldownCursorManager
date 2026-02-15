@@ -1,0 +1,15 @@
+## Interface: 120001
+## Title: Cooldown Cursor Manager [Debuffs]
+## Notes: CCM companion module: Player Debuffs
+## Author: Edeljay
+## Version: 7.3.1
+## IconTexture: Interface\AddOns\CooldownCursorManager_Debuffs\icon.tga
+## Dependencies: CooldownCursorManager
+## LoadOnDemand: 1
+## Group: CooldownCursorManager
+## DefaultState: Enabled
+## X-CCM-Module: debuffs
+
+CooldownCursorManager_Debuffs.lua
+
+

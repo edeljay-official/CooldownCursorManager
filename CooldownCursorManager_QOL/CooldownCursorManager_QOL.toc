@@ -1,0 +1,15 @@
+## Interface: 120001
+## Title: Cooldown Cursor Manager [QoL]
+## Notes: CCM companion module: Quality of Life
+## Author: Edeljay
+## Version: 7.3.1
+## IconTexture: Interface\AddOns\CooldownCursorManager_QOL\icon.tga
+## Dependencies: CooldownCursorManager
+## LoadOnDemand: 1
+## Group: CooldownCursorManager
+## DefaultState: Enabled
+## X-CCM-Module: qol
+
+CooldownCursorManager_QOL.lua
+
+

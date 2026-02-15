@@ -3,10 +3,10 @@
 -- Player debuff icon skinning and layout
 -- Author: Edeljay
 --------------------------------------------------------------------------------
+if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_Debuffs") == 0 then return end
+
 local _, addonTable = ...
 local State = addonTable.State
-local AddIconBorder = addonTable.AddIconBorder
-local GetGlobalFont = addonTable.GetGlobalFont
 local debuffIcons = {}
 local debuffFrame = nil
 local function CreateDebuffIcon(parent, index)
@@ -129,7 +129,7 @@ local function UpdatePlayerDebuffs()
   local sortDirection = profile.playerDebuffSortDirection or "right"
   local rowGrowth = profile.playerDebuffRowGrowDirection or "down" 
   local debuffFilter = "HARMFUL"
-  local continuationToken, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8,
+  local _, slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8,
         slot9, slot10, slot11, slot12, slot13, slot14, slot15, slot16 = C_UnitAuras.GetAuraSlots("player", debuffFilter)
   local slots = {slot1, slot2, slot3, slot4, slot5, slot6, slot7, slot8,
                  slot9, slot10, slot11, slot12, slot13, slot14, slot15, slot16}

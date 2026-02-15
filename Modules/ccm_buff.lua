@@ -3,7 +3,9 @@
 -- Buff tracking via Blizzard CDM and live aura overlay
 -- Author: Edeljay
 --------------------------------------------------------------------------------
-local addonName, CCM = ...
+if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_BlizzCDM") == 0 then return end
+
+local _, CCM = ...
 local addonTable = CCM
 local GetTime = GetTime
 local wipe = wipe
