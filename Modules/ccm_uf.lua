@@ -1002,14 +1002,31 @@ addonTable.ApplyUnitFrameCustomization = function()
   local function ApplyUFBigHBNameTransforms(name, unitToken, prof)
     if type(name) ~= "string" or name == "" then return name end
     if not prof then return name end
-    if unitToken ~= "target" and unitToken ~= "focus" then return name end
-    if prof.ufBigHBHideRealm then
+    local unitHideRealmKey = (unitToken == "player" and "ufBigHBPlayerHideRealm")
+      or (unitToken == "target" and "ufBigHBTargetHideRealm")
+      or (unitToken == "focus" and "ufBigHBFocusHideRealm")
+    local hideRealm = false
+    if unitHideRealmKey then
+      hideRealm = (prof[unitHideRealmKey] == true) or (prof.ufBigHBHideRealm == true)
+    end
+    if hideRealm then
       local dashPos = name:find("-")
       if dashPos then
         name = name:sub(1, dashPos - 1)
       end
     end
     return name
+  end
+  local function GetUFBigHBNameMaxChars(prof, unitToken)
+    if type(prof) ~= "table" then return 0 end
+    local unitMaxKey = (unitToken == "player" and "ufBigHBPlayerNameMaxChars")
+      or (unitToken == "target" and "ufBigHBTargetNameMaxChars")
+      or (unitToken == "focus" and "ufBigHBFocusNameMaxChars")
+    local maxChars = unitMaxKey and tonumber(prof[unitMaxKey]) or nil
+    if maxChars == nil then
+      maxChars = tonumber(prof.ufBigHBNameMaxChars) or 0
+    end
+    return maxChars
   end
   local function GetSafeDmgAbsorbBoundsFromBar(srcBar, hpLeftBound, hpRightBound, hpWidthBound)
     if not srcBar then return nil, nil, nil end
@@ -3007,7 +3024,9 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
       end
     end
-    local maxNameChars = tonumber(profile.ufBigHBNameMaxChars) or 0
+    local targetMaxNameChars = GetUFBigHBNameMaxChars(profile, "target")
+    local focusMaxNameChars = GetUFBigHBNameMaxChars(profile, "focus")
+    local playerMaxNameChars = GetUFBigHBNameMaxChars(profile, "player")
     local function ApplyConsistentFontShadow(fontString, outlineFlag)
       if not fontString then return end
       local hasOutline = type(outlineFlag) == "string" and outlineFlag ~= ""
@@ -3151,7 +3170,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor then
             nameEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
-          local targetName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("target"), "target", profile), maxNameChars)
+          local targetName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("target"), "target", profile), targetMaxNameChars)
           if targetName and nameEl.SetText then nameEl:SetText(targetName) end
           ApplyUFBigHBScaledFont(nameEl, o.targetNameFont, o.targetNameFontSize, o.targetNameFontFlags, profile.ufBigHBTargetNameTextScale or profile.ufBigHBTargetTextScale)
         end
@@ -3162,7 +3181,7 @@ addonTable.ApplyUnitFrameCustomization = function()
             pcall(function()
               local p = addonTable.GetProfile and addonTable.GetProfile()
               if not p or p.ufBigHBHideTargetName then return end
-              local mc = tonumber(p.ufBigHBNameMaxChars) or 0
+              local mc = GetUFBigHBNameMaxChars(p, "target")
               if mc <= 0 then return end
               local rawName = UnitName("target")
               if not rawName or rawName == "" then return end
@@ -3288,7 +3307,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor then
             nameEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
-          local focusName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("focus"), "focus", profile), maxNameChars)
+          local focusName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("focus"), "focus", profile), focusMaxNameChars)
           if focusName and nameEl.SetText then nameEl:SetText(focusName) end
           ApplyUFBigHBScaledFont(nameEl, o.nameOrigFont, o.nameOrigFontSize, o.nameOrigFontFlags, profile.ufBigHBFocusNameTextScale or profile.ufBigHBFocusTextScale)
         end
@@ -3299,7 +3318,7 @@ addonTable.ApplyUnitFrameCustomization = function()
             pcall(function()
               local p = addonTable.GetProfile and addonTable.GetProfile()
               if not p or p.ufBigHBHideFocusName then return end
-              local mc = tonumber(p.ufBigHBNameMaxChars) or 0
+              local mc = GetUFBigHBNameMaxChars(p, "focus")
               if mc <= 0 then return end
               local rawName = UnitName("focus")
               if not rawName or rawName == "" then return end
@@ -3428,7 +3447,7 @@ addonTable.ApplyUnitFrameCustomization = function()
           if nameEl.SetTextColor then
             nameEl:SetTextColor(profile.ufNameColorR or 1, profile.ufNameColorG or 1, profile.ufNameColorB or 1)
           end
-          local playerName = TrimUFBigHBName(GetUFBigHBUnitName("player"), maxNameChars)
+          local playerName = TrimUFBigHBName(ApplyUFBigHBNameTransforms(GetUFBigHBUnitName("player"), "player", profile), playerMaxNameChars)
           if playerName and nameEl.SetText then nameEl:SetText(playerName) end
           ApplyUFBigHBScaledFont(nameEl, o.nameOrigFont, o.nameOrigFontSize, o.nameOrigFontFlags, profile.ufBigHBPlayerNameTextScale or profile.ufBigHBPlayerTextScale)
         end

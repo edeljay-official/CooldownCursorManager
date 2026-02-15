@@ -921,7 +921,7 @@ resizeGrip:SetScript("OnMouseUp", function()
   end
 end)
 local tabFrames, activeTab = {}, nil
-local MAX_TABS = 21
+local MAX_TABS = 24
 local TAB_UF = 11
 local TAB_QOL = 12
 local TAB_TCASTBAR = 13
@@ -933,6 +933,9 @@ local TAB_COMBAT = 19
 local TAB_PROFILES = 17
 local TAB_CUSTOMBAR4 = 20
 local TAB_CUSTOMBAR5 = 21
+local TAB_UF_PLAYER = 22
+local TAB_UF_TARGET = 23
+local TAB_UF_FOCUS = 24
 for i = 1, MAX_TABS do
   tabFrames[i] = CreateFrame("Frame", nil, contentContainer)
   tabFrames[i]:SetAllPoints()
@@ -1003,7 +1006,7 @@ installWizardNote:SetPoint("TOP", addonTable.installWizardBtn, "BOTTOM", 0, -6)
 installWizardNote:SetTextColor(0.6, 0.6, 0.65)
 installWizardNote:SetText("or type /ccminstall")
 local sidebarButtons = {}
-local expandState = {custombars = true, castbars = true, qol = true}
+local expandState = {custombars = true, castbars = true, unitframes = true, qol = true}
 local sidebarSep = sidebarChild:CreateTexture(nil, "ARTWORK")
 sidebarSep:SetHeight(1)
 sidebarSep:SetColorTexture(0.2, 0.2, 0.25, 0.6)
@@ -1025,6 +1028,7 @@ local TAB_WIDTHS = {
   [1] = 710, [2] = 870, [3] = 870, [4] = 870, [5] = 870,
   [6] = 720, [7] = 710, [8] = 710, [9] = 710, [10] = 710,
   [TAB_UF] = 800, [TAB_QOL] = 710, [TAB_TCASTBAR] = 710,
+  [TAB_UF_PLAYER] = 800, [TAB_UF_TARGET] = 800, [TAB_UF_FOCUS] = 800,
   [TAB_ACTIONBARS] = 710, [TAB_CHAT] = 710, [TAB_SKYRIDING] = 710,
   [TAB_PROFILES] = 710, [TAB_FEATURES] = 710, [TAB_COMBAT] = 710,
   [TAB_CUSTOMBAR4] = 870, [TAB_CUSTOMBAR5] = 870,
@@ -1073,6 +1077,12 @@ local function RebuildSidebar()
   local useTargetCastbar = profile and profile.useTargetCastbar or false
   local useDebuffs = profile and profile.enablePlayerDebuffs or false
   local useUF = profile == nil or profile.enableUnitFrameCustomization ~= false
+  local ufBigMaster
+  if profile then
+    ufBigMaster = (profile.ufBigHBPlayerEnabled == true) or (profile.ufBigHBTargetEnabled == true) or (profile.ufBigHBFocusEnabled == true)
+  else
+    ufBigMaster = true
+  end
   local useCursorCDM = profile and profile.cursorIconsEnabled ~= false
   local disableBlizzCDM = profile and profile.disableBlizzCDM == true
   local yOff = -6
@@ -1192,7 +1202,14 @@ local function RebuildSidebar()
     CreateSidebarBtn(TAB_TCASTBAR, "Target", true, (not moduleCastbars) or (not useTargetCastbar), nil, nil, (not moduleCastbars) and "disabled" or nil)
   end
   CreateSidebarBtn(10, "Debuffs", false, (not moduleDebuffs) or (not useDebuffs), nil, nil, (not moduleDebuffs) and "disabled" or nil)
-  CreateSidebarBtn(TAB_UF, "Unit Frames", false, (not moduleUnitFrames) or (not useUF and useUF ~= nil), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+  local unitframesBaseOff = (not moduleUnitFrames) or (not useUF and useUF ~= nil)
+  CreateSidebarBtn(nil, "Unit Frames", false, unitframesBaseOff, true, "unitframes", (not moduleUnitFrames) and "disabled" or nil)
+  if expandState.unitframes then
+    CreateSidebarBtn(TAB_UF, "Main", true, unitframesBaseOff, nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+    CreateSidebarBtn(TAB_UF_PLAYER, "Player", true, unitframesBaseOff or (not ufBigMaster) or (profile and profile.ufBigHBPlayerEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+    CreateSidebarBtn(TAB_UF_TARGET, "Target", true, unitframesBaseOff or (not ufBigMaster) or (profile and profile.ufBigHBTargetEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+    CreateSidebarBtn(TAB_UF_FOCUS, "Focus", true, unitframesBaseOff or (not ufBigMaster) or (profile and profile.ufBigHBFocusEnabled ~= true), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+  end
   CreateSidebarBtn(nil, "QoL", false, not moduleQOL, true, "qol", (not moduleQOL) and "disabled" or nil)
   if expandState.qol then
     CreateSidebarBtn(TAB_QOL, "Alerts", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
@@ -1330,6 +1347,9 @@ addonTable.ConfigFrame = cfg
 addonTable.tabFrames = tabFrames
 addonTable.MAX_TABS = MAX_TABS
 addonTable.TAB_UF = TAB_UF
+addonTable.TAB_UF_PLAYER = TAB_UF_PLAYER
+addonTable.TAB_UF_TARGET = TAB_UF_TARGET
+addonTable.TAB_UF_FOCUS = TAB_UF_FOCUS
 addonTable.TAB_QOL = TAB_QOL
 addonTable.TAB_ACTIONBARS = TAB_ACTIONBARS
 addonTable.TAB_CHAT = TAB_CHAT

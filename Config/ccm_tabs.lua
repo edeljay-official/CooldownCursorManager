@@ -1824,27 +1824,27 @@ local function InitTabs()
     addonTable.ufClassColorCB:SetPoint("TOPLEFT", ufMainSec, "BOTTOMLEFT", 265, -12)
     addonTable.ufDisableGlowsCB = Checkbox(uc, "Disable Frame Glows", 15, -62)
     addonTable.ufDisableGlowsCB:ClearAllPoints()
-    addonTable.ufDisableGlowsCB:SetPoint("TOPLEFT", addonTable.useCustomBorderColorCB, "BOTTOMLEFT", 0, -3)
+    addonTable.ufDisableGlowsCB:SetPoint("TOPLEFT", addonTable.useCustomBorderColorCB, "BOTTOMLEFT", 0, -10)
     addonTable.ufUseCustomTexturesCB = Checkbox(uc, "Use Custom Textures", 280, -62)
     addonTable.ufUseCustomTexturesCB:ClearAllPoints()
-    addonTable.ufUseCustomTexturesCB:SetPoint("TOPLEFT", addonTable.ufClassColorCB, "BOTTOMLEFT", 0, -3)
+    addonTable.ufUseCustomTexturesCB:SetPoint("TOPLEFT", addonTable.ufClassColorCB, "BOTTOMLEFT", 0, -10)
     addonTable.disableTargetBuffsCB = Checkbox(uc, "Disable Target Buffs", 15, -87)
     addonTable.disableTargetBuffsCB:ClearAllPoints()
-    addonTable.disableTargetBuffsCB:SetPoint("TOPLEFT", addonTable.ufDisableGlowsCB, "BOTTOMLEFT", 0, -3)
+    addonTable.disableTargetBuffsCB:SetPoint("TOPLEFT", addonTable.ufDisableGlowsCB, "BOTTOMLEFT", 0, -10)
     addonTable.hideEliteTextureCB = Checkbox(uc, "Hide Elite Texture", 280, -87)
     addonTable.hideEliteTextureCB:ClearAllPoints()
-    addonTable.hideEliteTextureCB:SetPoint("TOPLEFT", addonTable.ufUseCustomTexturesCB, "BOTTOMLEFT", 0, -3)
+    addonTable.hideEliteTextureCB:SetPoint("TOPLEFT", addonTable.ufUseCustomTexturesCB, "BOTTOMLEFT", 0, -10)
     addonTable.ufDisableCombatTextCB = Checkbox(uc, "Disable Player Combat Text", 15, -112)
     addonTable.ufDisableCombatTextCB:ClearAllPoints()
-    addonTable.ufDisableCombatTextCB:SetPoint("TOPLEFT", addonTable.disableTargetBuffsCB, "BOTTOMLEFT", 0, -3)
+    addonTable.ufDisableCombatTextCB:SetPoint("TOPLEFT", addonTable.disableTargetBuffsCB, "BOTTOMLEFT", 0, -10)
     addonTable.ufUseCustomNameColorCB = Checkbox(uc, "Use Custom Name Color", 280, -112)
     addonTable.ufUseCustomNameColorCB:ClearAllPoints()
-    addonTable.ufUseCustomNameColorCB:SetPoint("TOPLEFT", addonTable.hideEliteTextureCB, "BOTTOMLEFT", 0, -3)
+    addonTable.ufUseCustomNameColorCB:SetPoint("TOPLEFT", addonTable.hideEliteTextureCB, "BOTTOMLEFT", 0, -10)
     addonTable.ufHideGroupIndicatorCB = Checkbox(uc, "Hide Group Indicator", 15, -137)
     addonTable.ufHideGroupIndicatorCB:ClearAllPoints()
-    addonTable.ufHideGroupIndicatorCB:SetPoint("TOPLEFT", addonTable.ufDisableCombatTextCB, "BOTTOMLEFT", 0, -3)
+    addonTable.ufHideGroupIndicatorCB:SetPoint("TOPLEFT", addonTable.ufDisableCombatTextCB, "BOTTOMLEFT", 0, -10)
     addonTable.ufBorderColorBtn = CreateStyledButton(uc, "Border Color", 100, 22)
-    addonTable.ufBorderColorBtn:SetPoint("TOPLEFT", addonTable.ufHideGroupIndicatorCB, "BOTTOMLEFT", 0, -12)
+    addonTable.ufBorderColorBtn:SetPoint("TOPLEFT", addonTable.ufHideGroupIndicatorCB, "BOTTOMLEFT", 0, -16)
     addonTable.ufBorderColorSwatch = CreateFrame("Frame", nil, uc, "BackdropTemplate")
     addonTable.ufBorderColorSwatch:SetSize(22, 22)
     addonTable.ufBorderColorSwatch:SetPoint("LEFT", addonTable.ufBorderColorBtn, "RIGHT", 4, 0)
@@ -1854,6 +1854,8 @@ local function InitTabs()
     addonTable.ufHealthTextureDD = StyledDropdown(uc, nil, 280, -172, 115)
     ApplyTextureOptionsToDropdown(addonTable.ufHealthTextureDD)
     addonTable.ufHealthTextureDD:SetEnabled(true)
+    addonTable.ufHealthTextureDD:ClearAllPoints()
+    addonTable.ufHealthTextureDD:SetPoint("TOPLEFT", addonTable.ufBorderColorBtn, "TOPLEFT", 265, 0)
     addonTable.ufHealthTextureLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
     addonTable.ufHealthTextureLbl:SetPoint("BOTTOMLEFT", addonTable.ufHealthTextureDD, "TOPLEFT", 0, 4)
     addonTable.ufHealthTextureLbl:SetText("Texture")
@@ -1868,126 +1870,92 @@ local function InitTabs()
     addonTable.ufNameColorSwatch:SetBackdropColor(1, 1, 1, 1)
     addonTable.ufNameColorSwatch:SetBackdropBorderColor(0.3, 0.3, 0.35, 1)
 
-    local ufBigHBSec = Section(uc, "Use Bigger Healthbars", -215)
-    addonTable.ufBigHBPlayerCB = Checkbox(uc, "Player", 15, -240)
+    local ufBigHBSec = Section(uc, "Bigger Healthbars", -290)
+    addonTable.ufBigHBPlayerCB = Checkbox(uc, "Enable Player Bigger Healthbar", 15, -240)
     addonTable.ufBigHBPlayerCB:ClearAllPoints()
     addonTable.ufBigHBPlayerCB:SetPoint("TOPLEFT", ufBigHBSec, "BOTTOMLEFT", 0, -12)
-    addonTable.ufBigHBTargetCB = Checkbox(uc, "Target", 90, -240)
+    addonTable.ufBigHBTargetCB = Checkbox(uc, "Enable Target Bigger Healthbar", 265, -240)
     addonTable.ufBigHBTargetCB:ClearAllPoints()
-    addonTable.ufBigHBTargetCB:SetPoint("LEFT", addonTable.ufBigHBPlayerCB.label, "RIGHT", 15, 0)
-    addonTable.ufBigHBFocusCB = Checkbox(uc, "Focus", 165, -240)
+    addonTable.ufBigHBTargetCB:SetPoint("TOPLEFT", ufBigHBSec, "BOTTOMLEFT", 250, -12)
+    addonTable.ufBigHBFocusCB = Checkbox(uc, "Enable Focus Bigger Healthbar", 15, -268)
     addonTable.ufBigHBFocusCB:ClearAllPoints()
-    addonTable.ufBigHBFocusCB:SetPoint("LEFT", addonTable.ufBigHBTargetCB.label, "RIGHT", 15, 0)
-    addonTable.ufBigHBHideRealmCB = Checkbox(uc, "Hide Realm", 240, -240)
-    addonTable.ufBigHBHideRealmCB:ClearAllPoints()
-    addonTable.ufBigHBHideRealmCB:SetPoint("LEFT", addonTable.ufBigHBFocusCB.label, "RIGHT", 15, 0)
+    addonTable.ufBigHBFocusCB:SetPoint("TOPLEFT", addonTable.ufBigHBPlayerCB, "BOTTOMLEFT", 0, -10)
+    local ufBigHBNote = uc:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+    ufBigHBNote:SetPoint("TOPLEFT", addonTable.ufBigHBFocusCB, "BOTTOMLEFT", 0, -8)
+    ufBigHBNote:SetText("Configure details in Player/Target/Focus subtabs.")
+    ufBigHBNote:SetTextColor(0.65, 0.65, 0.7)
+    if ufScrollChild and ufScrollFrame then
+      ufScrollChild:SetHeight(620)
+      ufScrollFrame:SetVerticalScroll(0)
+    end
 
-    local UF_BIG_SECTION_START_Y = -267
-    local UF_BIG_SECTION_STEP_Y = 320
+  end
+
+  local function CreateUFUnitSubTab(tabFrame, unitKey, sectionTitle, _enableLabel, levelOptions)
+    if not tabFrame then return end
+    local sc = CreateFrame("Frame", nil, tabFrame)
+    sc:SetPoint("TOPLEFT", tabFrame, "TOPLEFT", 0, 0)
+    sc:SetPoint("BOTTOMRIGHT", tabFrame, "BOTTOMRIGHT", 0, 0)
     local UF_BIG_COL1_X = 15
     local UF_BIG_COL2_X = 175
     local UF_BIG_COL3_X = 335
     local UF_BIG_DD_W = 140
     local UF_BIG_STRIPE_X = UF_BIG_COL3_X + UF_BIG_DD_W + 8
-    local UF_BIG_ROW1_OFF = -30
-    local UF_BIG_ROW2_OFF = -82
+    local UF_BIG_ROW1_OFF = -58
+    local UF_BIG_ROW2_OFF = -118
     local UF_BIG_STRIPE_OFF = UF_BIG_ROW2_OFF - 16
-    local UF_BIG_SLIDER1_OFF = -145
-    local UF_BIG_SLIDER2_OFF = -205
-    local UF_BIG_SLIDER3_OFF = -265
-    local playerSecY = UF_BIG_SECTION_START_Y
-    local targetSecY = playerSecY - UF_BIG_SECTION_STEP_Y
-    local focusSecY = targetSecY - UF_BIG_SECTION_STEP_Y
-    local trimSecY = focusSecY - UF_BIG_SECTION_STEP_Y
-
-    Section(uc, "Player", playerSecY)
-    addonTable.ufBigHBHidePlayerNameCB = Checkbox(uc, "Hide Name", UF_BIG_COL1_X, playerSecY + UF_BIG_ROW1_OFF)
-    addonTable.ufBigHBPlayerNameAnchorDD = StyledDropdown(uc, nil, UF_BIG_COL2_X, playerSecY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBPlayerNameAnchorDD:SetOptions({{text = "Left", value = "left"}, {text = "Center", value = "center"}, {text = "Right", value = "right"}})
-    addonTable.ufBigHBPlayerNameAnchorLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    addonTable.ufBigHBPlayerNameAnchorLbl:SetPoint("BOTTOMLEFT", addonTable.ufBigHBPlayerNameAnchorDD, "TOPLEFT", 0, 4)
-    addonTable.ufBigHBPlayerNameAnchorLbl:SetText("Name Anchor")
-    addonTable.ufBigHBPlayerNameAnchorLbl:SetTextColor(0.9, 0.9, 0.9)
-    addonTable.ufBigHBPlayerLevelDD = StyledDropdown(uc, nil, UF_BIG_COL3_X, playerSecY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBPlayerLevelDD:SetOptions({{text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}})
-    addonTable.ufBigHBPlayerLevelLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    addonTable.ufBigHBPlayerLevelLbl:SetPoint("BOTTOMLEFT", addonTable.ufBigHBPlayerLevelDD, "TOPLEFT", 0, 4)
-    addonTable.ufBigHBPlayerLevelLbl:SetText("Level")
-    addonTable.ufBigHBPlayerLevelLbl:SetTextColor(0.9, 0.9, 0.9)
-    addonTable.ufBigHBPlayerHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", UF_BIG_COL1_X, playerSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBPlayerHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBPlayerDmgAbsorbDD = StyledDropdown(uc, "Absorb Shield", UF_BIG_COL2_X, playerSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBPlayerDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBPlayerHealPredDD = StyledDropdown(uc, "Heal Prediction", UF_BIG_COL3_X, playerSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBPlayerHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBPlayerAbsorbStripesCB = Checkbox(uc, "Absorb Stripes", UF_BIG_STRIPE_X, playerSecY + UF_BIG_STRIPE_OFF)
-    addonTable.ufBigHBPlayerNameXSlider = Slider(uc, "Name X", UF_BIG_COL1_X, playerSecY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBPlayerNameYSlider = Slider(uc, "Name Y", 280, playerSecY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBPlayerLevelXSlider = Slider(uc, "Level X", UF_BIG_COL1_X, playerSecY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBPlayerLevelYSlider = Slider(uc, "Level Y", 280, playerSecY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBPlayerNameTextScaleSlider = Slider(uc, "Name Text Scale", UF_BIG_COL1_X, playerSecY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
-    addonTable.ufBigHBPlayerLevelTextScaleSlider = Slider(uc, "Level Text Scale", 280, playerSecY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
-
-    Section(uc, "Target", targetSecY)
-    addonTable.ufBigHBHideTargetNameCB = Checkbox(uc, "Hide Name", UF_BIG_COL1_X, targetSecY + UF_BIG_ROW1_OFF)
-    addonTable.ufBigHBTargetNameAnchorDD = StyledDropdown(uc, nil, UF_BIG_COL2_X, targetSecY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBTargetNameAnchorDD:SetOptions({{text = "Left", value = "left"}, {text = "Center", value = "center"}, {text = "Right", value = "right"}})
-    addonTable.ufBigHBTargetNameAnchorLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    addonTable.ufBigHBTargetNameAnchorLbl:SetPoint("BOTTOMLEFT", addonTable.ufBigHBTargetNameAnchorDD, "TOPLEFT", 0, 4)
-    addonTable.ufBigHBTargetNameAnchorLbl:SetText("Name Anchor")
-    addonTable.ufBigHBTargetNameAnchorLbl:SetTextColor(0.9, 0.9, 0.9)
-    addonTable.ufBigHBTargetLevelDD = StyledDropdown(uc, nil, UF_BIG_COL3_X, targetSecY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBTargetLevelDD:SetOptions({{text = "Always", value = "always"}, {text = "Hide", value = "hide"}, {text = "Hide Max", value = "hidemax"}})
-    addonTable.ufBigHBTargetLevelLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    addonTable.ufBigHBTargetLevelLbl:SetPoint("BOTTOMLEFT", addonTable.ufBigHBTargetLevelDD, "TOPLEFT", 0, 4)
-    addonTable.ufBigHBTargetLevelLbl:SetText("Level")
-    addonTable.ufBigHBTargetLevelLbl:SetTextColor(0.9, 0.9, 0.9)
-    addonTable.ufBigHBTargetHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", UF_BIG_COL1_X, targetSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBTargetHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBTargetDmgAbsorbDD = StyledDropdown(uc, "Absorb Shield", UF_BIG_COL2_X, targetSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBTargetDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBTargetHealPredDD = StyledDropdown(uc, "Heal Prediction", UF_BIG_COL3_X, targetSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBTargetHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBTargetAbsorbStripesCB = Checkbox(uc, "Absorb Stripes", UF_BIG_STRIPE_X, targetSecY + UF_BIG_STRIPE_OFF)
-    addonTable.ufBigHBTargetNameXSlider = Slider(uc, "Name X", UF_BIG_COL1_X, targetSecY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBTargetNameYSlider = Slider(uc, "Name Y", 280, targetSecY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBTargetLevelXSlider = Slider(uc, "Level X", UF_BIG_COL1_X, targetSecY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBTargetLevelYSlider = Slider(uc, "Level Y", 280, targetSecY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBTargetNameTextScaleSlider = Slider(uc, "Name Text Scale", UF_BIG_COL1_X, targetSecY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
-    addonTable.ufBigHBTargetLevelTextScaleSlider = Slider(uc, "Level Text Scale", 280, targetSecY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
-
-    Section(uc, "Focus", focusSecY)
-    addonTable.ufBigHBHideFocusNameCB = Checkbox(uc, "Hide Name", UF_BIG_COL1_X, focusSecY + UF_BIG_ROW1_OFF)
-    addonTable.ufBigHBFocusNameAnchorDD = StyledDropdown(uc, nil, UF_BIG_COL2_X, focusSecY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBFocusNameAnchorDD:SetOptions({{text = "Left", value = "left"}, {text = "Center", value = "center"}, {text = "Right", value = "right"}})
-    addonTable.ufBigHBFocusNameAnchorLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    addonTable.ufBigHBFocusNameAnchorLbl:SetPoint("BOTTOMLEFT", addonTable.ufBigHBFocusNameAnchorDD, "TOPLEFT", 0, 4)
-    addonTable.ufBigHBFocusNameAnchorLbl:SetText("Name Anchor")
-    addonTable.ufBigHBFocusNameAnchorLbl:SetTextColor(0.9, 0.9, 0.9)
-    addonTable.ufBigHBFocusLevelDD = StyledDropdown(uc, nil, UF_BIG_COL3_X, focusSecY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBFocusLevelDD:SetOptions({{text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}})
-    addonTable.ufBigHBFocusLevelLbl = uc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
-    addonTable.ufBigHBFocusLevelLbl:SetPoint("BOTTOMLEFT", addonTable.ufBigHBFocusLevelDD, "TOPLEFT", 0, 4)
-    addonTable.ufBigHBFocusLevelLbl:SetText("Level")
-    addonTable.ufBigHBFocusLevelLbl:SetTextColor(0.9, 0.9, 0.9)
-    addonTable.ufBigHBFocusHealAbsorbDD = StyledDropdown(uc, "Heal Absorb", UF_BIG_COL1_X, focusSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBFocusHealAbsorbDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBFocusDmgAbsorbDD = StyledDropdown(uc, "Absorb Shield", UF_BIG_COL2_X, focusSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBFocusDmgAbsorbDD:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBFocusHealPredDD = StyledDropdown(uc, "Heal Prediction", UF_BIG_COL3_X, focusSecY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
-    addonTable.ufBigHBFocusHealPredDD:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
-    addonTable.ufBigHBFocusAbsorbStripesCB = Checkbox(uc, "Absorb Stripes", UF_BIG_STRIPE_X, focusSecY + UF_BIG_STRIPE_OFF)
-    addonTable.ufBigHBFocusNameXSlider = Slider(uc, "Name X", UF_BIG_COL1_X, focusSecY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBFocusNameYSlider = Slider(uc, "Name Y", 280, focusSecY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBFocusLevelXSlider = Slider(uc, "Level X", UF_BIG_COL1_X, focusSecY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBFocusLevelYSlider = Slider(uc, "Level Y", 280, focusSecY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
-    addonTable.ufBigHBFocusNameTextScaleSlider = Slider(uc, "Name Text Scale", UF_BIG_COL1_X, focusSecY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
-    addonTable.ufBigHBFocusLevelTextScaleSlider = Slider(uc, "Level Text Scale", 280, focusSecY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
-
-    Section(uc, "Name Trim", trimSecY)
-    addonTable.ufBigHBNameMaxCharsSlider = Slider(uc, "Name Max Chars (0=Off)", 15, trimSecY + UF_BIG_ROW1_OFF, 0, 40, 0, 1)
-
+    local UF_BIG_SLIDER1_OFF = -188
+    local UF_BIG_SLIDER2_OFF = -248
+    local UF_BIG_SLIDER3_OFF = -308
+    local UF_BIG_HIDE_REALM_OFF = -86
+    local UF_BIG_NAME_MAX_OFF = UF_BIG_SLIDER3_OFF - 60
+    local secY = -12
+    local sec = Section(sc, sectionTitle, secY)
+    local suf = unitKey
+    addonTable["ufBigHB" .. suf .. "Section"] = sec
+    addonTable["ufBigHBHide" .. suf .. "NameCB"] = Checkbox(sc, "Hide Name", UF_BIG_COL1_X, secY + UF_BIG_ROW1_OFF)
+    addonTable["ufBigHB" .. suf .. "NameAnchorDD"] = StyledDropdown(sc, nil, UF_BIG_COL2_X, secY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
+    addonTable["ufBigHB" .. suf .. "NameAnchorDD"]:SetOptions({{text = "Left", value = "left"}, {text = "Center", value = "center"}, {text = "Right", value = "right"}})
+    addonTable["ufBigHB" .. suf .. "NameAnchorLbl"] = sc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    addonTable["ufBigHB" .. suf .. "NameAnchorLbl"]:SetPoint("BOTTOMLEFT", addonTable["ufBigHB" .. suf .. "NameAnchorDD"], "TOPLEFT", 0, 4)
+    addonTable["ufBigHB" .. suf .. "NameAnchorLbl"]:SetText("Name Anchor")
+    addonTable["ufBigHB" .. suf .. "NameAnchorLbl"]:SetTextColor(0.9, 0.9, 0.9)
+    addonTable["ufBigHB" .. suf .. "LevelDD"] = StyledDropdown(sc, nil, UF_BIG_COL3_X, secY + UF_BIG_ROW1_OFF, UF_BIG_DD_W)
+    addonTable["ufBigHB" .. suf .. "LevelDD"]:SetOptions(levelOptions)
+    addonTable["ufBigHB" .. suf .. "LevelLbl"] = sc:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+    addonTable["ufBigHB" .. suf .. "LevelLbl"]:SetPoint("BOTTOMLEFT", addonTable["ufBigHB" .. suf .. "LevelDD"], "TOPLEFT", 0, 4)
+    addonTable["ufBigHB" .. suf .. "LevelLbl"]:SetText("Level")
+    addonTable["ufBigHB" .. suf .. "LevelLbl"]:SetTextColor(0.9, 0.9, 0.9)
+    addonTable["ufBigHB" .. suf .. "HealAbsorbDD"] = StyledDropdown(sc, "Heal Absorb", UF_BIG_COL1_X, secY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
+    addonTable["ufBigHB" .. suf .. "HealAbsorbDD"]:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable["ufBigHB" .. suf .. "DmgAbsorbDD"] = StyledDropdown(sc, "Absorb Shield", UF_BIG_COL2_X, secY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
+    addonTable["ufBigHB" .. suf .. "DmgAbsorbDD"]:SetOptions({{text = "Bar + Glow", value = "bar_glow"}, {text = "Bar Only", value = "bar"}, {text = "Off", value = "off"}})
+    addonTable["ufBigHB" .. suf .. "HealPredDD"] = StyledDropdown(sc, "Heal Prediction", UF_BIG_COL3_X, secY + UF_BIG_ROW2_OFF, UF_BIG_DD_W)
+    addonTable["ufBigHB" .. suf .. "HealPredDD"]:SetOptions({{text = "On", value = "on"}, {text = "Off", value = "off"}})
+    addonTable["ufBigHB" .. suf .. "AbsorbStripesCB"] = Checkbox(sc, "Absorb Stripes", UF_BIG_STRIPE_X, secY + UF_BIG_STRIPE_OFF)
+    addonTable["ufBigHB" .. suf .. "NameXSlider"] = Slider(sc, "Name X", UF_BIG_COL1_X, secY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
+    addonTable["ufBigHB" .. suf .. "NameYSlider"] = Slider(sc, "Name Y", 280, secY + UF_BIG_SLIDER1_OFF, -200, 200, 0, 1)
+    addonTable["ufBigHB" .. suf .. "LevelXSlider"] = Slider(sc, "Level X", UF_BIG_COL1_X, secY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
+    addonTable["ufBigHB" .. suf .. "LevelYSlider"] = Slider(sc, "Level Y", 280, secY + UF_BIG_SLIDER2_OFF, -200, 200, 0, 1)
+    addonTable["ufBigHB" .. suf .. "NameTextScaleSlider"] = Slider(sc, "Name Text Scale", UF_BIG_COL1_X, secY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
+    addonTable["ufBigHB" .. suf .. "LevelTextScaleSlider"] = Slider(sc, "Level Text Scale", 280, secY + UF_BIG_SLIDER3_OFF, 0.50, 3.00, 1.00, 0.05)
+    if unitKey ~= "Player" then
+      addonTable["ufBigHB" .. suf .. "HideRealmCB"] = Checkbox(sc, "Hide Realm", UF_BIG_COL1_X, secY + UF_BIG_HIDE_REALM_OFF)
+      addonTable["ufBigHB" .. suf .. "NameMaxCharsSlider"] = Slider(sc, "Name Max Chars (0=Off)", UF_BIG_COL1_X, secY + UF_BIG_NAME_MAX_OFF, 0, 40, 0, 1)
+    else
+      addonTable["ufBigHB" .. suf .. "NameMaxCharsSlider"] = Slider(sc, "Name Max Chars (0=Off)", UF_BIG_COL1_X, secY + UF_BIG_NAME_MAX_OFF, 0, 40, 0, 1)
+    end
   end
+
+  CreateUFUnitSubTab(tabFrames[22], "Player", "Player", "Enable Player Bigger Healthbar", {
+    {text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}
+  })
+  CreateUFUnitSubTab(tabFrames[23], "Target", "Target", "Enable Target Bigger Healthbar", {
+    {text = "Always", value = "always"}, {text = "Hide", value = "hide"}, {text = "Hide Max", value = "hidemax"}
+  })
+  CreateUFUnitSubTab(tabFrames[24], "Focus", "Focus", "Enable Focus Bigger Healthbar", {
+    {text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}
+  })
 
   local tab12 = tabFrames[12]
   if tab12 then

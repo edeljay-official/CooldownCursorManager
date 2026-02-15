@@ -129,6 +129,9 @@ local function SyncModuleControlsState()
   end
   if addonTable.ResetAllPreviewHighlights then addonTable.ResetAllPreviewHighlights() end
   SetTabControlsEnabled(addonTable.TAB_UF or 11, unitframesOn)
+  SetTabControlsEnabled(addonTable.TAB_UF_PLAYER or 22, unitframesOn)
+  SetTabControlsEnabled(addonTable.TAB_UF_TARGET or 23, unitframesOn)
+  SetTabControlsEnabled(addonTable.TAB_UF_FOCUS or 24, unitframesOn)
   SyncQolTabControlsState()
 end
 local function SyncTrackBuffsCheckboxesFromProfile(profile)
@@ -805,7 +808,12 @@ local function UpdateAllControls()
     addonTable.ufClassColorCB:SetEnabled(classColorOn)
     addonTable.ufClassColorCB:SetAlpha(classColorOn and 1 or 0.5)
   end
-  local bigHBPlayerOn = ufOn and profile.ufBigHBPlayerEnabled == true
+  local ufBigMaster = profile.ufBigHBEnabled
+  if ufBigMaster == nil then
+    ufBigMaster = (profile.ufBigHBPlayerEnabled == true) or (profile.ufBigHBTargetEnabled == true) or (profile.ufBigHBFocusEnabled == true)
+  end
+  profile.ufBigHBEnabled = ufBigMaster == true
+  local bigHBPlayerOn = ufOn and profile.ufBigHBEnabled == true and profile.ufBigHBPlayerEnabled == true
   if addonTable.ufDisableGlowsCB then
     if bigHBPlayerOn then
       addonTable.ufDisableGlowsCB:SetChecked(true)
@@ -902,11 +910,12 @@ local function UpdateAllControls()
   local ufBigPlayer = profile.ufBigHBPlayerEnabled == true
   local ufBigTarget = profile.ufBigHBTargetEnabled == true
   local ufBigFocus = profile.ufBigHBFocusEnabled == true
-  local ufBigNameMaxChars = num(profile.ufBigHBNameMaxChars, 0)
+  local ufBigPlayerNameMaxChars = num(profile.ufBigHBPlayerNameMaxChars, num(profile.ufBigHBNameMaxChars, 0))
+  local ufBigTargetNameMaxChars = num(profile.ufBigHBTargetNameMaxChars, num(profile.ufBigHBNameMaxChars, 0))
+  local ufBigFocusNameMaxChars = num(profile.ufBigHBFocusNameMaxChars, num(profile.ufBigHBNameMaxChars, 0))
   if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB:SetChecked(ufBigPlayer); addonTable.ufBigHBPlayerCB:SetEnabled(ufOn) end
   if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB:SetChecked(ufBigTarget); addonTable.ufBigHBTargetCB:SetEnabled(ufOn) end
   if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB:SetChecked(ufBigFocus); addonTable.ufBigHBFocusCB:SetEnabled(ufOn) end
-  if addonTable.ufBigHBHideRealmCB then addonTable.ufBigHBHideRealmCB:SetChecked(profile.ufBigHBHideRealm == true); addonTable.ufBigHBHideRealmCB:SetEnabled(bigHBOn and (ufBigTarget or ufBigFocus)) end
 
   local function ApplyUFBigSlider(slider, value, enabled, fmt)
     if not slider then return end
@@ -918,10 +927,15 @@ local function UpdateAllControls()
     end
     slider:SetEnabled(enabled)
   end
-  ApplyUFBigSlider(addonTable.ufBigHBNameMaxCharsSlider, ufBigNameMaxChars, bigHBOn and (ufBigPlayer or ufBigTarget or ufBigFocus))
   local playerGroupEnabled = bigHBOn and ufBigPlayer
   local targetGroupEnabled = bigHBOn and ufBigTarget
   local focusGroupEnabled = bigHBOn and ufBigFocus
+  if addonTable.ufBigHBPlayerHideRealmCB then addonTable.ufBigHBPlayerHideRealmCB:SetChecked((profile.ufBigHBPlayerHideRealm == true) or (profile.ufBigHBHideRealm == true)); addonTable.ufBigHBPlayerHideRealmCB:SetEnabled(playerGroupEnabled) end
+  if addonTable.ufBigHBTargetHideRealmCB then addonTable.ufBigHBTargetHideRealmCB:SetChecked((profile.ufBigHBTargetHideRealm == true) or (profile.ufBigHBHideRealm == true)); addonTable.ufBigHBTargetHideRealmCB:SetEnabled(targetGroupEnabled) end
+  if addonTable.ufBigHBFocusHideRealmCB then addonTable.ufBigHBFocusHideRealmCB:SetChecked((profile.ufBigHBFocusHideRealm == true) or (profile.ufBigHBHideRealm == true)); addonTable.ufBigHBFocusHideRealmCB:SetEnabled(focusGroupEnabled) end
+  ApplyUFBigSlider(addonTable.ufBigHBPlayerNameMaxCharsSlider, ufBigPlayerNameMaxChars, playerGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBTargetNameMaxCharsSlider, ufBigTargetNameMaxChars, targetGroupEnabled)
+  ApplyUFBigSlider(addonTable.ufBigHBFocusNameMaxCharsSlider, ufBigFocusNameMaxChars, focusGroupEnabled)
   if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB:SetChecked(profile.ufBigHBHidePlayerName == true); addonTable.ufBigHBHidePlayerNameCB:SetEnabled(playerGroupEnabled) end
   if addonTable.ufBigHBPlayerLevelDD then addonTable.ufBigHBPlayerLevelDD:SetValue(profile.ufBigHBPlayerLevelMode or "always"); addonTable.ufBigHBPlayerLevelDD:SetEnabled(playerGroupEnabled) end
   local playerNameEnabled = playerGroupEnabled and (profile.ufBigHBHidePlayerName ~= true)
@@ -2149,7 +2163,7 @@ local function InitHandlers()
   end
   local function ApplyUFBigHealthbarChanges(forceTargetImmediate, skipControlSync)
     local p = GetProfile()
-    if p and (p.ufBigHBPlayerEnabled == true or p.ufBigHBTargetEnabled == true or p.ufBigHBFocusEnabled == true) then
+    if p and p.ufBigHBEnabled == true and (p.ufBigHBPlayerEnabled == true or p.ufBigHBTargetEnabled == true or p.ufBigHBFocusEnabled == true) then
       p.useCustomBorderColor = true
       p.ufUseCustomNameColor = true
       if (p.ufCustomBorderColorR or 0) == 0 and (p.ufCustomBorderColorG or 0) == 0 and (p.ufCustomBorderColorB or 0) == 0 then
@@ -2182,12 +2196,16 @@ local function InitHandlers()
       end)
     end
   end
-  if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
-  if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
-  if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusEnabled = s:GetChecked(); ApplyUFBigHealthbarChanges(); ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
-  if addonTable.ufBigHBHideRealmCB then addonTable.ufBigHBHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBPlayerCB then addonTable.ufBigHBPlayerCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerEnabled = s:GetChecked(); if p.ufBigHBPlayerEnabled == true then p.ufBigHBEnabled = true elseif p.ufBigHBTargetEnabled ~= true and p.ufBigHBFocusEnabled ~= true then p.ufBigHBEnabled = false end; ApplyUFBigHealthbarChanges(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBigHBTargetCB then addonTable.ufBigHBTargetCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetEnabled = s:GetChecked(); if p.ufBigHBTargetEnabled == true then p.ufBigHBEnabled = true elseif p.ufBigHBPlayerEnabled ~= true and p.ufBigHBFocusEnabled ~= true then p.ufBigHBEnabled = false end; ApplyUFBigHealthbarChanges(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBigHBFocusCB then addonTable.ufBigHBFocusCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusEnabled = s:GetChecked(); if p.ufBigHBFocusEnabled == true then p.ufBigHBEnabled = true elseif p.ufBigHBPlayerEnabled ~= true and p.ufBigHBTargetEnabled ~= true then p.ufBigHBEnabled = false end; ApplyUFBigHealthbarChanges(); if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end; ShowReloadPrompt("Toggling Bigger Healthbars requires a reload for full effect.", "Reload", "Later") end end end
+  if addonTable.ufBigHBPlayerHideRealmCB then addonTable.ufBigHBPlayerHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBPlayerHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBTargetHideRealmCB then addonTable.ufBigHBTargetHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
+  if addonTable.ufBigHBFocusHideRealmCB then addonTable.ufBigHBFocusHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
 
-  if addonTable.ufBigHBNameMaxCharsSlider then addonTable.ufBigHBNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerNameMaxCharsSlider then addonTable.ufBigHBPlayerNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBTargetNameMaxCharsSlider then addonTable.ufBigHBTargetNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBFocusNameMaxCharsSlider then addonTable.ufBigHBFocusNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
   if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHidePlayerName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerNameAnchorDD then addonTable.ufBigHBPlayerNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerNameAnchor = v or "center"; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBPlayerLevelDD then addonTable.ufBigHBPlayerLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelMode = v; ApplyUFBigHealthbarChanges() end end end
@@ -3952,12 +3970,14 @@ local function InitHandlers()
                "ufBigHBHideTargetName", "ufBigHBTargetNameAnchor", "ufBigHBTargetLevelMode",
                "ufBigHBTargetNameX", "ufBigHBTargetNameY", "ufBigHBTargetLevelX", "ufBigHBTargetLevelY",
                "ufBigHBTargetNameTextScale", "ufBigHBTargetLevelTextScale",
-               "ufBigHBHideFocusName", "ufBigHBFocusNameAnchor", "ufBigHBFocusLevelMode",
-               "ufBigHBFocusNameX", "ufBigHBFocusNameY", "ufBigHBFocusLevelX", "ufBigHBFocusLevelY",
-                "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
-                "ufBigHBNameMaxChars",
-                "ufBigHBHideRealm",
-                },
+                "ufBigHBHideFocusName", "ufBigHBFocusNameAnchor", "ufBigHBFocusLevelMode",
+                "ufBigHBFocusNameX", "ufBigHBFocusNameY", "ufBigHBFocusLevelX", "ufBigHBFocusLevelY",
+                 "ufBigHBFocusNameTextScale", "ufBigHBFocusLevelTextScale",
+                 "ufBigHBPlayerNameMaxChars", "ufBigHBTargetNameMaxChars", "ufBigHBFocusNameMaxChars",
+                 "ufBigHBPlayerHideRealm", "ufBigHBTargetHideRealm", "ufBigHBFocusHideRealm",
+                 "ufBigHBNameMaxChars",
+                 "ufBigHBHideRealm",
+                 },
   }
   local keyToCategory = {}
   for cat, keys in pairs(exportCategoryKeys) do
@@ -4005,6 +4025,7 @@ local function InitHandlers()
     disableTargetBuffs = true, hideEliteTexture = true, useCustomBorderColor = true,
     ufBigHBPlayerEnabled = true, ufBigHBTargetEnabled = true, ufBigHBFocusEnabled = true,
     ufBigHBHidePlayerName = true, ufBigHBHideTargetName = true, ufBigHBHideFocusName = true, ufBigHBHideRealm = true,
+    ufBigHBPlayerHideRealm = true, ufBigHBTargetHideRealm = true, ufBigHBFocusHideRealm = true,
     ufBigHBPlayerAbsorbStripes = true, ufBigHBTargetAbsorbStripes = true, ufBigHBFocusAbsorbStripes = true,
     useBiggerPlayerHealthframe = true, useBiggerPlayerHealthframeClassColor = true,
     useBiggerPlayerHealthframeDisableGlows = true, useBiggerPlayerHealthframeDisableCombatText = true,
@@ -4298,7 +4319,16 @@ local function InitHandlers()
     addonTable.prbCB.customOnClick = function(s)
       local p = GetProfile(); if p then
         local _, needsReload = SetModuleEnabled("prb", s:GetChecked())
-        if not IsModuleEnabled("prb") then s:SetChecked(false); p.usePersonalResourceBar = false; if addonTable.UpdatePRB then addonTable.UpdatePRB() end; SyncModuleControlsState(); return end
+        if not IsModuleEnabled("prb") then
+          s:SetChecked(false)
+          p.usePersonalResourceBar = false
+          if addonTable.UpdatePRB then addonTable.UpdatePRB() end
+          SyncModuleControlsState()
+          if needsReload then
+            ShowReloadPrompt("PRB module state changed. Reload UI now?", "Reload", "Later")
+          end
+          return
+        end
         p.usePersonalResourceBar = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if addonTable.UpdatePRB then addonTable.UpdatePRB() end
@@ -4496,6 +4526,9 @@ local function InitHandlers()
           if addonTable.StopTargetCastbarPreview then addonTable.StopTargetCastbarPreview() end
           if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
           SyncModuleControlsState()
+          if needsReload then
+            ShowReloadPrompt("Castbars module state changed. Reload UI now?", "Reload", "Later")
+          end
           return
         end
         local wasEnabled = p.useCastbar
@@ -4577,7 +4610,16 @@ local function InitHandlers()
     addonTable.playerDebuffsCB.customOnClick = function(s)
       local p = GetProfile(); if p then
         local _, needsReload = SetModuleEnabled("debuffs", s:GetChecked())
-        if not IsModuleEnabled("debuffs") then s:SetChecked(false); p.enablePlayerDebuffs = false; if addonTable.RestorePlayerDebuffs then addonTable.RestorePlayerDebuffs() end; SyncModuleControlsState(); return end
+        if not IsModuleEnabled("debuffs") then
+          s:SetChecked(false)
+          p.enablePlayerDebuffs = false
+          if addonTable.RestorePlayerDebuffs then addonTable.RestorePlayerDebuffs() end
+          SyncModuleControlsState()
+          if needsReload then
+            ShowReloadPrompt("Debuffs module state changed. Reload UI now?", "Reload", "Later")
+          end
+          return
+        end
         p.enablePlayerDebuffs = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if s:GetChecked() then
@@ -4630,6 +4672,9 @@ local function InitHandlers()
           if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
           if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
           SyncModuleControlsState()
+          if needsReload then
+            ShowReloadPrompt("Unit Frames module state changed. Reload UI now?", "Reload", "Later")
+          end
           return
         end
         p.enableUnitFrameCustomization = s:GetChecked()
