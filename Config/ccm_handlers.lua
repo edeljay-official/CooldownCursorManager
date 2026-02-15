@@ -44,6 +44,96 @@ local function SetAllTrackBuffsEnabled(profile, enabled)
   SetFlag("customBar5TrackBuffs")
   return changed
 end
+local function IsModuleEnabled(moduleKey)
+  if addonTable.IsModuleEnabled then
+    return addonTable.IsModuleEnabled(moduleKey)
+  end
+  return true
+end
+local function SetModuleEnabled(moduleKey, enabled)
+  if addonTable.SetModuleEnabled then
+    return addonTable.SetModuleEnabled(moduleKey, enabled)
+  end
+  return false, false
+end
+local function SetTabControlsEnabled(tabIndex, enabled)
+  if type(tabIndex) ~= "number" then return end
+  local tabFrames = addonTable.tabFrames
+  local root = tabFrames and tabFrames[tabIndex]
+  if not root then return end
+  root:SetAlpha(enabled and 1 or 0.45)
+  local seen = {}
+  local function Walk(frame)
+    if not frame or seen[frame] then return end
+    seen[frame] = true
+    if frame.SetEnabled then pcall(frame.SetEnabled, frame, enabled) end
+    if frame.EnableMouse then pcall(frame.EnableMouse, frame, enabled) end
+    if frame.GetNumChildren and frame.GetChildren then
+      local n = frame:GetNumChildren() or 0
+      for i = 1, n do
+        local child = select(i, frame:GetChildren())
+        Walk(child)
+      end
+    end
+  end
+  Walk(root)
+end
+local function SyncQolTabControlsState()
+  local qolOn = IsModuleEnabled("qol")
+  SetTabControlsEnabled(addonTable.TAB_QOL or 12, qolOn)
+  SetTabControlsEnabled(addonTable.TAB_FEATURES or 18, qolOn)
+  SetTabControlsEnabled(addonTable.TAB_ACTIONBARS or 14, qolOn)
+  SetTabControlsEnabled(addonTable.TAB_CHAT or 15, qolOn)
+  SetTabControlsEnabled(addonTable.TAB_SKYRIDING or 16, qolOn)
+  SetTabControlsEnabled(addonTable.TAB_COMBAT or 19, qolOn)
+end
+local function SyncModuleControlsState()
+  local function SetControlEnabled(control, enabled)
+    if not control then return end
+    if control.SetEnabled then control:SetEnabled(enabled) end
+    if control.SetAlpha then control:SetAlpha(enabled and 1 or 0.45) end
+    if control.label and control.label.SetTextColor then
+      control.label:SetTextColor(enabled and 0.9 or 0.45, enabled and 0.9 or 0.45, enabled and 0.9 or 0.45)
+    end
+  end
+  local cbarsOn = IsModuleEnabled("custombars")
+  local blizzOn = IsModuleEnabled("blizzcdm")
+  local prbOn = IsModuleEnabled("prb")
+  local castbarsOn = IsModuleEnabled("castbars")
+  local debuffsOn = IsModuleEnabled("debuffs")
+  local unitframesOn = IsModuleEnabled("unitframes")
+  local qolOn = IsModuleEnabled("qol")
+  SetControlEnabled(addonTable.customBarsModuleCB, true)
+  SetControlEnabled(addonTable.qolModuleCB, true)
+  SetControlEnabled(addonTable.customBarsCountSlider, cbarsOn)
+  SetControlEnabled(addonTable.disableBlizzCDMCB, true)
+  SetControlEnabled(addonTable.prbCB, true)
+  SetControlEnabled(addonTable.castbarCB, true)
+  SetControlEnabled(addonTable.focusCastbarCB, castbarsOn)
+  SetControlEnabled(addonTable.targetCastbarCB, castbarsOn)
+  SetControlEnabled(addonTable.playerDebuffsCB, true)
+  SetControlEnabled(addonTable.unitFrameCustomizationCB, true)
+  SetControlEnabled(addonTable.combatTimerCB, qolOn)
+  SetControlEnabled(addonTable.crTimerCB, qolOn)
+  SetControlEnabled(addonTable.combatStatusCB, qolOn)
+  if not castbarsOn then
+    if addonTable.StopCastbarPreview then addonTable.StopCastbarPreview() end
+    if addonTable.StopFocusCastbarPreview then addonTable.StopFocusCastbarPreview() end
+    if addonTable.StopTargetCastbarPreview then addonTable.StopTargetCastbarPreview() end
+  end
+  if not debuffsOn then
+    if addonTable.StopDebuffPreview then addonTable.StopDebuffPreview() end
+  end
+  if not qolOn then
+    if addonTable.StopNoTargetAlertPreview then addonTable.StopNoTargetAlertPreview() end
+    if addonTable.StopCombatStatusPreview then addonTable.StopCombatStatusPreview() end
+    if addonTable.StopSkyridingPreview then addonTable.StopSkyridingPreview() end
+    if addonTable.StopLowHealthWarningPreview then addonTable.StopLowHealthWarningPreview() end
+  end
+  if addonTable.ResetAllPreviewHighlights then addonTable.ResetAllPreviewHighlights() end
+  SetTabControlsEnabled(addonTable.TAB_UF or 11, unitframesOn)
+  SyncQolTabControlsState()
+end
 local function SyncTrackBuffsCheckboxesFromProfile(profile)
   if type(profile) ~= "table" then return end
   if addonTable.cur and addonTable.cur.trackBuffsCB then addonTable.cur.trackBuffsCB:SetChecked(profile.trackBuffs ~= false) end
@@ -69,10 +159,18 @@ end
 local function EnsureDisableBlizzCDMCompatible(profile)
   if type(profile) ~= "table" then return false end
   if profile.disableBlizzCDM == true and IsAnyTrackBuffsEnabled(profile) then
-    profile.disableBlizzCDM = false
-    return true
+    local changed = false
+    local moduleChanged, needsReload = SetModuleEnabled("blizzcdm", true)
+    if moduleChanged then
+      changed = true
+    end
+    if profile.disableBlizzCDM == true then
+      profile.disableBlizzCDM = false
+      changed = true
+    end
+    return changed, needsReload
   end
-  return false
+  return false, false
 end
 local function ResolveLSMFontValueFromPath(path)
   if type(path) ~= "string" or path == "" then return nil end
@@ -188,6 +286,15 @@ local function ShowReloadPrompt(text, okText, cancelText)
     print("|cffffd200CCM:|r " .. msg)
   end
 end
+local function ShowModuleActivatedMessage(moduleName)
+  if type(moduleName) ~= "string" or moduleName == "" then return end
+  local msg = moduleName .. " module activated."
+  if addonTable.Print then
+    addonTable:Print(msg)
+  elseif print then
+    print("|cffffd200CCM:|r " .. msg)
+  end
+end
 local function ResetAllPreviewHighlights()
   if addonTable.noTargetAlertPreviewOnBtn then
     SetButtonHighlighted(addonTable.noTargetAlertPreviewOnBtn, false)
@@ -252,8 +359,14 @@ local function HasRealCooldownForHideReveal(entryID, isChargeSpell)
     end
     if C_Spell and C_Spell.GetSpellCooldown then
       local okCD, cdInfo = pcall(C_Spell.GetSpellCooldown, spellID)
-      if okCD and type(cdInfo) == "table" and type(cdInfo.duration) == "number" and cdInfo.duration > 1.5 then
-        return true
+      if okCD and type(cdInfo) == "table" then
+        local dur = nil
+        if not (issecretvalue and issecretvalue(cdInfo.duration)) then
+          dur = tonumber(cdInfo.duration)
+        end
+        if type(dur) == "number" and dur > 1.5 then
+          return true
+        end
       end
     end
     local state = addonTable and addonTable.State
@@ -528,6 +641,9 @@ addonTable.RefreshCB5SpellList = RefreshCB5SpellList
 local function UpdateAllControls()
   local profile = GetProfile()
   if not profile then return end
+  if addonTable.ApplyModuleStateToProfile then
+    addonTable.ApplyModuleStateToProfile(profile)
+  end
   local function num(val, default) return type(val) == "number" and val or default end
   local currentScale = profile.uiScale or tonumber(GetCVar("uiScale")) or UIParent:GetScale() or 0.71
   local currentMode = profile.uiScaleMode or "disabled"
@@ -653,13 +769,18 @@ local function UpdateAllControls()
   if addonTable.skyridingTextureDD then addonTable.skyridingTextureDD:SetValue(profile.skyridingTexture or "solid"); addonTable.skyridingTextureDD:SetEnabled(skyOn); addonTable.skyridingTextureDD:SetAlpha(skyOn and 1 or 0.4) end
   if addonTable.skyridingPreviewOnBtn then addonTable.skyridingPreviewOnBtn:SetEnabled(skyOn); addonTable.skyridingPreviewOnBtn:SetAlpha(skyOn and 1 or 0.4) end
   if addonTable.skyridingPreviewOffBtn then addonTable.skyridingPreviewOffBtn:SetEnabled(skyOn); addonTable.skyridingPreviewOffBtn:SetAlpha(skyOn and 1 or 0.4) end
-  if addonTable.prbCB then addonTable.prbCB:SetChecked(profile.usePersonalResourceBar == true) end
-  if addonTable.castbarCB then addonTable.castbarCB:SetChecked(profile.useCastbar == true) end
-  if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(profile.useFocusCastbar == true) end
-  if addonTable.targetCastbarCB then addonTable.targetCastbarCB:SetChecked(profile.useTargetCastbar == true) end
-  if addonTable.playerDebuffsCB then addonTable.playerDebuffsCB:SetChecked(profile.enablePlayerDebuffs == true) end
-  if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(profile.enableUnitFrameCustomization == true) end
-  local ufOn = profile.enableUnitFrameCustomization == true
+  if addonTable.customBarsModuleCB then addonTable.customBarsModuleCB:SetChecked(IsModuleEnabled("custombars")) end
+  if addonTable.prbCB then addonTable.prbCB:SetChecked(IsModuleEnabled("prb")) end
+  if addonTable.castbarCB then addonTable.castbarCB:SetChecked(IsModuleEnabled("castbars")) end
+  if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(IsModuleEnabled("castbars") and profile.useFocusCastbar == true) end
+  if addonTable.targetCastbarCB then addonTable.targetCastbarCB:SetChecked(IsModuleEnabled("castbars") and profile.useTargetCastbar == true) end
+  if addonTable.playerDebuffsCB then addonTable.playerDebuffsCB:SetChecked(IsModuleEnabled("debuffs")) end
+  if addonTable.qolModuleCB then addonTable.qolModuleCB:SetChecked(IsModuleEnabled("qol")) end
+  if IsModuleEnabled("unitframes") and profile.enableUnitFrameCustomization == false then
+    profile.enableUnitFrameCustomization = true
+  end
+  if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(IsModuleEnabled("unitframes")) end
+  local ufOn = IsModuleEnabled("unitframes") and profile.enableUnitFrameCustomization == true
   if addonTable.radialCB then addonTable.radialCB:SetChecked(profile.showRadialCircle == true) end
   if addonTable.radialCombatCB then addonTable.radialCombatCB:SetChecked(profile.cursorCombatOnly == true) end
   if addonTable.radialGcdCB then addonTable.radialGcdCB:SetChecked(profile.showGCD == true) end
@@ -1233,8 +1354,32 @@ local function UpdateAllControls()
     elseif profile.blizzardBarSkinning ~= false then skinMode = "ccm" end
     addonTable.skinningModeDD:SetValue(skinMode)
   end
-  if addonTable.cursorCDMCB then addonTable.cursorCDMCB:SetChecked(profile.cursorIconsEnabled ~= false) end
-  if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(profile.disableBlizzCDM ~= true) end
+  if addonTable.cursorCDMCB then addonTable.cursorCDMCB:SetChecked(profile.cursorIconsEnabled ~= false); addonTable.cursorCDMCB:SetEnabled(true) end
+  if IsModuleEnabled("custombars") then
+    local count = math.floor(num(profile.customBarsCount, 0))
+    if count < 1 then
+      count = 1
+      profile.customBarsCount = 1
+    end
+    profile.customBarEnabled = (count >= 1)
+    profile.customBar2Enabled = (count >= 2)
+    profile.customBar3Enabled = (count >= 3)
+    profile.customBar4Enabled = (count >= 4)
+    profile.customBar5Enabled = (count >= 5)
+  end
+  if IsModuleEnabled("blizzcdm") and profile.disableBlizzCDM == true then
+    profile.disableBlizzCDM = false
+  end
+  if IsModuleEnabled("prb") and profile.usePersonalResourceBar ~= true then
+    profile.usePersonalResourceBar = true
+  end
+  if IsModuleEnabled("castbars") and profile.useCastbar ~= true then
+    profile.useCastbar = true
+  end
+  if IsModuleEnabled("debuffs") and profile.enablePlayerDebuffs ~= true then
+    profile.enablePlayerDebuffs = true
+  end
+  if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(IsModuleEnabled("blizzcdm")) end
   if addonTable.buffBarCB then addonTable.buffBarCB:SetChecked(profile.useBuffBar == true) end
   if addonTable.essentialBarCB then addonTable.essentialBarCB:SetChecked(profile.useEssentialBar == true) end
   if addonTable.buffSizeSlider then addonTable.buffSizeSlider:SetValue(num(profile.buffBarIconSizeOffset, 0)); addonTable.buffSizeSlider.valueText:SetText(math.floor(num(profile.buffBarIconSizeOffset, 0))) end
@@ -1279,6 +1424,7 @@ local function UpdateAllControls()
   end
   if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
   if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
+  SyncModuleControlsState()
   if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
   NormalizeGlobalFontSelection(profile)
   RefreshCursorSpellList()
@@ -1481,6 +1627,13 @@ local function InitHandlers()
   if addonTable.customBarsCountSlider then
     addonTable.customBarsCountSlider:SetScript("OnValueChanged", function(s, v)
       if s._updating then return end
+      if not IsModuleEnabled("custombars") then
+        s._updating = true
+        s:SetValue(0)
+        s._updating = false
+        s.valueText:SetText("0")
+        return
+      end
       local p = GetProfile()
       if p then
         local count = math.floor((tonumber(v) or 0) + 0.5)
@@ -2748,10 +2901,12 @@ local function InitHandlers()
       p.trackBuffs = s:GetChecked()
       if cur.openBlizzBuffBtn then cur.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
-        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
         if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        elseif needsReload then
+          ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
         end
       end
       RefreshCursorSpellList()
@@ -2806,10 +2961,12 @@ local function InitHandlers()
       p.customBarTrackBuffs = s:GetChecked()
       if cb1.openBlizzBuffBtn then cb1.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
-        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
         if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        elseif needsReload then
+          ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
         end
       end
       RefreshCB1SpellList()
@@ -2902,10 +3059,12 @@ local function InitHandlers()
       p.customBar2TrackBuffs = s:GetChecked()
       if cb2.openBlizzBuffBtn then cb2.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
-        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
         if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        elseif needsReload then
+          ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
         end
       end
       RefreshCB2SpellList()
@@ -2998,10 +3157,12 @@ local function InitHandlers()
       p.customBar3TrackBuffs = s:GetChecked()
       if cb3.openBlizzBuffBtn then cb3.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
-        local forcedOff = EnsureDisableBlizzCDMCompatible(p)
+        local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
         if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+        elseif needsReload then
+          ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
         end
       end
       RefreshCB3SpellList()
@@ -3095,14 +3256,12 @@ local function InitHandlers()
         p.customBar4TrackBuffs = s:GetChecked()
         if cb4.openBlizzBuffBtn then cb4.openBlizzBuffBtn:SetShown(p.customBar4TrackBuffs ~= false) end
         if p.customBar4TrackBuffs then
-          if EnsureDisableBlizzCDMCompatible(p) then
+          local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
+          if forcedOff then
             if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
-          end
-        end
-        if p.disableBlizzCDM == true then
-          if EnsureTrackBuffsCompatible(p) then
-            SyncTrackBuffsCheckboxesFromProfile(p)
             ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+          elseif needsReload then
+            ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
           end
         end
         RefreshCB4SpellList()
@@ -3199,14 +3358,12 @@ local function InitHandlers()
         p.customBar5TrackBuffs = s:GetChecked()
         if cb5.openBlizzBuffBtn then cb5.openBlizzBuffBtn:SetShown(p.customBar5TrackBuffs ~= false) end
         if p.customBar5TrackBuffs then
-          if EnsureDisableBlizzCDMCompatible(p) then
+          local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
+          if forcedOff then
             if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
-          end
-        end
-        if p.disableBlizzCDM == true then
-          if EnsureTrackBuffsCompatible(p) then
-            SyncTrackBuffsCheckboxesFromProfile(p)
             ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
+          elseif needsReload then
+            ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
           end
         end
         RefreshCB5SpellList()
@@ -3367,7 +3524,8 @@ local function InitHandlers()
   local function UpdateBlizzCDMDisabledState()
     local p = GetProfile()
     if not p then return end
-    local disabled = p.disableBlizzCDM == true
+    local moduleEnabled = IsModuleEnabled("blizzcdm")
+    local disabled = (p.disableBlizzCDM == true) or (not moduleEnabled)
     local buffAttached = p.useBuffBar == true
     local essentialAttached = p.useEssentialBar == true
     local function SetControlEnabled(control, enabled)
@@ -3386,6 +3544,7 @@ local function InitHandlers()
       SetControlEnabled(sa.skinBuffCB, buffOK)
       SetControlEnabled(sa.skinEssentialCB, essentialOK)
       SetControlEnabled(sa.skinUtilityCB, not disabled)
+      SetControlEnabled(sa.hideGlowsCB, not disabled)
       SetControlEnabled(sa.buffCenteredCB, buffOK)
       SetControlEnabled(sa.essentialCenteredCB, essentialOK)
       SetControlEnabled(sa.utilityCenteredCB, not disabled)
@@ -3460,8 +3619,16 @@ local function InitHandlers()
     addonTable.disableBlizzCDMCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
       local wasDisabled = p.disableBlizzCDM == true
+      local promptShown = false
+      local _, needsReload = SetModuleEnabled("blizzcdm", s:GetChecked())
+      if not IsModuleEnabled("blizzcdm") then
+        p.disableBlizzCDM = true
+        s:SetChecked(false)
+      else
+        p.disableBlizzCDM = false
+      end
       local changedTrackBuffs = false
-      p.disableBlizzCDM = not s:GetChecked()
+      p.disableBlizzCDM = not IsModuleEnabled("blizzcdm")
       if p.disableBlizzCDM then
         changedTrackBuffs = EnsureTrackBuffsCompatible(p)
         if changedTrackBuffs then
@@ -3485,11 +3652,17 @@ local function InitHandlers()
       if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
       if p.disableBlizzCDM and not wasDisabled then
         if changedTrackBuffs then
-          ShowReloadPrompt("Disabling Blizz CDM turns off all Track Buffs. Reload now?", "Reload", "Later")
+          ShowReloadPrompt("|cffff3333Track Buffs was active and is now disabled because Blizz CDM was turned off.|r\n\n|cffff3333Reload UI now?|r", "Reload", "Later")
+          promptShown = true
         else
           ShowReloadPrompt("Disabling Blizz CDM is safest after a UI reload. Reload now?", "Reload", "Later")
+          promptShown = true
         end
       end
+      if needsReload and not promptShown then
+        ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
+      end
+      SyncModuleControlsState()
     end
     AttachCheckboxTooltip(addonTable.disableBlizzCDMCB, DISABLE_BLIZZ_CDM_TOOLTIP_TEXT)
   end
@@ -3576,7 +3749,7 @@ local function InitHandlers()
     if sa.buffCenteredCB then sa.buffCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneBuffCentered == true); return end; p.standaloneBuffCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
     if sa.essentialCenteredCB then sa.essentialCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneEssentialCentered == true); return end; p.standaloneEssentialCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
     if sa.utilityCenteredCB then sa.utilityCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneUtilityCentered == true); return end; p.standaloneUtilityCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.hideGlowsCB then sa.hideGlowsCB.customOnClick = function(s) local p = GetProfile(); if p then p.hideBlizzCDMGlows = s:GetChecked(); ShowReloadPrompt("A reload is required for glow changes to take effect.", "Reload", "Later") end end end
+    if sa.hideGlowsCB then sa.hideGlowsCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true or not IsModuleEnabled("blizzcdm") then s:SetChecked(p.hideBlizzCDMGlows == true); return end; p.hideBlizzCDMGlows = s:GetChecked(); ShowReloadPrompt("A reload is required for glow changes to take effect.", "Reload", "Later") end end end
     if sa.spacingSlider then sa.spacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneSpacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
     if sa.borderSizeSlider then sa.borderSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneIconBorderSize = math.floor(v); s.valueText:SetText(math.floor(v)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
     if sa.cdTextScaleSlider then sa.cdTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
@@ -4048,21 +4221,80 @@ local function InitHandlers()
   C_Timer.After(0.2, UpdateSkinCheckboxes)
   if addonTable.cursorCDMCB then
     addonTable.cursorCDMCB.customOnClick = function(s)
-      local p = GetProfile(); if p then
-        p.cursorIconsEnabled = s:GetChecked()
-        if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
-        CreateIcons()
-        if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      local p = GetProfile(); if not p then return end
+      p.cursorIconsEnabled = s:GetChecked() == true
+      if addonTable.UpdateAllIcons then addonTable.UpdateAllIcons() end
+      if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+      if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
+    end
+  end
+  if addonTable.customBarsModuleCB then
+    addonTable.customBarsModuleCB.customOnClick = function(s)
+      local p = GetProfile(); if not p then return end
+      local _, needsReload = SetModuleEnabled("custombars", s:GetChecked())
+      if not IsModuleEnabled("custombars") then
+        p.customBarsCount = 0
+      elseif p.customBarsCount == 0 then
+        p.customBarsCount = 1
+      end
+      local count = math.floor(tonumber(p.customBarsCount) or 0)
+      if count < 0 then count = 0 end
+      if count > 5 then count = 5 end
+      p.customBarsCount = count
+      p.customBarEnabled = (count >= 1)
+      p.customBar2Enabled = (count >= 2)
+      p.customBar3Enabled = (count >= 3)
+      p.customBar4Enabled = (count >= 4)
+      p.customBar5Enabled = (count >= 5)
+      if addonTable.customBarsCountSlider then
+        addonTable.customBarsCountSlider._updating = true
+        addonTable.customBarsCountSlider:SetValue(count)
+        addonTable.customBarsCountSlider._updating = false
+        addonTable.customBarsCountSlider.valueText:SetText(count)
+      end
+      if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+      if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
+      if addonTable.CreateCustomBarIcons then addonTable.CreateCustomBarIcons() end
+      if addonTable.CreateCustomBar2Icons then addonTable.CreateCustomBar2Icons() end
+      if addonTable.CreateCustomBar3Icons then addonTable.CreateCustomBar3Icons() end
+      if addonTable.CreateCustomBar4Icons then addonTable.CreateCustomBar4Icons() end
+      if addonTable.CreateCustomBar5Icons then addonTable.CreateCustomBar5Icons() end
+      if addonTable.UpdateCustomBarPosition then addonTable.UpdateCustomBarPosition() end
+      if addonTable.UpdateCustomBar2Position then addonTable.UpdateCustomBar2Position() end
+      if addonTable.UpdateCustomBar3Position then addonTable.UpdateCustomBar3Position() end
+      if addonTable.UpdateCustomBar4Position then addonTable.UpdateCustomBar4Position() end
+      if addonTable.UpdateCustomBar5Position then addonTable.UpdateCustomBar5Position() end
+      if addonTable.UpdateCustomBar then addonTable.UpdateCustomBar() end
+      if addonTable.UpdateCustomBar2 then addonTable.UpdateCustomBar2() end
+      if addonTable.UpdateCustomBar3 then addonTable.UpdateCustomBar3() end
+      if addonTable.UpdateCustomBar4 then addonTable.UpdateCustomBar4() end
+      if addonTable.UpdateCustomBar5 then addonTable.UpdateCustomBar5() end
+      if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
+      SyncModuleControlsState()
+      if s:GetChecked() and IsModuleEnabled("custombars") then
+        ShowModuleActivatedMessage("Custom Bars")
+      end
+      if needsReload then
+        ShowReloadPrompt("Custom Bars module state changed. Reload UI now?", "Reload", "Later")
       end
     end
   end
   if addonTable.prbCB then
     addonTable.prbCB.customOnClick = function(s)
-      local p = GetProfile(); if p then p.usePersonalResourceBar = s:GetChecked()
-      if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
-      if addonTable.UpdatePRB then addonTable.UpdatePRB() end
-      if s:GetChecked() and addonTable.SwitchToTab then addonTable.SwitchToTab(7) end
-      if s:GetChecked() then C_Timer.After(0.1, function() if addonTable.LoadPRBValues then addonTable.LoadPRBValues() end; if addonTable.UpdatePRBSectionVisibility then addonTable.UpdatePRBSectionVisibility() end end) end end
+      local p = GetProfile(); if p then
+        local _, needsReload = SetModuleEnabled("prb", s:GetChecked())
+        if not IsModuleEnabled("prb") then s:SetChecked(false); p.usePersonalResourceBar = false; if addonTable.UpdatePRB then addonTable.UpdatePRB() end; SyncModuleControlsState(); return end
+        p.usePersonalResourceBar = s:GetChecked()
+        if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
+        if addonTable.UpdatePRB then addonTable.UpdatePRB() end
+        if s:GetChecked() then C_Timer.After(0.1, function() if addonTable.LoadPRBValues then addonTable.LoadPRBValues() end; if addonTable.UpdatePRBSectionVisibility then addonTable.UpdatePRBSectionVisibility() end end) end
+        if s:GetChecked() and IsModuleEnabled("prb") then
+          ShowModuleActivatedMessage("PRB")
+        end
+        if needsReload then
+          ShowReloadPrompt("PRB module state changed. Reload UI now?", "Reload", "Later")
+        end
+      end
     end
   end
   local prb = addonTable.prb
@@ -4238,14 +4470,32 @@ local function InitHandlers()
   if addonTable.castbarCB then
     addonTable.castbarCB.customOnClick = function(s)
       local p = GetProfile(); if p then
+        local _, needsReload = SetModuleEnabled("castbars", s:GetChecked())
+        if not IsModuleEnabled("castbars") then
+          s:SetChecked(false)
+          p.useCastbar = false
+          p.useFocusCastbar = false
+          p.useTargetCastbar = false
+          if addonTable.StopCastbarPreview then addonTable.StopCastbarPreview() end
+          if addonTable.StopFocusCastbarPreview then addonTable.StopFocusCastbarPreview() end
+          if addonTable.StopTargetCastbarPreview then addonTable.StopTargetCastbarPreview() end
+          if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+          SyncModuleControlsState()
+          return
+        end
         local wasEnabled = p.useCastbar
         p.useCastbar = s:GetChecked()
+        if s:GetChecked() then
+          p.useFocusCastbar = true
+          p.useTargetCastbar = true
+          if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(true) end
+          if addonTable.targetCastbarCB then addonTable.targetCastbarCB:SetChecked(true) end
+        end
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if s:GetChecked() then
           if addonTable.SetBlizzardCastbarVisibility then
             addonTable.SetBlizzardCastbarVisibility(false)
           end
-          if addonTable.SwitchToTab then addonTable.SwitchToTab(8) end
           C_Timer.After(0.1, function()
             if addonTable.LoadCastbarValues then addonTable.LoadCastbarValues() end
           end)
@@ -4259,18 +4509,24 @@ local function InitHandlers()
             ShowReloadPrompt("Reload UI recommended to properly restore the default castbar.\n\nThis ensures compatibility with other castbar addons.", "Reload Now", "Later")
           end
         end
+        if s:GetChecked() and IsModuleEnabled("castbars") then
+          ShowModuleActivatedMessage("Castbars")
+        end
+        if needsReload then
+          ShowReloadPrompt("Castbars module state changed. Reload UI now?", "Reload", "Later")
+        end
       end
     end
   end
   if addonTable.focusCastbarCB then
     addonTable.focusCastbarCB.customOnClick = function(s)
       local p = GetProfile(); if p then
+        if not IsModuleEnabled("castbars") then s:SetChecked(false); return end
         p.useFocusCastbar = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if s:GetChecked() then
           if addonTable.SetBlizzardFocusCastbarVisibility then addonTable.SetBlizzardFocusCastbarVisibility(false) end
           if addonTable.SetupFocusCastbarEvents then addonTable.SetupFocusCastbarEvents() end
-          if addonTable.SwitchToTab then addonTable.SwitchToTab(9) end
           C_Timer.After(0.1, function()
             if addonTable.LoadFocusCastbarValues then addonTable.LoadFocusCastbarValues() end
           end)
@@ -4285,12 +4541,12 @@ local function InitHandlers()
   if addonTable.targetCastbarCB then
     addonTable.targetCastbarCB.customOnClick = function(s)
       local p = GetProfile(); if p then
+        if not IsModuleEnabled("castbars") then s:SetChecked(false); return end
         p.useTargetCastbar = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if s:GetChecked() then
           if addonTable.SetBlizzardTargetCastbarVisibility then addonTable.SetBlizzardTargetCastbarVisibility(false) end
           if addonTable.SetupTargetCastbarEvents then addonTable.SetupTargetCastbarEvents() end
-          if addonTable.SwitchToTab then addonTable.SwitchToTab(13) end
           C_Timer.After(0.1, function()
             if addonTable.LoadTargetCastbarValues then addonTable.LoadTargetCastbarValues() end
           end)
@@ -4305,10 +4561,11 @@ local function InitHandlers()
   if addonTable.playerDebuffsCB then
     addonTable.playerDebuffsCB.customOnClick = function(s)
       local p = GetProfile(); if p then
+        local _, needsReload = SetModuleEnabled("debuffs", s:GetChecked())
+        if not IsModuleEnabled("debuffs") then s:SetChecked(false); p.enablePlayerDebuffs = false; if addonTable.RestorePlayerDebuffs then addonTable.RestorePlayerDebuffs() end; SyncModuleControlsState(); return end
         p.enablePlayerDebuffs = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if s:GetChecked() then
-          if addonTable.SwitchToTab then addonTable.SwitchToTab(10) end
           C_Timer.After(0.1, function()
             if addonTable.LoadPlayerDebuffsValues then addonTable.LoadPlayerDebuffsValues() end
             if addonTable.ApplyPlayerDebuffsSkinning then addonTable.ApplyPlayerDebuffsSkinning() end
@@ -4316,19 +4573,61 @@ local function InitHandlers()
         else
           if addonTable.RestorePlayerDebuffs then addonTable.RestorePlayerDebuffs() end
         end
+        if s:GetChecked() and IsModuleEnabled("debuffs") then
+          ShowModuleActivatedMessage("Debuffs")
+        end
+        if needsReload then
+          ShowReloadPrompt("Debuffs module state changed. Reload UI now?", "Reload", "Later")
+        end
+      end
+    end
+  end
+  if addonTable.qolModuleCB then
+    addonTable.qolModuleCB.customOnClick = function(s)
+      local _, needsReload = SetModuleEnabled("qol", s:GetChecked())
+      if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+      if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
+      if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
+      if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+      if not IsModuleEnabled("qol") then
+        if addonTable.StopNoTargetAlertPreview then addonTable.StopNoTargetAlertPreview() end
+        if addonTable.StopCombatStatusPreview then addonTable.StopCombatStatusPreview() end
+        if addonTable.StopSkyridingPreview then addonTable.StopSkyridingPreview() end
+        if addonTable.StopLowHealthWarningPreview then addonTable.StopLowHealthWarningPreview() end
+        if addonTable.ResetAllPreviewHighlights then addonTable.ResetAllPreviewHighlights() end
+      end
+      SyncModuleControlsState()
+      if s:GetChecked() and IsModuleEnabled("qol") then
+        ShowModuleActivatedMessage("QoL")
+      end
+      if needsReload then
+        ShowReloadPrompt("QOL module state changed. Reload UI now?", "Reload", "Later")
       end
     end
   end
   if addonTable.unitFrameCustomizationCB then
     addonTable.unitFrameCustomizationCB.customOnClick = function(s)
       local p = GetProfile(); if p then
+        local _, needsReload = SetModuleEnabled("unitframes", s:GetChecked())
+        if not IsModuleEnabled("unitframes") then
+          s:SetChecked(false)
+          p.enableUnitFrameCustomization = false
+          if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
+          if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
+          SyncModuleControlsState()
+          return
+        end
         p.enableUnitFrameCustomization = s:GetChecked()
         if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
         if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
-        if s:GetChecked() and addonTable.SwitchToTab then
-          addonTable.SwitchToTab(addonTable.TAB_UF or 11)
+        if s:GetChecked() and IsModuleEnabled("unitframes") then
+          ShowModuleActivatedMessage("Unit Frames")
         end
-        ShowReloadPrompt("Unit Frame Customization changed. A UI reload is recommended.", "Reload", "Later")
+        if needsReload then
+          ShowReloadPrompt("Unit Frames module state changed. Reload UI now?", "Reload", "Later")
+        else
+          ShowReloadPrompt("Unit Frame Customization changed. A UI reload is recommended.", "Reload", "Later")
+        end
       end
     end
   end

@@ -3,6 +3,8 @@
 -- Player castbar customization and updates
 -- Author: Edeljay
 --------------------------------------------------------------------------------
+if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_Castbars") == 0 then return end
+
 local _, addonTable = ...
 local State = addonTable.State
 local GetClassColor = addonTable.GetClassColor

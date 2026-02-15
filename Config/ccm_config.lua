@@ -45,6 +45,9 @@ cfg:SetScript("OnHide", function()
   if addonTable.StopCursorIconPreview then
     addonTable.StopCursorIconPreview()
   end
+  if addonTable.ClearConfigPreviewCountdowns then
+    addonTable.ClearConfigPreviewCountdowns()
+  end
   if addonTable.StopCastbarPreview then
     addonTable.StopCastbarPreview()
   end
@@ -102,7 +105,7 @@ titleBar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 titleBar:SetBackdropColor(0.15, 0.15, 0.18, 1)
 local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
-titleText:SetText("Cooldown Cursor Manager v7.1.0")
+titleText:SetText("Cooldown Cursor Manager v7.2.0")
 titleText:SetTextColor(1, 0.82, 0)
 local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
 closeBtn:SetSize(24, 24)
@@ -1009,6 +1012,7 @@ sidebarSep:SetColorTexture(0.2, 0.2, 0.25, 0.6)
 sidebarSep:Hide()
 local function StopAllPreviews()
   if addonTable.StopCursorIconPreview then addonTable.StopCursorIconPreview() end
+  if addonTable.ClearConfigPreviewCountdowns then addonTable.ClearConfigPreviewCountdowns() end
   if addonTable.StopCastbarPreview then addonTable.StopCastbarPreview() end
   if addonTable.StopFocusCastbarPreview then addonTable.StopFocusCastbarPreview() end
   if addonTable.StopTargetCastbarPreview then addonTable.StopTargetCastbarPreview() end
@@ -1027,8 +1031,8 @@ local TAB_WIDTHS = {
   [TAB_PROFILES] = 710, [TAB_FEATURES] = 710, [TAB_COMBAT] = 710,
   [TAB_CUSTOMBAR4] = 870, [TAB_CUSTOMBAR5] = 870,
 }
-local function ActivateTab(idx)
-  if activeTab == idx then return end
+local function ActivateTab(idx, force)
+  if activeTab == idx and not force then return end
   StopAllPreviews()
   activeTab = idx
   local w = TAB_WIDTHS[idx] or 680
@@ -1076,7 +1080,7 @@ local function RebuildSidebar()
   local yOff = -6
   local BTN_H = 26
   local SUB_H = 24
-  local function CreateSidebarBtn(tabIdx, label, isSubTab, offState, isExpander, expandKey)
+  local function CreateSidebarBtn(tabIdx, label, isSubTab, offState, isExpander, expandKey, offTextKind)
     local btn = CreateFrame("Button", nil, sidebarChild, "BackdropTemplate")
     btn._ccmControlType = "sidebarbtn"
     local h = isSubTab and SUB_H or BTN_H
@@ -1103,7 +1107,7 @@ local function RebuildSidebar()
     if offState then
       offLabel = btn:CreateFontString(nil, "OVERLAY", "GameFontNormal")
       offLabel:SetPoint("RIGHT", btn, "RIGHT", -8, 0)
-      offLabel:SetText("(off)")
+      offLabel:SetText(offTextKind == "disabled" and "(Disabled)" or "(off)")
       offLabel:SetTextColor(0.85, 0.75, 0.2)
       offLabel:SetFont("Fonts\\FRIZQT__.TTF", 11)
       offLabel:Hide()
@@ -1162,35 +1166,43 @@ local function RebuildSidebar()
     yOff = yOff - h
     return btn
   end
+  local isModuleEnabled = addonTable.IsModuleEnabled
+  local moduleCustomBars = (not isModuleEnabled) or isModuleEnabled("custombars")
+  local moduleBlizzCDM = (not isModuleEnabled) or isModuleEnabled("blizzcdm")
+  local modulePRB = (not isModuleEnabled) or isModuleEnabled("prb")
+  local moduleCastbars = (not isModuleEnabled) or isModuleEnabled("castbars")
+  local moduleDebuffs = (not isModuleEnabled) or isModuleEnabled("debuffs")
+  local moduleUnitFrames = (not isModuleEnabled) or isModuleEnabled("unitframes")
+  local moduleQOL = (not isModuleEnabled) or isModuleEnabled("qol")
   CreateSidebarBtn(1, "General")
   CreateSidebarBtn(2, "Cursor CDM", false, not useCursorCDM)
-  CreateSidebarBtn(nil, "Custom Bars", false, barsCount == 0, true, "custombars")
+  CreateSidebarBtn(nil, "Custom Bars", false, (not moduleCustomBars) or (barsCount == 0), true, "custombars", (not moduleCustomBars) and "disabled" or nil)
   if expandState.custombars then
-    if barsCount >= 1 then CreateSidebarBtn(3, "Bar 1", true) end
-    if barsCount >= 2 then CreateSidebarBtn(4, "Bar 2", true) end
-    if barsCount >= 3 then CreateSidebarBtn(5, "Bar 3", true) end
-    if barsCount >= 4 then CreateSidebarBtn(TAB_CUSTOMBAR4, "Bar 4", true) end
-    if barsCount >= 5 then CreateSidebarBtn(TAB_CUSTOMBAR5, "Bar 5", true) end
+    if barsCount >= 1 then CreateSidebarBtn(3, "Bar 1", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
+    if barsCount >= 2 then CreateSidebarBtn(4, "Bar 2", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
+    if barsCount >= 3 then CreateSidebarBtn(5, "Bar 3", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
+    if barsCount >= 4 then CreateSidebarBtn(TAB_CUSTOMBAR4, "Bar 4", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
+    if barsCount >= 5 then CreateSidebarBtn(TAB_CUSTOMBAR5, "Bar 5", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
   end
-  CreateSidebarBtn(6, "Blizz CDM", false, disableBlizzCDM)
-  CreateSidebarBtn(7, "PRB", false, not usePRB)
+  CreateSidebarBtn(6, "Blizz CDM", false, (not moduleBlizzCDM) or disableBlizzCDM, nil, nil, (not moduleBlizzCDM) and "disabled" or nil)
+  CreateSidebarBtn(7, "PRB", false, (not modulePRB) or (not usePRB), nil, nil, (not modulePRB) and "disabled" or nil)
   local anyCastbar = useCastbar or useFocusCastbar or useTargetCastbar
-  CreateSidebarBtn(nil, "Castbars", false, not anyCastbar, true, "castbars")
+  CreateSidebarBtn(nil, "Castbars", false, (not moduleCastbars) or (not anyCastbar), true, "castbars", (not moduleCastbars) and "disabled" or nil)
   if expandState.castbars then
-    CreateSidebarBtn(8, "Player", true, not useCastbar)
-    CreateSidebarBtn(9, "Focus", true, not useFocusCastbar)
-    CreateSidebarBtn(TAB_TCASTBAR, "Target", true, not useTargetCastbar)
+    CreateSidebarBtn(8, "Player", true, (not moduleCastbars) or (not useCastbar), nil, nil, (not moduleCastbars) and "disabled" or nil)
+    CreateSidebarBtn(9, "Focus", true, (not moduleCastbars) or (not useFocusCastbar), nil, nil, (not moduleCastbars) and "disabled" or nil)
+    CreateSidebarBtn(TAB_TCASTBAR, "Target", true, (not moduleCastbars) or (not useTargetCastbar), nil, nil, (not moduleCastbars) and "disabled" or nil)
   end
-  CreateSidebarBtn(10, "Debuffs", false, not useDebuffs)
-  CreateSidebarBtn(TAB_UF, "Unit Frames", false, not useUF and useUF ~= nil)
-  CreateSidebarBtn(nil, "QoL", false, false, true, "qol")
+  CreateSidebarBtn(10, "Debuffs", false, (not moduleDebuffs) or (not useDebuffs), nil, nil, (not moduleDebuffs) and "disabled" or nil)
+  CreateSidebarBtn(TAB_UF, "Unit Frames", false, (not moduleUnitFrames) or (not useUF and useUF ~= nil), nil, nil, (not moduleUnitFrames) and "disabled" or nil)
+  CreateSidebarBtn(nil, "QoL", false, not moduleQOL, true, "qol", (not moduleQOL) and "disabled" or nil)
   if expandState.qol then
-    CreateSidebarBtn(TAB_QOL, "Alerts", true)
-    CreateSidebarBtn(TAB_FEATURES, "Features", true)
-    CreateSidebarBtn(TAB_COMBAT, "Combat", true)
-    CreateSidebarBtn(TAB_ACTIONBARS, "Action Bars", true)
-    CreateSidebarBtn(TAB_CHAT, "Chat", true)
-    CreateSidebarBtn(TAB_SKYRIDING, "Skyriding", true)
+    CreateSidebarBtn(TAB_QOL, "Alerts", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
+    CreateSidebarBtn(TAB_FEATURES, "Features", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
+    CreateSidebarBtn(TAB_COMBAT, "Combat", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
+    CreateSidebarBtn(TAB_ACTIONBARS, "Action Bars", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
+    CreateSidebarBtn(TAB_CHAT, "Chat", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
+    CreateSidebarBtn(TAB_SKYRIDING, "Skyriding", true, not moduleQOL, nil, nil, (not moduleQOL) and "disabled" or nil)
   end
   yOff = yOff - 10
   sidebarSep:ClearAllPoints()
@@ -1465,10 +1477,11 @@ addonTable.RefreshConfigOnShow = function()
   if activeTab == 3 or activeTab == 4 or activeTab == 5 then
     ActivateTab(1)
   else
-    ActivateTab(activeTab)
+    ActivateTab(activeTab, true)
   end
   if addonTable.UpdateProfileList then addonTable.UpdateProfileList() end
   if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
   if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
   RebuildSidebar()
 end
+

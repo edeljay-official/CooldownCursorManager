@@ -1,11 +1,13 @@
-﻿local _, addonTable = ...
+﻿if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_QOL") == 0 then return end
+
+local _, addonTable = ...
 local State = addonTable.State
 local GetGlobalFont = addonTable.GetGlobalFont
 local selfHighlightFrame = CreateFrame("Frame", "CCMSelfHighlight", UIParent)
 selfHighlightFrame:SetSize(40, 40)
 selfHighlightFrame:SetPoint("CENTER", UIParent, "CENTER", 0, 0)
-selfHighlightFrame:SetFrameStrata("TOOLTIP")
-selfHighlightFrame:SetFrameLevel(1000)
+selfHighlightFrame:SetFrameStrata("MEDIUM")
+selfHighlightFrame:SetFrameLevel(10)
 selfHighlightFrame:Hide()
 local function SnapToPixel(v)
   if addonTable.SnapToPixel then return addonTable:SnapToPixel(v, UIParent) end

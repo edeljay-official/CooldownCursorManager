@@ -171,7 +171,7 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   upTex:SetAllPoints()
   upTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_up.tga")
   upBtn:SetScript("OnClick", function()
-    local step = 1
+    local step = s.step or s:GetValueStep() or 1
     local minVal, maxVal = s:GetMinMaxValues()
     local currentVal = s:GetValue()
     local newVal = currentVal + step
@@ -187,7 +187,7 @@ local function Slider(p, txt, x, y, mn, mx, df, st)
   downTex:SetAllPoints()
   downTex:SetTexture("Interface\\AddOns\\CooldownCursorManager\\media\\arrow_down.tga")
   downBtn:SetScript("OnClick", function()
-    local step = 1
+    local step = s.step or s:GetValueStep() or 1
     local minVal, maxVal = s:GetMinMaxValues()
     local currentVal = s:GetValue()
     local newVal = currentVal - step
@@ -916,16 +916,39 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
   local isItem = entryID < 0
   local actualID = math.abs(entryID)
   local iconTexture, nameText, idText
+  local isNotSkilled = false
   if isItem then
     iconTexture = C_Item.GetItemIconByID(actualID)
     local itemName = C_Item.GetItemInfo(actualID)
     nameText = itemName or "Loading..."
     idText = " |cff888888(" .. actualID .. ")|r"
   else
-    local spellInfo = C_Spell.GetSpellInfo(actualID)
+    local resolvedID = actualID
+    if addonTable.ResolveTrackedSpellID then
+      local rid = addonTable.ResolveTrackedSpellID(actualID)
+      if type(rid) == "number" and rid > 0 then
+        resolvedID = rid
+      end
+    end
+    local spellInfo = C_Spell.GetSpellInfo(resolvedID) or C_Spell.GetSpellInfo(actualID)
     iconTexture = spellInfo and spellInfo.iconID
     nameText = spellInfo and spellInfo.name or "Loading..."
     idText = " |cff888888(" .. actualID .. ")|r"
+    if addonTable.IsSpellKnownByPlayer then
+      isNotSkilled = not addonTable.IsSpellKnownByPlayer(resolvedID) and not addonTable.IsSpellKnownByPlayer(actualID)
+    end
+    if isNotSkilled then
+      local knownBuffs = addonTable.GetCdmKnownBuffSpellIDs and addonTable.GetCdmKnownBuffSpellIDs()
+      local pureBuffs = addonTable.GetCdmPureBuffSpellIDs and addonTable.GetCdmPureBuffSpellIDs()
+      local isCdmBuff = (type(knownBuffs) == "table" and (knownBuffs[resolvedID] or knownBuffs[actualID])) or
+                        (type(pureBuffs) == "table" and (pureBuffs[resolvedID] or pureBuffs[actualID]))
+      if isCdmBuff then
+        isNotSkilled = false
+      end
+    end
+    if isNotSkilled then
+      idText = idText .. " |cffff6666(not skilled)|r"
+    end
   end
   local cb = CreateFrame("CheckButton", nil, row, "UICheckButtonTemplate")
   cb:SetPoint("LEFT", row, "LEFT", 2, 0)
@@ -941,7 +964,16 @@ local function CreateSpellRow(parent, idx, entryID, isEnabled, onToggle, onDelet
   name:SetPoint("LEFT", icon, "RIGHT", 6, 0)
   name:SetJustifyH("LEFT")
   name:SetText(nameText .. idText)
-  name:SetTextColor(0.9, 0.9, 0.9)
+  if isNotSkilled then
+    name:SetTextColor(0.75, 0.75, 0.75)
+  else
+    name:SetTextColor(0.9, 0.9, 0.9)
+  end
+  if isNotSkilled then
+    row:SetAlpha(0.55)
+    cb:SetChecked(false)
+    cb:Disable()
+  end
   local delBtn = CreateDeleteButton(row, 20, 20)
   delBtn:SetPoint("RIGHT", row, "RIGHT", -1, 0)
   delBtn:SetScript("OnClick", function() onDelete(idx) end)

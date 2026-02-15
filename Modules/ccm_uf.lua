@@ -3,6 +3,7 @@
 -- Unit frame customization and big healthbar overlays
 -- Author: Edeljay
 --------------------------------------------------------------------------------
+if C_AddOns and C_AddOns.GetAddOnEnableState and C_AddOns.GetAddOnEnableState("CooldownCursorManager_UnitFrames") == 0 then return end
 
 local _, addonTable = ...
 local State = addonTable.State

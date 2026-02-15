@@ -192,6 +192,7 @@ local function InitTabs()
     btn:SetScript("OnClick", function()
       if addonTable.ToggleHighlights then addonTable.ToggleHighlights() end
     end)
+    addonTable.highlightToggleBtns = addonTable.highlightToggleBtns or {}
     table.insert(addonTable.highlightToggleBtns, btn)
     return btn
   end
@@ -257,7 +258,7 @@ local function InitTabs()
   addonTable.iconBorderSlider:SetPoint("TOPLEFT", addonTable.iconBorderSlider.label, "BOTTOMLEFT", 0, -8)
   addonTable.strataDD, addonTable.strataLbl = StyledDropdown(gc, "Frame Strata", 280, -218, 120)
   addonTable.strataDD:ClearAllPoints()
-  addonTable.strataDD:SetPoint("TOPLEFT", gcIconSec, "BOTTOMLEFT", 265, -12)
+  addonTable.strataDD:SetPoint("TOPLEFT", addonTable.iconBorderSlider, "TOPRIGHT", 90, 0)
   if addonTable.strataLbl then addonTable.strataLbl:ClearAllPoints(); addonTable.strataLbl:SetPoint("BOTTOMLEFT", addonTable.strataDD, "TOPLEFT", 0, 4) end
   addonTable.strataDD:SetOptions({
     {text = "Background", value = "BACKGROUND"},
@@ -273,12 +274,15 @@ local function InitTabs()
   addonTable.cursorCDMCB = Checkbox(gc, "Use Cursor CDM", 15, -322)
   addonTable.cursorCDMCB:ClearAllPoints()
   addonTable.cursorCDMCB:SetPoint("TOPLEFT", gcModSec, "BOTTOMLEFT", 0, -12)
+  addonTable.customBarsModuleCB = Checkbox(gc, "Enable Custom Bars Module", 15, -354)
+  addonTable.customBarsModuleCB:ClearAllPoints()
+  addonTable.customBarsModuleCB:SetPoint("TOPLEFT", addonTable.cursorCDMCB, "BOTTOMLEFT", 0, -10)
   addonTable.disableBlizzCDMCB = Checkbox(gc, "Use Blizz CDM", 280, -322)
   addonTable.disableBlizzCDMCB:ClearAllPoints()
   addonTable.disableBlizzCDMCB:SetPoint("TOPLEFT", gcModSec, "BOTTOMLEFT", 265, -12)
-  addonTable.prbCB = Checkbox(gc, "Use Personal Resource Bar", 15, -354)
+  addonTable.prbCB = Checkbox(gc, "Use Personal Resource Bar", 15, -386)
   addonTable.prbCB:ClearAllPoints()
-  addonTable.prbCB:SetPoint("TOPLEFT", addonTable.cursorCDMCB, "BOTTOMLEFT", 0, -10)
+  addonTable.prbCB:SetPoint("TOPLEFT", addonTable.customBarsModuleCB, "BOTTOMLEFT", 0, -10)
   addonTable.castbarCB = Checkbox(gc, "Use Custom Castbar", 280, -354)
   addonTable.castbarCB:ClearAllPoints()
   addonTable.castbarCB:SetPoint("TOPLEFT", addonTable.disableBlizzCDMCB, "BOTTOMLEFT", 0, -10)
@@ -294,6 +298,9 @@ local function InitTabs()
   addonTable.unitFrameCustomizationCB = Checkbox(gc, "Enable Unit Frame Customization", 280, -418)
   addonTable.unitFrameCustomizationCB:ClearAllPoints()
   addonTable.unitFrameCustomizationCB:SetPoint("TOPLEFT", addonTable.targetCastbarCB, "BOTTOMLEFT", 0, -10)
+  addonTable.qolModuleCB = Checkbox(gc, "Enable QOL Module", 280, -450)
+  addonTable.qolModuleCB:ClearAllPoints()
+  addonTable.qolModuleCB:SetPoint("TOPLEFT", addonTable.unitFrameCustomizationCB, "BOTTOMLEFT", 0, -10)
   addonTable.customBarsCountSlider = Slider(gc, "Custom Bars (0 = Off)", 15, -450, 0, 5, 3, 1)
   addonTable.customBarsCountSlider.label:ClearAllPoints()
   addonTable.customBarsCountSlider.label:SetPoint("TOPLEFT", addonTable.playerDebuffsCB, "BOTTOMLEFT", 0, -18)
@@ -348,9 +355,9 @@ local function InitTabs()
     btn:SetScript("OnClick", function() ShowLinkPopup(title, url) end)
     return btn
   end
-  CreateLinkButton(gc, "Discord", "Discord", "https://discord.gg/a7MhAssVWU", 15, -520, {r=0.44, g=0.55, b=0.85})
-  CreateLinkButton(gc, "Bug Report", "Bug Report", "https://github.com/edeljay-official/CooldownCursorManager/issues/new?template=bug_report.md", 145, -520, {r=0.9, g=0.4, b=0.4})
-  CreateLinkButton(gc, "Request", "Feature Request", "https://github.com/edeljay-official/CooldownCursorManager/issues/new?template=feature_request.md", 275, -520, {r=0.4, g=0.9, b=0.4})
+  CreateLinkButton(gc, "Discord", "Discord", "https://discord.gg/a7MhAssVWU", 15, -580, {r=0.44, g=0.55, b=0.85})
+  CreateLinkButton(gc, "Bug Report", "Bug Report", "https://github.com/edeljay-official/CooldownCursorManager/issues/new?template=bug_report.md", 145, -580, {r=0.9, g=0.4, b=0.4})
+  CreateLinkButton(gc, "Request", "Feature Request", "https://github.com/edeljay-official/CooldownCursorManager/issues/new?template=feature_request.md", 275, -580, {r=0.4, g=0.9, b=0.4})
   local tab2 = tabFrames[2]
   addonTable.cursor = {}
   local cur = addonTable.cursor

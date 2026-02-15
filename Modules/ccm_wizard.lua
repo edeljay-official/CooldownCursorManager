@@ -396,7 +396,7 @@ local function ApplyWizardToProfile()
 
   if CooldownCursorManagerDB then
     CooldownCursorManagerDB.wizardCompleted = true
-    CooldownCursorManagerDB.wizardCompletedVersion = "7.1.0"
+    CooldownCursorManagerDB.wizardCompletedVersion = "7.2.0"
   end
 
   if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
@@ -1104,3 +1104,4 @@ wizardEventFrame:SetScript("OnEvent", function(_, event)
     end
   end
 end)
+
