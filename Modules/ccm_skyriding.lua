@@ -160,8 +160,9 @@ local ApplyFrameLayout
 
 local function CreateBarContainer(parent)
   local container = CreateFrame("Frame", nil, parent, "BackdropTemplate")
-  container:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
+  container:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8", edgeFile = "Interface\\Buttons\\WHITE8x8", edgeSize = 1})
   container:SetBackdropColor(0.05, 0.05, 0.07, 0.85)
+  container:SetBackdropBorderColor(0, 0, 0, 1)
   container:Hide()
   return container
 end
@@ -218,8 +219,8 @@ local function CreateMainFrame()
   whirlingSurgeContainer:SetHeight(CD_BAR_HEIGHT + 4)
 
   whirlingSurgeBar = CreateFrame("StatusBar", nil, whirlingSurgeContainer)
-  whirlingSurgeBar:SetPoint("TOPLEFT", whirlingSurgeContainer, "TOPLEFT", 2, -2)
-  whirlingSurgeBar:SetPoint("BOTTOMRIGHT", whirlingSurgeContainer, "BOTTOMRIGHT", -2, 2)
+  whirlingSurgeBar:SetPoint("TOPLEFT", whirlingSurgeContainer, "TOPLEFT", 1, -1)
+  whirlingSurgeBar:SetPoint("BOTTOMRIGHT", whirlingSurgeContainer, "BOTTOMRIGHT", -1, 1)
   whirlingSurgeBar:SetStatusBarTexture(cachedTexturePath)
   whirlingSurgeBar:SetMinMaxValues(0, 1)
   whirlingSurgeBar:SetValue(1)
@@ -245,7 +246,7 @@ local function CreateVigorSegments(count)
   end
 
   local frame = vigorContainer or mainFrame
-  local insetPx = math_max(1, ToScreenPixels(2, frame))
+  local insetPx = math_max(1, ToScreenPixels(1, frame))
   local gapPx = math_max(1, ToScreenPixels(SEGMENT_GAP, frame))
   local totalWidthPx = math_max(1, ToScreenPixels(mainFrame:GetWidth(), frame))
   local innerWidthPx = math_max(1, totalWidthPx - (insetPx * 2))
@@ -286,7 +287,7 @@ local function CreateSecondWindSegments(count)
   end
 
   local frame = secondWindContainer or mainFrame
-  local insetPx = math_max(1, ToScreenPixels(2, frame))
+  local insetPx = math_max(1, ToScreenPixels(1, frame))
   local gapPx = math_max(1, ToScreenPixels(SEGMENT_GAP, frame))
   local totalWidthPx = math_max(1, ToScreenPixels(mainFrame:GetWidth(), frame))
   local innerWidthPx = math_max(1, totalWidthPx - (insetPx * 2))
@@ -849,9 +850,9 @@ end
 addonTable.ShowSkyridingPreview = ShowSkyridingPreview
 
 local function StopSkyridingPreview()
-  if not previewActive then return end
+  local wasActive = previewActive
   previewActive = false
-  if mainFrame then mainFrame:EnableMouse(false) end
+  if wasActive and mainFrame then mainFrame:EnableMouse(false) end
   UpdateVisibility()
 end
 addonTable.StopSkyridingPreview = StopSkyridingPreview

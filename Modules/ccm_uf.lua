@@ -609,7 +609,8 @@ local function CCM_ApplyCustomBossFrames(profile, ufEnabled, useCustomTex, selec
   local barBgAlpha = tonumber(profile.ufBossFrameBarBgAlpha) or 0.45
   if barBgAlpha < 0 then barBgAlpha = 0 end
   if barBgAlpha > 1 then barBgAlpha = 1 end
-  local borderOn = profile.useCustomBorderColor == true
+  local bigHBActive = profile.ufBigHBPlayerEnabled == true or profile.ufBigHBTargetEnabled == true or profile.ufBigHBFocusEnabled == true
+  local borderOn = profile.useCustomBorderColor == true or bigHBActive
   local borderR = borderOn and (profile.ufCustomBorderColorR or 0.22) or 0.22
   local borderG = borderOn and (profile.ufCustomBorderColorG or 0.22) or 0.22
   local borderB = borderOn and (profile.ufCustomBorderColorB or 0.26) or 0.26
@@ -916,7 +917,8 @@ addonTable.ApplyUnitFrameCustomization = function()
     applyTex(frameObj.FrameTexture)
   end
   if ufEnabled then
-    local useCustomBorder = profile.useCustomBorderColor
+    local bigHBActive = profile.ufBigHBPlayerEnabled == true or profile.ufBigHBTargetEnabled == true or profile.ufBigHBFocusEnabled == true
+    local useCustomBorder = profile.useCustomBorderColor or bigHBActive
     local borderR = useCustomBorder and (profile.ufCustomBorderColorR or 0) or 1
     local borderG = useCustomBorder and (profile.ufCustomBorderColorG or 0) or 1
     local borderB = useCustomBorder and (profile.ufCustomBorderColorB or 0) or 1
@@ -1002,7 +1004,8 @@ addonTable.ApplyUnitFrameCustomization = function()
     local useBorder = profile.ufBossFrameUseBorder == true
     local blizzCastTextScale = tonumber(profile.ufBossCastbarTextScale) or 1
     local bossBarTexturePath = (useCustomTex and type(selectedTexturePath) == "string" and selectedTexturePath ~= "") and selectedTexturePath or "Interface\\Buttons\\WHITE8x8"
-    local borderOn = profile.useCustomBorderColor == true
+    local bigHBActive = profile.ufBigHBPlayerEnabled == true or profile.ufBigHBTargetEnabled == true or profile.ufBigHBFocusEnabled == true
+    local borderOn = profile.useCustomBorderColor == true or bigHBActive
     local borderR = borderOn and (profile.ufCustomBorderColorR or 0.22) or 0.22
     local borderG = borderOn and (profile.ufCustomBorderColorG or 0.22) or 0.22
     local borderB = borderOn and (profile.ufCustomBorderColorB or 0.26) or 0.26
@@ -4481,6 +4484,13 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
         if profile.ufBigHBHideTargetName then
           if nameEl.Hide then nameEl:Hide() end
+          if not o._targetNameShowHooked then
+            o._targetNameShowHooked = true
+            hooksecurefunc(nameEl, "Show", function(self)
+              local p = addonTable.GetProfile and addonTable.GetProfile()
+              if p and p.ufBigHBHideTargetName then self:Hide() end
+            end)
+          end
         else
           if nameEl.Show then nameEl:Show() end
           if nameEl.SetTextColor then
@@ -4618,6 +4628,13 @@ addonTable.ApplyUnitFrameCustomization = function()
         end
         if profile.ufBigHBHideFocusName then
           if nameEl.Hide then nameEl:Hide() end
+          if not o._focusNameShowHooked then
+            o._focusNameShowHooked = true
+            hooksecurefunc(nameEl, "Show", function(self)
+              local p = addonTable.GetProfile and addonTable.GetProfile()
+              if p and p.ufBigHBHideFocusName then self:Hide() end
+            end)
+          end
         else
           if nameEl.Show then nameEl:Show() end
           if nameEl.SetTextColor then
@@ -4757,6 +4774,13 @@ addonTable.ApplyUnitFrameCustomization = function()
         if profile.ufBigHBHidePlayerName then
           if nameEl.SetAlpha then nameEl:SetAlpha(0) end
           if nameEl.Hide then nameEl:Hide() end
+          if not o._playerNameShowHooked then
+            o._playerNameShowHooked = true
+            hooksecurefunc(nameEl, "Show", function(self)
+              local p = addonTable.GetProfile and addonTable.GetProfile()
+              if p and p.ufBigHBHidePlayerName then self:Hide(); self:SetAlpha(0) end
+            end)
+          end
         else
           if nameEl.SetAlpha then nameEl:SetAlpha(1) end
           if nameEl.Show then nameEl:Show() end

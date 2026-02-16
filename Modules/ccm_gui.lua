@@ -262,6 +262,10 @@ local function Checkbox(p, txt, x, y)
     end
   end
   cb:SetScript("OnClick", function()
+    if cb._ccmDisabled then
+      cb:SetChecked(not cb:GetChecked())
+      return
+    end
     UpdateCheckState()
     if cb.customOnClick then cb.customOnClick(cb) end
   end)
@@ -288,6 +292,7 @@ local function Checkbox(p, txt, x, y)
   l:SetTextColor(0.9, 0.9, 0.9)
   cb.label = l
   cb.SetEnabled = function(self, enabled)
+    self._ccmDisabled = not enabled
     if enabled then
       self:Enable()
       l:SetTextColor(0.9, 0.9, 0.9)

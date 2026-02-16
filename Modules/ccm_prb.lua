@@ -175,7 +175,7 @@ if prbFrame.healthBar.lowHealthOverlay.SetClipsChildren then prbFrame.healthBar.
 prbFrame.healthBar.bg = prbFrame.healthBar:CreateTexture(nil, "BACKGROUND")
 prbFrame.healthBar.bg:SetAllPoints()
 prbFrame.healthBar.bg:SetColorTexture(0.1, 0.1, 0.1, 0.8)
-prbFrame.healthBar.border = CreateFrame("Frame", nil, prbFrame, "BackdropTemplate")
+prbFrame.healthBar.border = CreateFrame("Frame", nil, prbFrame.healthBar, "BackdropTemplate")
 prbFrame.healthBar.border:SetFrameLevel(prbFrame.healthBar:GetFrameLevel() + 5)
 prbFrame.healthBar.border:SetPoint("TOPLEFT", prbFrame.healthBar, "TOPLEFT", 0, 0)
 prbFrame.healthBar.border:SetPoint("BOTTOMRIGHT", prbFrame.healthBar, "BOTTOMRIGHT", 0, 0)

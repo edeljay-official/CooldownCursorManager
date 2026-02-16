@@ -237,6 +237,9 @@ local WizardState = {
   crTimerEnabled = false,
   combatStatusEnabled = false,
   selfHighlightEnabled = false,
+  noTargetAlertEnabled = false,
+  lowHealthWarningEnabled = false,
+  showRadialCircle = true,
   chatCopyButton = true,
   chatUrlDetection = true,
   autoRepair = false,
@@ -251,7 +254,7 @@ local function PopulateStateFromProfile()
   local p = GetProfile()
   if not p then return end
   WizardState.cursorIconsEnabled = p.cursorIconsEnabled ~= false
-  WizardState.useBlizzCDM = p.disableBlizzCDM ~= true
+  WizardState.useBlizzCDM = p.useBlizzCDM ~= false
   WizardState.blizzSkinning = p.blizzardBarSkinning ~= false
   WizardState.blizzCentered = (p.standaloneBuffCentered == true) or (p.standaloneEssentialCentered == true) or (p.standaloneUtilityCentered == true)
   WizardState.usePersonalResourceBar = p.usePersonalResourceBar == true
@@ -282,6 +285,9 @@ local function PopulateStateFromProfile()
   WizardState.crTimerEnabled = p.crTimerEnabled == true
   WizardState.combatStatusEnabled = p.combatStatusEnabled == true
   WizardState.selfHighlightEnabled = (p.selfHighlightShape or "off") ~= "off"
+  WizardState.noTargetAlertEnabled = p.noTargetAlertEnabled == true
+  WizardState.lowHealthWarningEnabled = p.lowHealthWarningEnabled == true
+  WizardState.showRadialCircle = p.showRadialCircle ~= false
   WizardState.chatCopyButton = p.chatCopyButton == true
   WizardState.chatUrlDetection = p.chatUrlDetection == true
   WizardState.autoRepair = p.autoRepair == true
@@ -307,7 +313,7 @@ local function ApplyWizardToProfile()
   local p = GetProfile()
   if not p then return end
   p.cursorIconsEnabled = WizardState.cursorIconsEnabled == true
-  p.disableBlizzCDM = not (WizardState.useBlizzCDM == true)
+  p.useBlizzCDM = WizardState.useBlizzCDM == true
   p.blizzardBarSkinning = WizardState.blizzSkinning == true
   p.standaloneSkinBuff = WizardState.blizzSkinning == true
   p.standaloneSkinEssential = WizardState.blizzSkinning == true
@@ -377,6 +383,9 @@ local function ApplyWizardToProfile()
   p.crTimerEnabled = WizardState.crTimerEnabled == true
   p.combatStatusEnabled = WizardState.combatStatusEnabled == true
   p.selfHighlightShape = (WizardState.selfHighlightEnabled == true) and (p.selfHighlightShape ~= "off" and p.selfHighlightShape or "cross") or "off"
+  p.noTargetAlertEnabled = WizardState.noTargetAlertEnabled == true
+  p.lowHealthWarningEnabled = WizardState.lowHealthWarningEnabled == true
+  p.showRadialCircle = WizardState.showRadialCircle == true
   p.chatCopyButton = WizardState.chatCopyButton == true
   p.chatUrlDetection = WizardState.chatUrlDetection == true
   p.autoRepair = WizardState.autoRepair == true
@@ -399,7 +408,7 @@ local function ApplyWizardToProfile()
 
   if CooldownCursorManagerDB then
     CooldownCursorManagerDB.wizardCompleted = true
-    CooldownCursorManagerDB.wizardCompletedVersion = "7.3.1"
+    CooldownCursorManagerDB.wizardCompletedVersion = "7.3.2"
   end
 
   if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
@@ -422,6 +431,8 @@ local function ApplyWizardToProfile()
   if addonTable.UpdateCombatTimer then addonTable.UpdateCombatTimer() end
   if addonTable.UpdateCRTimer then addonTable.UpdateCRTimer() end
   if addonTable.UpdateCombatStatus then addonTable.UpdateCombatStatus() end
+  if addonTable.UpdateNoTargetAlert then addonTable.UpdateNoTargetAlert() end
+  if addonTable.UpdateLowHealthWarning then addonTable.UpdateLowHealthWarning() end
   if addonTable.ApplyUnitFrameCustomization then addonTable.ApplyUnitFrameCustomization() end
   if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end
   if addonTable.UpdateAllControls then addonTable.UpdateAllControls() end
@@ -456,6 +467,29 @@ local function CreateWizardProfileAndApply()
   if addonTable.SaveCurrentProfileForSpec then
     addonTable.SaveCurrentProfileForSpec()
   end
+
+  CooldownCursorManagerDB._moduleStatesMigrated71 = true
+  if type(CooldownCursorManagerDB.moduleStates) ~= "table" then
+    CooldownCursorManagerDB.moduleStates = {}
+  end
+  local ms = CooldownCursorManagerDB.moduleStates
+  ms.blizzcdm = WizardState.useBlizzCDM == true
+  ms.prb = WizardState.usePersonalResourceBar == true
+  ms.castbars = WizardState.useCastbar == true
+    or WizardState.useFocusCastbar == true or WizardState.useTargetCastbar == true
+  ms.debuffs = WizardState.enablePlayerDebuffs == true
+  ms.unitframes = WizardState.enableUnitFrameCustomization == true
+  ms.custombars = WizardState.enableCustomBars == true
+  ms.qol = WizardState.chatCopyButton == true or WizardState.chatUrlDetection == true
+    or WizardState.combatTimerEnabled == true or WizardState.crTimerEnabled == true
+    or WizardState.combatStatusEnabled == true or WizardState.noTargetAlertEnabled == true
+    or WizardState.lowHealthWarningEnabled == true
+  if addonTable.SetModuleEnabled then
+    for _, key in ipairs({"blizzcdm","prb","castbars","debuffs","unitframes","custombars","qol"}) do
+      addonTable.SetModuleEnabled(key, ms[key])
+    end
+  end
+
   if addonTable.UpdateProfileList then addonTable.UpdateProfileList() end
   if addonTable.UpdateProfileDisplay then addonTable.UpdateProfileDisplay() end
   ApplyWizardToProfile()
@@ -472,8 +506,7 @@ local Steps = {
   { title = "UI Scale", desc = "Select a recommended UI scale preset." },
   { title = "Core Modules", desc = "Enable or disable the main CCM modules for your setup." },
   { title = "Display Behavior", desc = "Choose how cooldown icons should behave." },
-  { title = "Combat Widgets", desc = "Toggle combat helper widgets." },
-  { title = "Chat & QoL", desc = "Enable optional quality-of-life features." },
+  { title = "Quality of Life Features", desc = "Toggle combat and utility QoL features." },
   { title = "Review", desc = "Apply the wizard settings now." },
 }
 
@@ -807,13 +840,46 @@ end
 local function BuildStep4(parent)
   local f = CreateFrame("Frame", nil, parent)
   f:SetAllPoints()
-  local anchor = CreateFrame("Frame", nil, f)
-  anchor:SetSize(1, 1)
-  anchor:SetPoint("TOPLEFT", f, "TOPLEFT", 0, -6)
-  local c1 = AddOption(f, anchor, "Enable Combat Timer", function() return WizardState.combatTimerEnabled end, function(v) WizardState.combatTimerEnabled = v end)
-  local c2 = AddOption(f, c1, "Enable Timer for CR", function() return WizardState.crTimerEnabled end, function(v) WizardState.crTimerEnabled = v end)
-  local c3 = AddOption(f, c2, "Enable Combat Status", function() return WizardState.combatStatusEnabled end, function(v) WizardState.combatStatusEnabled = v end)
-  AddOption(f, c3, "Enable Self Highlight", function() return WizardState.selfHighlightEnabled end, function(v) WizardState.selfHighlightEnabled = v end)
+  local function AddOptionAt(x, y, text, getValue, setValue)
+    local cb = CreateStyledCheckbox(f, text)
+    cb:ClearAllPoints()
+    cb:SetPoint("TOPLEFT", f, "TOPLEFT", x, y)
+    cb:SetChecked(getValue() == true)
+    cb.customOnClick = function(self)
+      setValue(self:GetChecked() == true)
+    end
+    return cb
+  end
+  local colW = 320
+  local rowH = 28
+  local x0 = 0
+  local y0 = -8
+  local c1  = AddOptionAt(x0 + (0 * colW), y0 - (0 * rowH), "No Target Alert", function() return WizardState.noTargetAlertEnabled end, function(v) WizardState.noTargetAlertEnabled = v end)
+  local c2  = AddOptionAt(x0 + (0 * colW), y0 - (1 * rowH), "Low Health Warn", function() return WizardState.lowHealthWarningEnabled end, function(v) WizardState.lowHealthWarningEnabled = v end)
+  local c3  = AddOptionAt(x0 + (0 * colW), y0 - (2 * rowH), "Radial Circle", function() return WizardState.showRadialCircle end, function(v) WizardState.showRadialCircle = v end)
+  local c4  = AddOptionAt(x0 + (0 * colW), y0 - (3 * rowH), "Combat Timer", function() return WizardState.combatTimerEnabled end, function(v) WizardState.combatTimerEnabled = v end)
+  local c5  = AddOptionAt(x0 + (0 * colW), y0 - (4 * rowH), "Timer for CR", function() return WizardState.crTimerEnabled end, function(v) WizardState.crTimerEnabled = v end)
+  local c6  = AddOptionAt(x0 + (0 * colW), y0 - (5 * rowH), "Combat Status", function() return WizardState.combatStatusEnabled end, function(v) WizardState.combatStatusEnabled = v end)
+  local c7  = AddOptionAt(x0 + (1 * colW), y0 - (0 * rowH), "Self Highlight", function() return WizardState.selfHighlightEnabled end, function(v) WizardState.selfHighlightEnabled = v end)
+  local c8  = AddOptionAt(x0 + (1 * colW), y0 - (1 * rowH), "Copy Chat Btn", function() return WizardState.chatCopyButton end, function(v) WizardState.chatCopyButton = v end)
+  local c9  = AddOptionAt(x0 + (1 * colW), y0 - (2 * rowH), "Clickable URLs", function() return WizardState.chatUrlDetection end, function(v) WizardState.chatUrlDetection = v end)
+  local c10 = AddOptionAt(x0 + (1 * colW), y0 - (3 * rowH), "Auto Repair", function() return WizardState.autoRepair end, function(v) WizardState.autoRepair = v end)
+  local c11 = AddOptionAt(x0 + (1 * colW), y0 - (4 * rowH), "Auto Sell Junk", function() return WizardState.autoSellJunk end, function(v) WizardState.autoSellJunk = v end)
+  local c12 = AddOptionAt(x0 + (1 * colW), y0 - (5 * rowH), "Skyriding UI", function() return WizardState.skyridingEnabled end, function(v) WizardState.skyridingEnabled = v end)
+  local c12a = AddOptionAt(x0 + (1 * colW) + 22, y0 - (6 * rowH), "Sky: Charge Bar", function() return WizardState.skyridingShowVigor end, function(v) WizardState.skyridingShowVigor = v end)
+  local c12b = AddOptionAt(x0 + (1 * colW) + 22, y0 - (7 * rowH), "Sky: Ability CDs", function() return WizardState.skyridingShowCooldowns end, function(v) WizardState.skyridingShowCooldowns = v end)
+  local function UpdateSkyridingSubOptions()
+    local enabled = WizardState.skyridingEnabled == true
+    c12a:SetEnabled(enabled)
+    c12b:SetEnabled(enabled)
+    c12a:SetAlpha(enabled and 1 or 0.45)
+    c12b:SetAlpha(enabled and 1 or 0.45)
+  end
+  c12.customOnClick = function(self)
+    WizardState.skyridingEnabled = self:GetChecked() == true
+    UpdateSkyridingSubOptions()
+  end
+  UpdateSkyridingSubOptions()
   return f
 end
 
@@ -931,6 +997,9 @@ local function BuildReviewSummaryText()
   lines[#lines + 1] = string.format("- Timer for CR: %s", onoff(WizardState.crTimerEnabled))
   lines[#lines + 1] = string.format("- Combat Status: %s", onoff(WizardState.combatStatusEnabled))
   lines[#lines + 1] = string.format("- Self Highlight: %s", onoff(WizardState.selfHighlightEnabled))
+  lines[#lines + 1] = string.format("- No Target Alert: %s", onoff(WizardState.noTargetAlertEnabled))
+  lines[#lines + 1] = string.format("- Low Health Warning: %s", onoff(WizardState.lowHealthWarningEnabled))
+  lines[#lines + 1] = string.format("- Radial Circle: %s", onoff(WizardState.showRadialCircle))
   lines[#lines + 1] = string.format("- UI Scale Mode: %s", WizardState.uiScaleMode or "disabled")
   lines[#lines + 1] = string.format("- Copy Chat Button: %s", onoff(WizardState.chatCopyButton))
   lines[#lines + 1] = string.format("- Clickable URLs: %s", onoff(WizardState.chatUrlDetection))
@@ -999,7 +1068,9 @@ local function EnsureWizardFrame()
   title:SetText("Cooldown Cursor Manager Installer")
   title:SetTextColor(1, 0.82, 0)
 
-  WizardCloseBtn = addonTable.CreateStyledButton and addonTable.CreateStyledButton(top, "X", 24, 24) or CreateFrame("Button", nil, top)
+  WizardCloseBtn = addonTable.CreateStyledButton
+    and addonTable.CreateStyledButton(top, "X", 24, 24)
+    or CreateFrame("Button", nil, top)
   WizardCloseBtn:SetPoint("RIGHT", top, "RIGHT", -6, 0)
   WizardCloseBtn:SetScript("OnClick", function() f:Hide() end)
 
@@ -1011,7 +1082,7 @@ local function EnsureWizardFrame()
   WizardProgress = content:CreateFontString(nil, "OVERLAY", "GameFontHighlight")
   WizardProgress:SetPoint("TOPRIGHT", content, "TOPRIGHT", -12, -12)
   WizardProgress:SetTextColor(0.65, 0.65, 0.7)
-  WizardProgress:SetText("Step 1/7")
+  WizardProgress:SetText("Step 1/6")
 
   WizardStepTitle = content:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
   WizardStepTitle:SetPoint("TOPLEFT", content, "TOPLEFT", 12, -10)
@@ -1034,8 +1105,7 @@ local function EnsureWizardFrame()
   StepContainers[3] = BuildStep2(bodyHost)
   StepContainers[4] = BuildStep3(bodyHost)
   StepContainers[5] = BuildStep4(bodyHost)
-  StepContainers[6] = BuildStep6(bodyHost)
-  StepContainers[7] = BuildStep7(bodyHost)
+  StepContainers[6] = BuildStep7(bodyHost)
 
   WizardBackBtn = addonTable.CreateStyledButton and addonTable.CreateStyledButton(f, "Back", 90, 26)
   WizardBackBtn:SetPoint("BOTTOMLEFT", f, "BOTTOMLEFT", 12, 16)
@@ -1083,19 +1153,23 @@ local function EnsureWizardFrame()
 end
 
 addonTable.OpenInstallWizard = function()
-  local frame = EnsureWizardFrame()
   PopulateStateFromProfile()
+  local frame = EnsureWizardFrame()
   CurrentStep = 1
   RefreshStep()
   frame:Show()
 end
 
 local wizardEventFrame = CreateFrame("Frame")
+local wizardAutoStartDone = false
 wizardEventFrame:RegisterEvent("PLAYER_LOGIN")
+wizardEventFrame:RegisterEvent("PLAYER_ENTERING_WORLD")
 wizardEventFrame:RegisterEvent("PLAYER_REGEN_ENABLED")
 wizardEventFrame:SetScript("OnEvent", function(_, event)
-  if event == "PLAYER_LOGIN" then
-    if addonTable.WasFreshInstall == true and CooldownCursorManagerDB and CooldownCursorManagerDB.wizardCompleted ~= true then
+  if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" then
+    if wizardAutoStartDone then return end
+    if CooldownCursorManagerDB and CooldownCursorManagerDB.wizardCompleted ~= true then
+      wizardAutoStartDone = true
       if InCombatLockdown() then
         DeferredOpenAfterCombat = true
       else

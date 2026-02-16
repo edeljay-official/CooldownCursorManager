@@ -106,7 +106,7 @@ titleBar:SetBackdrop({bgFile = "Interface\\Buttons\\WHITE8x8"})
 titleBar:SetBackdropColor(0.15, 0.15, 0.18, 1)
 local titleText = titleBar:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
 titleText:SetPoint("CENTER", titleBar, "CENTER", 0, 0)
-titleText:SetText("Cooldown Cursor Manager v7.3.1")
+titleText:SetText("Cooldown Cursor Manager v7.3.2")
 titleText:SetTextColor(1, 0.82, 0)
 local closeBtn = CreateFrame("Button", nil, titleBar, "BackdropTemplate")
 closeBtn:SetSize(24, 24)
@@ -1089,7 +1089,7 @@ local function RebuildSidebar()
     ufBigMaster = true
   end
   local useCursorCDM = profile and profile.cursorIconsEnabled ~= false
-  local disableBlizzCDM = profile and profile.disableBlizzCDM == true
+  local blizzCDMOff = profile and profile.useBlizzCDM ~= true
   local yOff = -6
   local BTN_H = 26
   local SUB_H = 24
@@ -1197,7 +1197,7 @@ local function RebuildSidebar()
     if barsCount >= 4 then CreateSidebarBtn(TAB_CUSTOMBAR4, "Bar 4", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
     if barsCount >= 5 then CreateSidebarBtn(TAB_CUSTOMBAR5, "Bar 5", true, not moduleCustomBars, nil, nil, (not moduleCustomBars) and "disabled" or nil) end
   end
-  CreateSidebarBtn(6, "Blizz CDM", false, (not moduleBlizzCDM) or disableBlizzCDM, nil, nil, (not moduleBlizzCDM) and "disabled" or nil)
+  CreateSidebarBtn(6, "Blizz CDM", false, (not moduleBlizzCDM) or blizzCDMOff, nil, nil, (not moduleBlizzCDM) and "disabled" or nil)
   CreateSidebarBtn(7, "PRB", false, (not modulePRB) or (not usePRB), nil, nil, (not modulePRB) and "disabled" or nil)
   local anyCastbar = useCastbar or useFocusCastbar or useTargetCastbar
   CreateSidebarBtn(nil, "Castbars", false, (not moduleCastbars) or (not anyCastbar), true, "castbars", (not moduleCastbars) and "disabled" or nil)

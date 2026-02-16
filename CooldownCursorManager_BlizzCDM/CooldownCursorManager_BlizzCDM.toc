@@ -2,7 +2,7 @@
 ## Title: Cooldown Cursor Manager [Blizz CDM]
 ## Notes: CCM companion module: Blizzard CDM integration
 ## Author: Edeljay
-## Version: 7.3.1
+## Version: 7.3.2
 ## IconTexture: Interface\AddOns\CooldownCursorManager_BlizzCDM\icon.tga
 ## Dependencies: CooldownCursorManager
 ## LoadOnDemand: 1

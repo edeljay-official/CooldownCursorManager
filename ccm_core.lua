@@ -784,11 +784,11 @@ local defaults = {
       radialColorR = 1.0,
       radialColorG = 1.0,
       radialColorB = 1.0,
-      radialAlpha = 0.8,
+      radialAlpha = 1.0,
       globalFont = "lsm:Friz Quadrata TT",
       globalOutline = "OUTLINE",
       enableMasque = false,
-      showMinimapButton = false,
+      showMinimapButton = true,
       iconSize = 45,
       iconSpacing = 0,
       stackTextScale = 1.0,
@@ -810,6 +810,7 @@ local defaults = {
       showInCombatOnly = false,
       iconsCombatOnly = false,
       cursorCombatOnly = false,
+      cursorIconsEnabled = false,
       cursorShowGCD = false,
       glowWhenReady = false,
       useSpellGlows = false,
@@ -954,7 +955,7 @@ local defaults = {
       customBar5SpellGlowDefaultType = "pixel",
       customBar5UseCustomHideReveal = false,
       blizzardBarSkinning = true,
-      disableBlizzCDM = false,
+      useBlizzCDM = false,
       buffBarIconSizeOffset = -10,
       useBuffBar = false,
       useEssentialBar = false,
@@ -974,25 +975,25 @@ local defaults = {
       standaloneSpacing = 0,
       standaloneBuffSize = 45,
       standaloneBuffIconsPerRow = 0,
-      standaloneBuffMaxRows = 2,
+      standaloneBuffMaxRows = 1,
       standaloneBuffGrowDirection = "right",
       standaloneBuffRowGrowDirection = "down",
-      standaloneBuffY = 0,
+      standaloneBuffY = -120,
       standaloneEssentialSize = 45,
       standaloneEssentialSecondRowSize = 45,
       standaloneEssentialIconsPerRow = 0,
-      standaloneEssentialMaxRows = 2,
+      standaloneEssentialMaxRows = 1,
       standaloneEssentialGrowDirection = "right",
       standaloneEssentialRowGrowDirection = "down",
-      standaloneEssentialY = 50,
+      standaloneEssentialY = -270,
       standaloneUtilitySize = 45,
       standaloneUtilitySecondRowSize = 45,
       standaloneUtilityIconsPerRow = 0,
-      standaloneUtilityMaxRows = 2,
+      standaloneUtilityMaxRows = 1,
       standaloneUtilityGrowDirection = "right",
       standaloneUtilityRowGrowDirection = "down",
       standaloneUtilityAutoWidth = "off",
-      standaloneUtilityY = -50,
+      standaloneUtilityY = -410,
       hideActionBar1InCombat = false,
       hideActionBar1Mouseover = false,
       hideAB2InCombat = false, hideAB2Mouseover = false,
@@ -1042,7 +1043,7 @@ local defaults = {
       combatStatusLeaveColorG = 1,
       combatStatusLeaveColorB = 1,
       ufClassColor = false,
-      ufUseCustomTextures = false,
+      ufUseCustomTextures = true,
       ufHealthTexture = "lsm:Clean",
       ufCustomBorderColorR = 0,
       ufCustomBorderColorG = 0,
@@ -1063,9 +1064,9 @@ local defaults = {
       prbShowHealth = false,
       prbShowPower = false,
       prbShowMode = "always",
-      prbHealthTextMode = "hidden",
-      prbPowerTextMode = "hidden",
-      prbCentered = false,
+      prbHealthTextMode = "percent",
+      prbPowerTextMode = "percent",
+      prbCentered = true,
       prbAutoWidthSource = "off",
       prbHealthTexture = "solid",
       prbAbsorbTexture = "normtex",
@@ -1125,7 +1126,7 @@ local defaults = {
       castbarBgColorG = 0.1,
       castbarBgColorB = 0.1,
       castbarBorderSize = 1,
-      castbarAutoWidthSource = "off",
+      castbarAutoWidthSource = "essential",
       castbarShowTime = true,
       castbarTimeScale = 1.0,
       castbarTimeXOffset = 0,
@@ -1144,7 +1145,7 @@ local defaults = {
       focusCastbarWidth = 250,
       focusCastbarHeight = 20,
       focusCastbarX = 0,
-      focusCastbarY = -210,
+      focusCastbarY = 190,
       focusCastbarCentered = true,
       focusCastbarShowIcon = true,
       focusCastbarIconSize = 24,
@@ -1174,8 +1175,8 @@ local defaults = {
       useTargetCastbar = false,
       targetCastbarWidth = 250,
       targetCastbarHeight = 20,
-      targetCastbarX = 0,
-      targetCastbarY = -250,
+      targetCastbarX = 285,
+      targetCastbarY = -380,
       targetCastbarCentered = true,
       targetCastbarShowIcon = true,
       targetCastbarIconSize = 24,
@@ -1219,15 +1220,18 @@ local defaults = {
       noTargetAlertColorG = 0,
       noTargetAlertColorB = 0,
       enablePlayerDebuffs = false,
-      enableUnitFrameCustomization = true,
-      playerDebuffSize = 32,
+      enableUnitFrameCustomization = false,
+      playerDebuffSize = 60,
       playerDebuffSpacing = 2,
-      playerDebuffX = 0,
-      playerDebuffY = 0,
+      playerDebuffX = 640,
+      playerDebuffY = 350,
       playerDebuffSortDirection = "right",
       playerDebuffIconsPerRow = 10,
       playerDebuffRowGrowDirection = "down",
       playerDebuffBorderSize = 1,
+      ufBigHBPlayerNameY = 10,
+      skyridingHideCDM = true,
+      skyridingCentered = true,
     }
   },
   currentProfile = "Default",
@@ -3351,12 +3355,26 @@ local function ApplyDefaults()
     CooldownCursorManagerDB.moduleStates = {}
   end
   local ms = CooldownCursorManagerDB.moduleStates
-  if ms.custombars == nil then ms.custombars = true end
-  if ms.blizzcdm == nil then ms.blizzcdm = true end
-  if ms.prb == nil then ms.prb = true end
-  if ms.castbars == nil then ms.castbars = true end
-  if ms.debuffs == nil then ms.debuffs = true end
-  if ms.qol == nil then ms.qol = true end
+  if ms.custombars == nil then ms.custombars = false end
+  if ms.blizzcdm == nil then ms.blizzcdm = false end
+  if ms.prb == nil then ms.prb = false end
+  if ms.castbars == nil then ms.castbars = false end
+  if ms.debuffs == nil then ms.debuffs = false end
+  if ms.unitframes == nil then ms.unitframes = false end
+  if ms.qol == nil then ms.qol = false end
+  if C_AddOns and C_AddOns.EnableAddOn then
+    for key, addon in pairs(addonTable.ModuleCompanionAddOns or {}) do
+      if ms[key] ~= false then
+        pcall(C_AddOns.EnableAddOn, addon)
+      end
+    end
+  end
+  for _, prof in pairs(CooldownCursorManagerDB.profiles or {}) do
+    if type(prof) == "table" and prof.disableBlizzCDM ~= nil and prof.useBlizzCDM == nil then
+      prof.useBlizzCDM = not prof.disableBlizzCDM
+      prof.disableBlizzCDM = nil
+    end
+  end
 end
 local function MigrateOldCustomBarData()
   if not CooldownCursorManagerDB then return end
@@ -3425,21 +3443,21 @@ local function GetProfile()
   if type(profile.spellGlowEnabledBySpec) ~= "table" then profile.spellGlowEnabledBySpec = {} end
   if type(profile.spellGlowTypeBySpec) ~= "table" then profile.spellGlowTypeBySpec = {} end
   if type(profile.spellHideRevealThresholdsBySpec) ~= "table" then profile.spellHideRevealThresholdsBySpec = {} end
-  profile.offsetX = profile.offsetX or defaults.profiles.Default.offsetX
-  profile.offsetY = profile.offsetY or defaults.profiles.Default.offsetY
-  profile.iconSize = profile.iconSize or defaults.profiles.Default.iconSize
-  profile.iconSpacing = profile.iconSpacing or defaults.profiles.Default.iconSpacing
-  profile.cdTextScale = profile.cdTextScale or defaults.profiles.Default.cdTextScale
-  profile.stackTextScale = profile.stackTextScale or defaults.profiles.Default.stackTextScale
-  profile.radialRadius = profile.radialRadius or defaults.profiles.Default.radialRadius
-  profile.radialColorR = profile.radialColorR or defaults.profiles.Default.radialColorR
-  profile.radialColorG = profile.radialColorG or defaults.profiles.Default.radialColorG
-  profile.radialColorB = profile.radialColorB or defaults.profiles.Default.radialColorB
-  profile.radialAlpha = profile.radialAlpha or defaults.profiles.Default.radialAlpha
-  profile.radialThickness = profile.radialThickness or defaults.profiles.Default.radialThickness
-  profile.layoutDirection = profile.layoutDirection or defaults.profiles.Default.layoutDirection
-  profile.growDirection = profile.growDirection or defaults.profiles.Default.growDirection
-  profile.iconsPerRow = profile.iconsPerRow or defaults.profiles.Default.iconsPerRow
+  if profile.offsetX == nil then profile.offsetX = defaults.profiles.Default.offsetX end
+  if profile.offsetY == nil then profile.offsetY = defaults.profiles.Default.offsetY end
+  if profile.iconSize == nil then profile.iconSize = defaults.profiles.Default.iconSize end
+  if profile.iconSpacing == nil then profile.iconSpacing = defaults.profiles.Default.iconSpacing end
+  if profile.cdTextScale == nil then profile.cdTextScale = defaults.profiles.Default.cdTextScale end
+  if profile.stackTextScale == nil then profile.stackTextScale = defaults.profiles.Default.stackTextScale end
+  if profile.radialRadius == nil then profile.radialRadius = defaults.profiles.Default.radialRadius end
+  if profile.radialColorR == nil then profile.radialColorR = defaults.profiles.Default.radialColorR end
+  if profile.radialColorG == nil then profile.radialColorG = defaults.profiles.Default.radialColorG end
+  if profile.radialColorB == nil then profile.radialColorB = defaults.profiles.Default.radialColorB end
+  if profile.radialAlpha == nil then profile.radialAlpha = defaults.profiles.Default.radialAlpha end
+  if profile.radialThickness == nil then profile.radialThickness = defaults.profiles.Default.radialThickness end
+  if profile.layoutDirection == nil then profile.layoutDirection = defaults.profiles.Default.layoutDirection end
+  if profile.growDirection == nil then profile.growDirection = defaults.profiles.Default.growDirection end
+  if profile.iconsPerRow == nil then profile.iconsPerRow = defaults.profiles.Default.iconsPerRow end
   if profile.showInCombatOnly == nil then
     profile.showInCombatOnly = defaults.profiles.Default.showInCombatOnly
   end
@@ -3462,7 +3480,7 @@ local function GetProfile()
     profile.ufCustomBorderColorB = profile.ufBorderPlayerColorB or defaults.profiles.Default.ufCustomBorderColorB
   end
   if profile.ufUseCustomNameColor == nil then profile.ufUseCustomNameColor = false end
-  if profile.ufUseCustomTextures == nil then profile.ufUseCustomTextures = false end
+  if profile.ufUseCustomTextures == nil then profile.ufUseCustomTextures = defaults.profiles.Default.ufUseCustomTextures end
   if profile.ufNameColorR == nil then profile.ufNameColorR = defaults.profiles.Default.ufNameColorR end
   if profile.ufNameColorG == nil then profile.ufNameColorG = defaults.profiles.Default.ufNameColorG end
   if profile.ufNameColorB == nil then profile.ufNameColorB = defaults.profiles.Default.ufNameColorB end
@@ -3527,6 +3545,12 @@ local function GetProfile()
   if profile.customBarUseCustomHideReveal == nil then profile.customBarUseCustomHideReveal = false end
   if profile.customBar2UseCustomHideReveal == nil then profile.customBar2UseCustomHideReveal = false end
   if profile.customBar3UseCustomHideReveal == nil then profile.customBar3UseCustomHideReveal = false end
+  local d = defaults.profiles.Default
+  for k, v in pairs(d) do
+    if profile[k] == nil and type(v) ~= "table" then
+      profile[k] = v
+    end
+  end
   return profile
 end
 addonTable.GetProfile = GetProfile
@@ -3557,31 +3581,38 @@ addonTable.GetModuleStates = function()
       for k in pairs(ms) do ms[k] = nil end
     end
   end
-  if ms.custombars == nil then ms.custombars = true end
-  if ms.blizzcdm == nil then ms.blizzcdm = true end
-  if ms.prb == nil then ms.prb = true end
-  if ms.castbars == nil then ms.castbars = true end
-  if ms.debuffs == nil then ms.debuffs = true end
-  if ms.unitframes == nil then ms.unitframes = true end
-  if ms.qol == nil then ms.qol = true end
+  if ms.custombars == nil then ms.custombars = false end
+  if ms.blizzcdm == nil then ms.blizzcdm = false end
+  if ms.prb == nil then ms.prb = false end
+  if ms.castbars == nil then ms.castbars = false end
+  if ms.debuffs == nil then ms.debuffs = false end
+  if ms.unitframes == nil then ms.unitframes = false end
+  if ms.qol == nil then ms.qol = false end
   return ms
 end
 addonTable.IsModuleEnabled = function(moduleKey)
   if moduleKey == "cursor" then
     return true
   end
+  local ms = addonTable.GetModuleStates()
+  if ms[moduleKey] == false then
+    return false
+  end
   local companionAddon = addonTable.ModuleCompanionAddOns[moduleKey]
   if companionAddon and C_AddOns and C_AddOns.GetAddOnEnableState then
-    if C_AddOns.GetAddOnEnableState(companionAddon) == 0 then return false end
+    if C_AddOns.GetAddOnEnableState(companionAddon) == 0 then
+      if C_AddOns.EnableAddOn then
+        pcall(C_AddOns.EnableAddOn, companionAddon)
+      end
+    end
   end
-  local ms = addonTable.GetModuleStates()
-  return ms[moduleKey] ~= false
+  return true
 end
 addonTable.ApplyModuleStateToProfile = function(profile)
   if type(profile) ~= "table" then return end
   local ms = addonTable.GetModuleStates()
   if ms.blizzcdm == false then
-    profile.disableBlizzCDM = true
+    profile.useBlizzCDM = false
   end
 end
 addonTable.SetModuleEnabled = function(moduleKey, enabled)
@@ -4367,7 +4398,7 @@ local function UpdateRadialCircle()
   local colorR = type(profile.radialColorR) == "number" and profile.radialColorR or 1.0
   local colorG = type(profile.radialColorG) == "number" and profile.radialColorG or 1.0
   local colorB = type(profile.radialColorB) == "number" and profile.radialColorB or 1.0
-  local colorAlpha = type(profile.radialAlpha) == "number" and profile.radialAlpha or 0.8
+  local colorAlpha = type(profile.radialAlpha) == "number" and profile.radialAlpha or 1.0
   local diameter = radiusSize * 2
   ringFrame:SetSize(diameter, diameter)
   gcdOverlay:SetSize(diameter, diameter)
@@ -4639,7 +4670,7 @@ local function UpdateBuffBar(cursorX, cursorY, uiScale, profile)
   if PatchAllCooldownViewerChargeMethods then
     PatchAllCooldownViewerChargeMethods()
   end
-  if profile.disableBlizzCDM == true then
+  if profile.useBlizzCDM ~= true then
     if State.buffBarActive then
       RestoreBuffBarPosition()
       State.buffBarActive = false
@@ -4906,7 +4937,7 @@ local function UpdateEssentialBar(cursorX, cursorY, uiScale, profile, buffBarWid
   if PatchAllCooldownViewerChargeMethods then
     PatchAllCooldownViewerChargeMethods()
   end
-  if profile.disableBlizzCDM == true then
+  if profile.useBlizzCDM ~= true then
     if State.essentialBarActive then
       RestoreEssentialBarPosition()
       State.essentialBarActive = false
@@ -5936,7 +5967,7 @@ local function UpdateStandaloneBlizzardBars()
     if frame.IsProtected and frame:IsProtected() then return false end
     return true
   end
-  if profile.disableBlizzCDM == true then
+  if profile.useBlizzCDM ~= true then
     if State.standaloneBuffOriginals.saved and BuffIconCooldownViewer and CanRepositionFrame(BuffIconCooldownViewer) then
         RestoreStandaloneBar(BuffIconCooldownViewer, State.standaloneBuffOriginals)
     end
@@ -10296,13 +10327,13 @@ local cursorTrackingFrame = CreateFrame("Frame", "CCMCursorTrackingFrame", UIPar
 addonTable.ShouldRunCursorTracking = function(profile)
   if not profile then return false end
   if State.guiIsOpen then return true end
-  local hasBars = (profile.useBuffBar or profile.useEssentialBar) and profile.disableBlizzCDM ~= true
+  local hasBars = (profile.useBuffBar or profile.useEssentialBar) and profile.useBlizzCDM ~= false
   return profile.cursorIconsEnabled or hasBars
 end
 addonTable.ShouldRunMainOnUpdate = function(profile)
   if not profile then return false end
   if State.guiIsOpen then return true end
-  local hasBars = (profile.useBuffBar or profile.useEssentialBar) and profile.disableBlizzCDM ~= true
+  local hasBars = (profile.useBuffBar or profile.useEssentialBar) and profile.useBlizzCDM ~= false
   return profile.cursorIconsEnabled or hasBars or profile.showRadialCircle
 end
 addonTable.CursorTrackingOnUpdate = function(self, elapsed)
@@ -10310,7 +10341,11 @@ addonTable.CursorTrackingOnUpdate = function(self, elapsed)
   if cursorTrackElapsed < CURSOR_TRACK_THROTTLE then return end
   cursorTrackElapsed = 0
   local profile = cachedProfile
-  if not profile then return end
+  if not profile then
+    cachedProfile = GetProfile()
+    profile = cachedProfile
+    if not profile then return end
+  end
   if not addonTable.ShouldRunCursorTracking(profile) then
     self:SetScript("OnUpdate", nil)
     return
@@ -10410,7 +10445,7 @@ addonTable.MainOnUpdate = function(self, elapsed)
   local isHorizontal = (profile.layoutDirection == "horizontal")
   local iconsPerRow = profile.iconsPerRow or 10
   local numColumns = type(profile.numColumns) == "number" and profile.numColumns or 1
-  local blizzCDMDisabled = profile.disableBlizzCDM == true
+  local blizzCDMDisabled = profile.useBlizzCDM ~= true
   if (not blizzCDMDisabled) and profile.useBuffBar then
     State.cachedBuffBarWidth, _ = UpdateBuffBar(x, y, scale, profile)
     buffBarWidth = State.cachedBuffBarWidth or 0
@@ -11734,13 +11769,11 @@ end
 addonTable.SaveCurrentProfileForSpec = SaveCurrentProfileForSpec
 addonTable.GetCharacterSpecKey = GetCharacterSpecKey
 local ChangelogPopupFrame
-local CHANGELOG_V730_TEXT = table.concat({
-  "|cff9ad0ff- Split addon into modules: Core now focuses on Cursor CDM spell tracking|r",
-  "|cff9ad0ff- Added Boss Unit Frames with full customization (health, power, castbar, absorb)|r",
-  "|cff9ad0ff- GUI layout overhaul: consistent grid system across all tabs|r",
+local CHANGELOG_V732_TEXT = table.concat({
+  "|cff9ad0ff- Bugfix|r",
 }, "\n")
 local CHANGELOG_TEXT_BY_VERSION = {
-  ["7.3.1"] = CHANGELOG_V730_TEXT,
+  ["7.3.2"] = CHANGELOG_V732_TEXT,
 }
 local function GetCurrentAddonVersion()
   if C_AddOns and C_AddOns.GetAddOnMetadata then
@@ -11879,7 +11912,7 @@ CCM:SetScript("OnEvent", function(self, event, arg1, _, spellID)
       if profile.skyridingSpeedFx ~= nil and C_CVar then
         C_CVar.SetCVar("DisableAdvancedFlyingVelocityVFX", profile.skyridingSpeedFx and "0" or "1")
       end
-      if profile.disableBlizzCDM == true then
+      if profile.useBlizzCDM ~= true then
         profile.trackBuffs = false
         profile.customBarTrackBuffs = false
         profile.customBar2TrackBuffs = false

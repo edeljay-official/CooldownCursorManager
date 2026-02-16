@@ -248,12 +248,8 @@ function addonTable.UpdateCombatTimer()
   local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == combatTab)
   frame:EnableMouse(draggable)
   if not profile or profile.combatTimerEnabled ~= true then
-    if draggable then
-      frame:Show()
-    else
-      if addonTable.StopCombatTimerTicker then addonTable.StopCombatTimerTicker() end
-      frame:Hide()
-    end
+    if addonTable.StopCombatTimerTicker then addonTable.StopCombatTimerTicker() end
+    frame:Hide()
     return
   end
   local x = type(profile.combatTimerX) == "number" and profile.combatTimerX or 0
@@ -440,7 +436,8 @@ function addonTable.UpdateCombatStatus()
   local combatTab = addonTable.TAB_COMBAT or 19
   local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == combatTab)
   frame:EnableMouse(draggable or State.combatStatusPreviewMode)
-  if profile.combatStatusEnabled ~= true and not State.combatStatusPreviewMode and not draggable then
+  if State.combatStatusPreviewMode then return end
+  if profile.combatStatusEnabled ~= true then
     frame:Hide()
     return
   end
@@ -451,9 +448,6 @@ function addonTable.UpdateCombatStatus()
   local csY = profile.combatStatusY or 280
   frame:SetPoint("CENTER", UIParent, "CENTER", csX / csScale, csY / csScale)
   SetCombatStatusText(State.combatStatusLastEntering ~= false)
-  if State.combatStatusPreviewMode or draggable then
-    frame:Show()
-  end
 end
 function addonTable.ShowCombatStatusPreview()
   State.combatStatusPreviewMode = true
@@ -527,12 +521,8 @@ function addonTable.UpdateCRTimer()
   local draggable = (addonTable.GetGUIOpen and addonTable.GetGUIOpen()) and (addonTable.activeTab and addonTable.activeTab() == combatTab)
   frame:EnableMouse(draggable)
   if profile.crTimerEnabled ~= true then
-    if draggable then
-      frame:Show()
-    else
-      frame:Hide()
-      if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
-    end
+    frame:Hide()
+    if addonTable.StopCRTimerTicker then addonTable.StopCRTimerTicker() end
     return
   end
   local mode = profile.crTimerMode == "always" and "always" or "combat"
@@ -611,17 +601,12 @@ local function UpdateNoTargetAlert()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
   local draggable = IsQolDragContext()
   noTargetAlertFrame:EnableMouse(draggable or State.noTargetAlertPreviewMode)
+  if State.noTargetAlertPreviewMode then return end
   if not profile or not profile.noTargetAlertEnabled then
-    if draggable then
-      noTargetAlertFrame:Show()
-      StopNoTargetAlertFlash()
-    elseif not State.noTargetAlertPreviewMode then
-      noTargetAlertFrame:Hide()
-      StopNoTargetAlertFlash()
-    end
+    noTargetAlertFrame:Hide()
+    StopNoTargetAlertFlash()
     return
   end
-  if State.noTargetAlertPreviewMode then return end
   local x = profile.noTargetAlertX or 0
   local y = profile.noTargetAlertY or 100
   local fontSize = profile.noTargetAlertFontSize or 36
@@ -635,7 +620,7 @@ local function UpdateNoTargetAlert()
   noTargetAlertFrame.text:SetTextColor(r, g, b, 1)
   local inCombat = InCombatLockdown()
   local hasTarget = UnitExists("target")
-  if (inCombat and not hasTarget) or draggable then
+  if inCombat and not hasTarget then
     noTargetAlertFrame:Show()
     if profile.noTargetAlertFlash then
       StartNoTargetAlertFlash()
@@ -3064,24 +3049,8 @@ local function UpdateLowHealthWarning()
   lowHealthWarningFrame:EnableMouse(draggable or State.lowHealthWarningPreviewMode)
   if State.lowHealthWarningPreviewMode then return end
   if not profile or not profile.lowHealthWarningEnabled then
-    if draggable then
-      ApplyLowHealthWarningSettings()
-      lowHealthWarningFrame:Show()
-      StopLowHealthWarningFlash()
-    else
-      lowHealthWarningFrame:Hide()
-      StopLowHealthWarningFlash()
-    end
-    return
-  end
-  ApplyLowHealthWarningSettings()
-  if draggable then
-    lowHealthWarningFrame:Show()
-    if profile.lowHealthWarningFlash then
-      StartLowHealthWarningFlash()
-    else
-      StopLowHealthWarningFlash()
-    end
+    lowHealthWarningFrame:Hide()
+    StopLowHealthWarningFlash()
     return
   end
 end

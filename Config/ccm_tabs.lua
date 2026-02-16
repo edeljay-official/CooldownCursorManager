@@ -215,7 +215,7 @@ local function InitTabs()
   generalScrollFrame:SetPoint("TOPLEFT", tab1, "TOPLEFT", 0, 0)
   generalScrollFrame:SetPoint("BOTTOMRIGHT", tab1, "BOTTOMRIGHT", -22, 0)
   local generalScrollChild = CreateFrame("Frame", "CCMGeneralScrollChild", generalScrollFrame)
-  generalScrollChild:SetSize(490, 580)
+  generalScrollChild:SetSize(550, 580)
   generalScrollFrame:SetScrollChild(generalScrollChild)
   local scrollBar = _G["CCMGeneralScrollFrameScrollBar"]
   if scrollBar then
@@ -290,15 +290,15 @@ local function InitTabs()
   addonTable.customBarsModuleCB = Checkbox(gc, "Enable Custom Bars Module", L.C1, -354)
   addonTable.customBarsModuleCB:ClearAllPoints()
   addonTable.customBarsModuleCB:SetPoint("TOPLEFT", addonTable.cursorCDMCB, "BOTTOMLEFT", 0, L.CB_GAP)
-  addonTable.disableBlizzCDMCB = Checkbox(gc, "Use Blizz CDM", L.C2, -322)
-  addonTable.disableBlizzCDMCB:ClearAllPoints()
-  addonTable.disableBlizzCDMCB:SetPoint("TOPLEFT", gcModSec, "BOTTOMLEFT", L.C2_OFF, L.SEC_GAP)
+  addonTable.useBlizzCDMCB = Checkbox(gc, "Use Blizz CDM", L.C2, -322)
+  addonTable.useBlizzCDMCB:ClearAllPoints()
+  addonTable.useBlizzCDMCB:SetPoint("TOPLEFT", gcModSec, "BOTTOMLEFT", L.C2_OFF, L.SEC_GAP)
   addonTable.prbCB = Checkbox(gc, "Use Personal Resource Bar", L.C1, -386)
   addonTable.prbCB:ClearAllPoints()
   addonTable.prbCB:SetPoint("TOPLEFT", addonTable.customBarsModuleCB, "BOTTOMLEFT", 0, L.CB_GAP)
   addonTable.unitFrameCustomizationCB = Checkbox(gc, "Enable Unit Frame Customization", L.C2, -354)
   addonTable.unitFrameCustomizationCB:ClearAllPoints()
-  addonTable.unitFrameCustomizationCB:SetPoint("TOPLEFT", addonTable.disableBlizzCDMCB, "BOTTOMLEFT", 0, L.CB_GAP)
+  addonTable.unitFrameCustomizationCB:SetPoint("TOPLEFT", addonTable.useBlizzCDMCB, "BOTTOMLEFT", 0, L.CB_GAP)
   addonTable.playerDebuffsCB = Checkbox(gc, "Enable Player Debuffs Skinning", L.C1, -418)
   addonTable.playerDebuffsCB:ClearAllPoints()
   addonTable.playerDebuffsCB:SetPoint("TOPLEFT", addonTable.prbCB, "BOTTOMLEFT", 0, L.CB_GAP)
@@ -378,7 +378,7 @@ local function InitTabs()
   curTabSF:SetPoint("TOPLEFT", tab2, "TOPLEFT", 0, 0)
   curTabSF:SetPoint("BOTTOMRIGHT", tab2, "BOTTOMRIGHT", -22, 0)
   local curTabSC = CreateFrame("Frame", "CCMCursorTabSC", curTabSF)
-  curTabSC:SetSize(490, 830)
+  curTabSC:SetSize(550, 830)
   curTabSF:SetScrollChild(curTabSC)
   local curTabBar = _G["CCMCursorTabSFScrollBar"]
   if curTabBar then
@@ -614,7 +614,7 @@ local function InitTabs()
     cbOuterSF:SetPoint("TOPLEFT", tabFrame, "TOPLEFT", 0, 0)
     cbOuterSF:SetPoint("BOTTOMRIGHT", tabFrame, "BOTTOMRIGHT", -22, 0)
     local cbOuterSC = CreateFrame("Frame", "CCMCBTabSC" .. barNum, cbOuterSF)
-    cbOuterSC:SetSize(490, 900)
+    cbOuterSC:SetSize(550, 900)
     cbOuterSF:SetScrollChild(cbOuterSC)
     local cbOuterBar = _G["CCMCBTabSF" .. barNum .. "ScrollBar"]
     if cbOuterBar then
@@ -886,7 +886,7 @@ local function InitTabs()
   blizzScrollFrame:SetPoint("TOPLEFT", tab6, "TOPLEFT", 0, 0)
   blizzScrollFrame:SetPoint("BOTTOMRIGHT", tab6, "BOTTOMRIGHT", -22, 0)
   local blizzScrollChild = CreateFrame("Frame", "CCMBlizzCDMScrollChild", blizzScrollFrame)
-  blizzScrollChild:SetSize(490, 1200)
+  blizzScrollChild:SetSize(550, 1200)
   blizzScrollFrame:SetScrollChild(blizzScrollChild)
   local blizzBar = _G["CCMBlizzCDMScrollFrameScrollBar"]
   if blizzBar then
@@ -1133,7 +1133,7 @@ local function InitTabs()
     prbScrollFrame:SetPoint("TOPLEFT", tab7, "TOPLEFT", 0, 0)
     prbScrollFrame:SetPoint("BOTTOMRIGHT", tab7, "BOTTOMRIGHT", -22, 0)
     local prbScrollChild = CreateFrame("Frame", "CCMPRBScrollChild", prbScrollFrame)
-    prbScrollChild:SetSize(490, 1200)
+    prbScrollChild:SetSize(550, 1200)
     prbScrollFrame:SetScrollChild(prbScrollChild)
     local scrollBar = _G["CCMPRBScrollFrameScrollBar"]
     if scrollBar then
@@ -1246,7 +1246,7 @@ local function InitTabs()
     y = y - 40
     prb.lowHealthColorCB = Checkbox(pc, "Low Health Color", COL1, y - 8)
     prb.lowHealthColorBtn, prb.lowHealthColorSwatch = ColorBtn("Color", 160, y - 8, 1, 0, 0)
-    prb.lowHealthThresholdSlider = Slider(pc, "Threshold %", COL2 + 6, y, 10, 80, 50, 5)
+    prb.lowHealthThresholdSlider = Slider(pc, "Threshold %", COL2 + 6, y, 10, 80, 50, 1)
     y = y - 55
     prb.healthElements = {
       prb.healthHeader, prb.healthLine,
@@ -1284,7 +1284,7 @@ local function InitTabs()
     y = y - 40
     prb.lowPowerColorCB = Checkbox(pc, "Low Power Color", COL1, y - 8)
     prb.lowPowerColorBtn, prb.lowPowerColorSwatch = ColorBtn("Color", 160, y - 8, 1, 0.5, 0)
-    prb.lowPowerThresholdSlider = Slider(pc, "Threshold %", COL2 + 6, y, 10, 80, 30, 5)
+    prb.lowPowerThresholdSlider = Slider(pc, "Threshold %", COL2 + 6, y, 10, 80, 30, 1)
     y = y - 55
     prb.powerElements = {
       prb.powerHeader, prb.powerLine,
@@ -1423,7 +1423,7 @@ local function InitTabs()
     castbarScrollFrame:SetPoint("TOPLEFT", tab8, "TOPLEFT", 0, 0)
     castbarScrollFrame:SetPoint("BOTTOMRIGHT", tab8, "BOTTOMRIGHT", -22, 0)
     local castbarScrollChild = CreateFrame("Frame", "CCMCastbarScrollChild", castbarScrollFrame)
-    castbarScrollChild:SetSize(490, 825)
+    castbarScrollChild:SetSize(550, 825)
     castbarScrollFrame:SetScrollChild(castbarScrollChild)
     local scrollBar = _G["CCMCastbarScrollFrameScrollBar"]
     if scrollBar then
@@ -1532,7 +1532,7 @@ local function InitTabs()
     focusCastbarScrollFrame:SetPoint("TOPLEFT", tab9, "TOPLEFT", 0, 0)
     focusCastbarScrollFrame:SetPoint("BOTTOMRIGHT", tab9, "BOTTOMRIGHT", -22, 0)
     local focusCastbarScrollChild = CreateFrame("Frame", "CCMFocusCastbarScrollChild", focusCastbarScrollFrame)
-    focusCastbarScrollChild:SetSize(490, 825)
+    focusCastbarScrollChild:SetSize(550, 825)
     focusCastbarScrollFrame:SetScrollChild(focusCastbarScrollChild)
     local scrollBar = _G["CCMFocusCastbarScrollFrameScrollBar"]
     if scrollBar then
@@ -1638,7 +1638,7 @@ local function InitTabs()
     targetCastbarScrollFrame:SetPoint("TOPLEFT", tab13, "TOPLEFT", 0, 0)
     targetCastbarScrollFrame:SetPoint("BOTTOMRIGHT", tab13, "BOTTOMRIGHT", -22, 0)
     local targetCastbarScrollChild = CreateFrame("Frame", "CCMTargetCastbarScrollChild", targetCastbarScrollFrame)
-    targetCastbarScrollChild:SetSize(490, 825)
+    targetCastbarScrollChild:SetSize(550, 825)
     targetCastbarScrollFrame:SetScrollChild(targetCastbarScrollChild)
     local scrollBarTC = _G["CCMTargetCastbarScrollFrameScrollBar"]
     if scrollBarTC then
@@ -1744,7 +1744,7 @@ local function InitTabs()
     debuffsScrollFrame:SetPoint("TOPLEFT", tab10, "TOPLEFT", 0, 0)
     debuffsScrollFrame:SetPoint("BOTTOMRIGHT", tab10, "BOTTOMRIGHT", -22, 0)
     local debuffsScrollChild = CreateFrame("Frame", "CCMDebuffsScrollChild", debuffsScrollFrame)
-    debuffsScrollChild:SetSize(490, 400)
+    debuffsScrollChild:SetSize(550, 400)
     debuffsScrollFrame:SetScrollChild(debuffsScrollChild)
     local scrollBar9 = _G["CCMDebuffsScrollFrameScrollBar"]
     if scrollBar9 then
@@ -1805,7 +1805,7 @@ local function InitTabs()
     db.growDirectionDD:SetPoint("TOPLEFT", db.borderSizeSlider, "BOTTOMLEFT", 0, -35)
     if db.growDirectionLbl then db.growDirectionLbl:ClearAllPoints(); db.growDirectionLbl:SetPoint("BOTTOMLEFT", db.growDirectionDD, "TOPLEFT", 0, 4) end
     db.growDirectionDD:SetOptions({{text = "Down", value = "down"}, {text = "Up", value = "up"}})
-    debuffsScrollChild:SetSize(490, 280)
+    debuffsScrollChild:SetSize(550, 280)
     tab10:SetScript("OnShow", function()
       C_Timer.After(0.05, function()
         if addonTable.LoadPlayerDebuffsValues then addonTable.LoadPlayerDebuffsValues() end
@@ -1818,7 +1818,7 @@ local function InitTabs()
     ufScrollFrame:SetPoint("TOPLEFT", tab11, "TOPLEFT", 0, 0)
     ufScrollFrame:SetPoint("BOTTOMRIGHT", tab11, "BOTTOMRIGHT", -22, 0)
     local ufScrollChild = CreateFrame("Frame", "CCMUFScrollChild", ufScrollFrame)
-    ufScrollChild:SetSize(490, 1325)
+    ufScrollChild:SetSize(550, 1325)
     ufScrollFrame:SetScrollChild(ufScrollChild)
     local ufScrollBar = _G["CCMUFScrollFrameScrollBar"]
     if ufScrollBar then
@@ -1837,21 +1837,21 @@ local function InitTabs()
     addonTable.useCustomBorderColorCB = Checkbox(uc, "Custom Border Color", L.C1, -37)
     addonTable.useCustomBorderColorCB:ClearAllPoints()
     addonTable.useCustomBorderColorCB:SetPoint("TOPLEFT", ufMainSec, "BOTTOMLEFT", 0, L.SEC_GAP)
-    addonTable.ufClassColorCB = Checkbox(uc, "Use class color", L.C2, -37)
-    addonTable.ufClassColorCB:ClearAllPoints()
-    addonTable.ufClassColorCB:SetPoint("TOPLEFT", ufMainSec, "BOTTOMLEFT", L.C2_OFF, L.SEC_GAP)
+    addonTable.ufUseCustomTexturesCB = Checkbox(uc, "Use Custom Textures", L.C2, -37)
+    addonTable.ufUseCustomTexturesCB:ClearAllPoints()
+    addonTable.ufUseCustomTexturesCB:SetPoint("TOPLEFT", ufMainSec, "BOTTOMLEFT", L.C2_OFF, L.SEC_GAP)
     addonTable.ufDisableGlowsCB = Checkbox(uc, "Disable Frame Glows", L.C1, -62)
     addonTable.ufDisableGlowsCB:ClearAllPoints()
     addonTable.ufDisableGlowsCB:SetPoint("TOPLEFT", addonTable.useCustomBorderColorCB, "BOTTOMLEFT", 0, L.CB_GAP)
-    addonTable.ufUseCustomTexturesCB = Checkbox(uc, "Use Custom Textures", L.C2, -62)
-    addonTable.ufUseCustomTexturesCB:ClearAllPoints()
-    addonTable.ufUseCustomTexturesCB:SetPoint("TOPLEFT", addonTable.ufClassColorCB, "BOTTOMLEFT", 0, L.CB_GAP)
+    addonTable.ufClassColorCB = Checkbox(uc, "Use Class Color", L.C2, -62)
+    addonTable.ufClassColorCB:ClearAllPoints()
+    addonTable.ufClassColorCB:SetPoint("TOPLEFT", addonTable.ufUseCustomTexturesCB, "BOTTOMLEFT", 15, L.CB_GAP)
     addonTable.disableTargetBuffsCB = Checkbox(uc, "Disable Target Buffs", L.C1, -87)
     addonTable.disableTargetBuffsCB:ClearAllPoints()
     addonTable.disableTargetBuffsCB:SetPoint("TOPLEFT", addonTable.ufDisableGlowsCB, "BOTTOMLEFT", 0, L.CB_GAP)
     addonTable.hideEliteTextureCB = Checkbox(uc, "Hide Elite Texture", L.C2, -87)
     addonTable.hideEliteTextureCB:ClearAllPoints()
-    addonTable.hideEliteTextureCB:SetPoint("TOPLEFT", addonTable.ufUseCustomTexturesCB, "BOTTOMLEFT", 0, L.CB_GAP)
+    addonTable.hideEliteTextureCB:SetPoint("TOPLEFT", addonTable.ufClassColorCB, "BOTTOMLEFT", -15, L.CB_GAP)
     addonTable.ufDisableCombatTextCB = Checkbox(uc, "Disable Player Combat Text", L.C1, -112)
     addonTable.ufDisableCombatTextCB:ClearAllPoints()
     addonTable.ufDisableCombatTextCB:SetPoint("TOPLEFT", addonTable.disableTargetBuffsCB, "BOTTOMLEFT", 0, L.CB_GAP)
@@ -1973,7 +1973,6 @@ local function InitTabs()
     end
   end
 
-  C_Timer.After(0, function()
   CreateUFUnitSubTab(tabFrames[22], "Player", "Player", "Enable Player Bigger Healthbar", {
     {text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}
   })
@@ -1983,7 +1982,6 @@ local function InitTabs()
   CreateUFUnitSubTab(tabFrames[24], "Focus", "Focus", "Enable Focus Bigger Healthbar", {
     {text = "Level: Always", value = "always"}, {text = "Level: Hide", value = "hide"}, {text = "Level: Hide Max", value = "hidemax"}
   })
-  end)
   do
     local tab25 = tabFrames[25]
     if tab25 then
@@ -1991,7 +1989,7 @@ local function InitTabs()
       bossSF:SetPoint("TOPLEFT", tab25, "TOPLEFT", 0, 0)
       bossSF:SetPoint("BOTTOMRIGHT", tab25, "BOTTOMRIGHT", -22, 0)
       local bc = CreateFrame("Frame", "CCMBossScrollChild", bossSF)
-      bc:SetSize(490, 840)
+      bc:SetSize(550, 840)
       bossSF:SetScrollChild(bc)
       local bossBar = _G["CCMBossScrollFrameScrollBar"]
       if bossBar then
@@ -2092,7 +2090,7 @@ local function InitTabs()
     alertSF:SetPoint("TOPLEFT", tab12, "TOPLEFT", 0, 0)
     alertSF:SetPoint("BOTTOMRIGHT", tab12, "BOTTOMRIGHT", -22, 0)
     local alertSC = CreateFrame("Frame", "CCMAlertScrollChild", alertSF)
-    alertSC:SetSize(490, 680)
+    alertSC:SetSize(550, 680)
     alertSF:SetScrollChild(alertSC)
     local alertBar = _G["CCMAlertScrollFrameScrollBar"]
     if alertBar then
@@ -2252,7 +2250,7 @@ local function InitTabs()
     abSF:SetPoint("TOPLEFT", tab14, "TOPLEFT", 0, 0)
     abSF:SetPoint("BOTTOMRIGHT", tab14, "BOTTOMRIGHT", -22, 0)
     local abSC = CreateFrame("Frame", "CCMActionBarsScrollChild", abSF)
-    abSC:SetSize(490, 500)
+    abSC:SetSize(550, 500)
     abSF:SetScrollChild(abSC)
     local abBar = _G["CCMActionBarsScrollFrameScrollBar"]
     if abBar then
@@ -2347,7 +2345,7 @@ local function InitTabs()
     chatSF:SetPoint("TOPLEFT", tab15, "TOPLEFT", 0, 0)
     chatSF:SetPoint("BOTTOMRIGHT", tab15, "BOTTOMRIGHT", -22, 0)
     local chatSC = CreateFrame("Frame", "CCMChatScrollChild", chatSF)
-    chatSC:SetSize(490, 460)
+    chatSC:SetSize(550, 460)
     chatSF:SetScrollChild(chatSC)
     local chatBar = _G["CCMChatScrollFrameScrollBar"]
     if chatBar then
@@ -2407,7 +2405,7 @@ local function InitTabs()
     addonTable.chatHideTabsDD:SetPoint("TOPLEFT", addonTable.chatBackgroundCB, "TOPLEFT", L.C2_OFF, 0)
     if addonTable.chatHideTabsLbl then addonTable.chatHideTabsLbl:ClearAllPoints(); addonTable.chatHideTabsLbl:SetPoint("BOTTOMLEFT", addonTable.chatHideTabsDD, "TOPLEFT", 0, 4) end
     addonTable.chatHideTabsDD:SetOptions({{text = "Show", value = "off"}, {text = "Hide", value = "hide"}, {text = "Mouseover", value = "mouseover"}})
-    addonTable.chatBgAlphaSlider = Slider(chc, "Background Opacity", L.C1, -322, 0, 100, 40, 5)
+    addonTable.chatBgAlphaSlider = Slider(chc, "Background Opacity", L.C1, -322, 0, 100, 40, 1)
     addonTable.chatBgAlphaSlider.label:ClearAllPoints()
     addonTable.chatBgAlphaSlider.label:SetPoint("TOPLEFT", addonTable.chatBackgroundCB, "BOTTOMLEFT", 0, -8)
     addonTable.chatBgAlphaSlider:ClearAllPoints()
@@ -2435,7 +2433,7 @@ local function InitTabs()
     skySF:SetPoint("TOPLEFT", tab16, "TOPLEFT", 0, 0)
     skySF:SetPoint("BOTTOMRIGHT", tab16, "BOTTOMRIGHT", -22, 0)
     local skySC = CreateFrame("Frame", "CCMSkyridingScrollChild", skySF)
-    skySC:SetSize(490, 500)
+    skySC:SetSize(550, 500)
     skySF:SetScrollChild(skySC)
     local skyBar = _G["CCMSkyridingScrollFrameScrollBar"]
     if skyBar then
@@ -2504,17 +2502,17 @@ local function InitTabs()
     addonTable.skyridingTextureDD:SetPoint("TOPLEFT", addonTable.skyridingEmptyColorBtn, "BOTTOMLEFT", 0, -18)
     if addonTable.skyridingTextureLbl then addonTable.skyridingTextureLbl:ClearAllPoints(); addonTable.skyridingTextureLbl:SetPoint("BOTTOMLEFT", addonTable.skyridingTextureDD, "TOPLEFT", 0, 4) end
     ApplyTextureOptionsToDropdown(addonTable.skyridingTextureDD)
-    addonTable.skyridingScaleSlider = Slider(skc, "Scale", L.C1, -338, 50, 200, 100, 5)
+    addonTable.skyridingScaleSlider = Slider(skc, "Scale", L.C1, -338, 50, 200, 100, 1)
     addonTable.skyridingScaleSlider.label:ClearAllPoints()
     addonTable.skyridingScaleSlider.label:SetPoint("TOPLEFT", addonTable.skyridingTextureDD, "BOTTOMLEFT", 0, -25)
     addonTable.skyridingScaleSlider:ClearAllPoints()
     addonTable.skyridingScaleSlider:SetPoint("TOPLEFT", addonTable.skyridingScaleSlider.label, "BOTTOMLEFT", 0, -8)
-    addonTable.skyridingXSlider = Slider(skc, "X Position", L.C1, -398, -800, 800, 0, 5)
+    addonTable.skyridingXSlider = Slider(skc, "X Position", L.C1, -398, -800, 800, 0, 1)
     addonTable.skyridingXSlider.label:ClearAllPoints()
     addonTable.skyridingXSlider.label:SetPoint("TOPLEFT", addonTable.skyridingScaleSlider, "BOTTOMLEFT", 0, -25)
     addonTable.skyridingXSlider:ClearAllPoints()
     addonTable.skyridingXSlider:SetPoint("TOPLEFT", addonTable.skyridingXSlider.label, "BOTTOMLEFT", 0, -8)
-    addonTable.skyridingYSlider = Slider(skc, "Y Position", L.C2, -398, -800, 800, -200, 5)
+    addonTable.skyridingYSlider = Slider(skc, "Y Position", L.C2, -398, -800, 800, -200, 1)
     addonTable.skyridingYSlider.label:ClearAllPoints()
     addonTable.skyridingYSlider.label:SetPoint("TOPLEFT", addonTable.skyridingXSlider.label, "TOPLEFT", L.C2_OFF, 0)
     addonTable.skyridingYSlider:ClearAllPoints()
@@ -2531,7 +2529,7 @@ local function InitTabs()
     combSF:SetPoint("TOPLEFT", tab19, "TOPLEFT", 0, 0)
     combSF:SetPoint("BOTTOMRIGHT", tab19, "BOTTOMRIGHT", -22, 0)
     local combSC = CreateFrame("Frame", "CCMCombatScrollChild", combSF)
-    combSC:SetSize(490, 1100)
+    combSC:SetSize(550, 1100)
     combSF:SetScrollChild(combSC)
     local combBar = _G["CCMCombatScrollFrameScrollBar"]
     if combBar then
@@ -2741,7 +2739,7 @@ local function InitTabs()
     featSF:SetPoint("TOPLEFT", tab18, "TOPLEFT", 0, 0)
     featSF:SetPoint("BOTTOMRIGHT", tab18, "BOTTOMRIGHT", -22, 0)
     local featSC = CreateFrame("Frame", "CCMFeaturesScrollChild", featSF)
-    featSC:SetSize(490, 500)
+    featSC:SetSize(550, 500)
     featSF:SetScrollChild(featSC)
     local featBar = _G["CCMFeaturesScrollFrameScrollBar"]
     if featBar then
@@ -2796,7 +2794,7 @@ local function InitTabs()
       local r = profile.radialColorR or 1
       local g = profile.radialColorG or 1
       local b = profile.radialColorB or 1
-      local a = profile.radialAlpha or 0.8
+      local a = profile.radialAlpha or 1
       local function OnColorChanged()
         local newR, newG, newB = ColorPickerFrame:GetColorRGB()
         local newA = ColorPickerFrame:GetColorAlpha() or 1

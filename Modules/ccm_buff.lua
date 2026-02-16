@@ -287,7 +287,7 @@ local function ScanCdmAuraOverlayCache(now)
   wipe(CdmAuraOverlayCache.notBuff)
   CdmAuraOverlayCache.lastScan = now or GetTime()
   local profile = addonTable.GetProfile and addonTable.GetProfile()
-  local suppressTrackedBuffIcons = profile and profile.hideTrackedBlizzBuffIcons ~= false and ShouldUseLiveBuffTrackingForProfile(profile) and profile.disableBlizzCDM ~= true
+  local suppressTrackedBuffIcons = profile and profile.hideTrackedBlizzBuffIcons ~= false and ShouldUseLiveBuffTrackingForProfile(profile) and profile.useBlizzCDM ~= false
   local knownBuffSpellIDs = CdmAuraOverlayCache.knownBuffSpellIDs
   local ResolveTrackedSpellID = addonTable.ResolveTrackedSpellID
   local suppressBySpellID, suppressBySpellName

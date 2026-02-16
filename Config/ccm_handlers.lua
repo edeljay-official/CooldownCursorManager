@@ -103,7 +103,7 @@ local function SyncModuleControlsState()
   SetControlEnabled(addonTable.customBarsModuleCB, true)
   SetControlEnabled(addonTable.qolModuleCB, true)
   SetControlEnabled(addonTable.customBarsCountSlider, cbarsOn)
-  SetControlEnabled(addonTable.disableBlizzCDMCB, true)
+  SetControlEnabled(addonTable.useBlizzCDMCB, true)
   SetControlEnabled(addonTable.prbCB, true)
   SetControlEnabled(addonTable.castbarCB, true)
   SetControlEnabled(addonTable.focusCastbarCB, castbarsOn)
@@ -152,21 +152,21 @@ local function SyncTrackBuffsCheckboxesFromProfile(profile)
 end
 local function EnsureTrackBuffsCompatible(profile)
   if type(profile) ~= "table" then return false end
-  if profile.disableBlizzCDM == true and IsAnyTrackBuffsEnabled(profile) then
+  if profile.useBlizzCDM ~= true and IsAnyTrackBuffsEnabled(profile) then
     return SetAllTrackBuffsEnabled(profile, false)
   end
   return false
 end
 local function EnsureDisableBlizzCDMCompatible(profile)
   if type(profile) ~= "table" then return false end
-  if profile.disableBlizzCDM == true and IsAnyTrackBuffsEnabled(profile) then
+  if profile.useBlizzCDM ~= true and IsAnyTrackBuffsEnabled(profile) then
     local changed = false
     local moduleChanged, needsReload = SetModuleEnabled("blizzcdm", true)
     if moduleChanged then
       changed = true
     end
-    if profile.disableBlizzCDM == true then
-      profile.disableBlizzCDM = false
+    if profile.useBlizzCDM ~= true then
+      profile.useBlizzCDM = true
       changed = true
     end
     return changed, needsReload
@@ -847,12 +847,9 @@ local function UpdateAllControls()
   if addonTable.castbarCB then addonTable.castbarCB:SetChecked(IsModuleEnabled("castbars")) end
   if addonTable.focusCastbarCB then addonTable.focusCastbarCB:SetChecked(IsModuleEnabled("castbars") and profile.useFocusCastbar == true) end
   if addonTable.targetCastbarCB then addonTable.targetCastbarCB:SetChecked(IsModuleEnabled("castbars") and profile.useTargetCastbar == true) end
-  if addonTable.playerDebuffsCB then addonTable.playerDebuffsCB:SetChecked(IsModuleEnabled("debuffs")) end
+  if addonTable.playerDebuffsCB then addonTable.playerDebuffsCB:SetChecked(IsModuleEnabled("debuffs") and profile.enablePlayerDebuffs == true) end
   if addonTable.qolModuleCB then addonTable.qolModuleCB:SetChecked(IsModuleEnabled("qol")) end
-  if IsModuleEnabled("unitframes") and profile.enableUnitFrameCustomization == false then
-    profile.enableUnitFrameCustomization = true
-  end
-  if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(IsModuleEnabled("unitframes")) end
+  if addonTable.unitFrameCustomizationCB then addonTable.unitFrameCustomizationCB:SetChecked(IsModuleEnabled("unitframes") and profile.enableUnitFrameCustomization == true) end
   local ufOn = IsModuleEnabled("unitframes") and profile.enableUnitFrameCustomization == true
   if addonTable.radialCB then addonTable.radialCB:SetChecked(profile.showRadialCircle == true) end
   if addonTable.radialCombatCB then addonTable.radialCombatCB:SetChecked(profile.cursorCombatOnly == true) end
@@ -866,8 +863,8 @@ local function UpdateAllControls()
   local ufBigMaster = profile.ufBigHBEnabled
   if ufBigMaster == nil then
     ufBigMaster = (profile.ufBigHBPlayerEnabled == true) or (profile.ufBigHBTargetEnabled == true) or (profile.ufBigHBFocusEnabled == true)
+    profile.ufBigHBEnabled = ufBigMaster == true
   end
-  profile.ufBigHBEnabled = ufBigMaster == true
   local bigHBPlayerOn = ufOn and profile.ufBigHBEnabled == true and profile.ufBigHBPlayerEnabled == true
   if addonTable.ufDisableGlowsCB then
     if bigHBPlayerOn then
@@ -1493,19 +1490,19 @@ local function UpdateAllControls()
     profile.customBar4Enabled = (count >= 4)
     profile.customBar5Enabled = (count >= 5)
   end
-  if IsModuleEnabled("blizzcdm") and profile.disableBlizzCDM == true then
-    profile.disableBlizzCDM = false
+  if IsModuleEnabled("blizzcdm") and profile.useBlizzCDM == nil then
+    profile.useBlizzCDM = true
   end
-  if IsModuleEnabled("prb") and profile.usePersonalResourceBar ~= true then
+  if IsModuleEnabled("prb") and profile.usePersonalResourceBar == nil then
     profile.usePersonalResourceBar = true
   end
-  if IsModuleEnabled("castbars") and profile.useCastbar ~= true then
+  if IsModuleEnabled("castbars") and profile.useCastbar == nil then
     profile.useCastbar = true
   end
-  if IsModuleEnabled("debuffs") and profile.enablePlayerDebuffs ~= true then
+  if IsModuleEnabled("debuffs") and profile.enablePlayerDebuffs == nil then
     profile.enablePlayerDebuffs = true
   end
-  if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(IsModuleEnabled("blizzcdm")) end
+  if addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(IsModuleEnabled("blizzcdm")) end
   if addonTable.buffBarCB then addonTable.buffBarCB:SetChecked(profile.useBuffBar == true) end
   if addonTable.essentialBarCB then addonTable.essentialBarCB:SetChecked(profile.useEssentialBar == true) end
   if addonTable.buffSizeSlider then addonTable.buffSizeSlider:SetValue(num(profile.buffBarIconSizeOffset, 0)); addonTable.buffSizeSlider.valueText:SetText(math.floor(num(profile.buffBarIconSizeOffset, 0))) end
@@ -2796,9 +2793,9 @@ local function InitHandlers()
   if addonTable.ufBigHBTargetHideRealmCB then addonTable.ufBigHBTargetHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBTargetHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBFocusHideRealmCB then addonTable.ufBigHBFocusHideRealmCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBFocusHideRealm = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
 
-  if addonTable.ufBigHBPlayerNameMaxCharsSlider then addonTable.ufBigHBPlayerNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBPlayerNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBTargetNameMaxCharsSlider then addonTable.ufBigHBTargetNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBTargetNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
-  if addonTable.ufBigHBFocusNameMaxCharsSlider then addonTable.ufBigHBFocusNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then p.ufBigHBFocusNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges() end end) end
+  if addonTable.ufBigHBPlayerNameMaxCharsSlider then addonTable.ufBigHBPlayerNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local p = GetProfile(); if p then p.ufBigHBPlayerNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges(nil, true) end end) end
+  if addonTable.ufBigHBTargetNameMaxCharsSlider then addonTable.ufBigHBTargetNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local p = GetProfile(); if p then p.ufBigHBTargetNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges(nil, true) end end) end
+  if addonTable.ufBigHBFocusNameMaxCharsSlider then addonTable.ufBigHBFocusNameMaxCharsSlider:SetScript("OnValueChanged", function(s, v) if s._updating then return end; local p = GetProfile(); if p then p.ufBigHBFocusNameMaxChars = math.floor(v + 0.5); s.valueText:SetText(math.floor(v + 0.5)); ApplyUFBigHealthbarChanges(nil, true) end end) end
   if addonTable.ufBigHBHidePlayerNameCB then addonTable.ufBigHBHidePlayerNameCB.customOnClick = function(s) local p = GetProfile(); if p then p.ufBigHBHidePlayerName = s:GetChecked(); ApplyUFBigHealthbarChanges() end end end
   if addonTable.ufBigHBPlayerNameAnchorDD then addonTable.ufBigHBPlayerNameAnchorDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerNameAnchor = v or "center"; ApplyUFBigHealthbarChanges(true) end end end
   if addonTable.ufBigHBPlayerLevelDD then addonTable.ufBigHBPlayerLevelDD.onSelect = function(v) local p = GetProfile(); if p then p.ufBigHBPlayerLevelMode = v; ApplyUFBigHealthbarChanges() end end end
@@ -3620,7 +3617,7 @@ local function InitHandlers()
       if cur.openBlizzBuffBtn then cur.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
         local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
-        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff and addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         elseif needsReload then
@@ -3680,7 +3677,7 @@ local function InitHandlers()
       if cb1.openBlizzBuffBtn then cb1.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
         local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
-        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff and addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         elseif needsReload then
@@ -3778,7 +3775,7 @@ local function InitHandlers()
       if cb2.openBlizzBuffBtn then cb2.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
         local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
-        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff and addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         elseif needsReload then
@@ -3876,7 +3873,7 @@ local function InitHandlers()
       if cb3.openBlizzBuffBtn then cb3.openBlizzBuffBtn:SetShown(s:GetChecked()) end
       if s:GetChecked() == true then
         local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
-        if forcedOff and addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+        if forcedOff and addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(true) end
         if forcedOff then
           ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
         elseif needsReload then
@@ -3976,7 +3973,7 @@ local function InitHandlers()
         if p.customBar4TrackBuffs then
           local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
           if forcedOff then
-            if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+            if addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(true) end
             ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
           elseif needsReload then
             ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
@@ -4078,7 +4075,7 @@ local function InitHandlers()
         if p.customBar5TrackBuffs then
           local forcedOff, needsReload = EnsureDisableBlizzCDMCompatible(p)
           if forcedOff then
-            if addonTable.disableBlizzCDMCB then addonTable.disableBlizzCDMCB:SetChecked(true) end
+            if addonTable.useBlizzCDMCB then addonTable.useBlizzCDMCB:SetChecked(true) end
             ShowReloadPrompt("Track Buffs requires Blizzard CDM. Blizz CDM has been re-enabled. Reload now?", "Reload", "Later")
           elseif needsReload then
             ShowReloadPrompt("Blizz CDM module state changed. Reload UI now?", "Reload", "Later")
@@ -4243,7 +4240,7 @@ local function InitHandlers()
     local p = GetProfile()
     if not p then return end
     local moduleEnabled = IsModuleEnabled("blizzcdm")
-    local disabled = (p.disableBlizzCDM == true) or (not moduleEnabled)
+    local disabled = (p.useBlizzCDM ~= true) or (not moduleEnabled)
     local buffAttached = p.useBuffBar == true
     local essentialAttached = p.useEssentialBar == true
     local function SetControlEnabled(control, enabled)
@@ -4295,7 +4292,7 @@ local function InitHandlers()
       SetControlEnabled(sa.utilityGrowDD, (not disabled) and (not p.standaloneUtilityCentered))
       SetControlEnabled(sa.utilityRowGrowDD, not disabled)
       SetControlEnabled(sa.utilityYSlider, not disabled)
-      SetControlEnabled(sa.utilityXSlider, not disabled)
+      SetControlEnabled(sa.utilityXSlider, (not disabled) and (not p.standaloneUtilityCentered))
     end
   end
   addonTable.UpdateBlizzCDMDisabledState = UpdateBlizzCDMDisabledState
@@ -4317,7 +4314,7 @@ local function InitHandlers()
     })
     addonTable.skinningModeDD.onSelect = function(v)
       local p = GetProfile(); if not p then return end
-      if p.disableBlizzCDM == true then return end
+      if p.useBlizzCDM ~= true then return end
       local wasEnabled = p.enableMasque or p.blizzardBarSkinning
       if v == "masque" then
         p.enableMasque = true; p.blizzardBarSkinning = false
@@ -4333,27 +4330,27 @@ local function InitHandlers()
       if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
     end
   end
-  if addonTable.disableBlizzCDMCB then
-    addonTable.disableBlizzCDMCB.customOnClick = function(s)
+  if addonTable.useBlizzCDMCB then
+    addonTable.useBlizzCDMCB.customOnClick = function(s)
       local p = GetProfile(); if not p then return end
-      local wasDisabled = p.disableBlizzCDM == true
+      local wasDisabled = p.useBlizzCDM ~= true
       local promptShown = false
       local _, needsReload = SetModuleEnabled("blizzcdm", s:GetChecked())
       if not IsModuleEnabled("blizzcdm") then
-        p.disableBlizzCDM = true
+        p.useBlizzCDM = false
         s:SetChecked(false)
       else
-        p.disableBlizzCDM = false
+        p.useBlizzCDM = true
       end
       local changedTrackBuffs = false
-      p.disableBlizzCDM = not IsModuleEnabled("blizzcdm")
-      if p.disableBlizzCDM then
+      p.useBlizzCDM = IsModuleEnabled("blizzcdm")
+      if not p.useBlizzCDM then
         changedTrackBuffs = EnsureTrackBuffsCompatible(p)
         if changedTrackBuffs then
           SyncTrackBuffsCheckboxesFromProfile(p)
         end
       end
-      if p.disableBlizzCDM then
+      if not p.useBlizzCDM then
         if addonTable.ResetBlizzardBarSkinning then addonTable.ResetBlizzardBarSkinning() end
         if addonTable.RestoreBuffBarPosition then addonTable.RestoreBuffBarPosition() end
         if addonTable.RestoreEssentialBarPosition then addonTable.RestoreEssentialBarPosition() end
@@ -4368,7 +4365,7 @@ local function InitHandlers()
       if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end
       if addonTable.UpdateBlizzCDMDisabledState then addonTable.UpdateBlizzCDMDisabledState() end
       if addonTable.UpdateTabVisibility then addonTable.UpdateTabVisibility() end
-      if p.disableBlizzCDM and not wasDisabled then
+      if not p.useBlizzCDM and not wasDisabled then
         if changedTrackBuffs then
           ShowReloadPrompt("|cffff3333Track Buffs was active and is now disabled because Blizz CDM was turned off.|r\n\n|cffff3333Reload UI now?|r", "Reload", "Later")
           promptShown = true
@@ -4382,7 +4379,7 @@ local function InitHandlers()
       end
       SyncModuleControlsState()
     end
-    AttachCheckboxTooltip(addonTable.disableBlizzCDMCB, DISABLE_BLIZZ_CDM_TOOLTIP_TEXT)
+    AttachCheckboxTooltip(addonTable.useBlizzCDMCB, DISABLE_BLIZZ_CDM_TOOLTIP_TEXT)
   end
   if addonTable.openBlizzCDMBtn then
     addonTable.openBlizzCDMBtn:SetScript("OnClick", function()
@@ -4431,7 +4428,7 @@ local function InitHandlers()
   end
   if addonTable.buffBarCB then addonTable.buffBarCB.customOnClick = function(s) 
     local p = GetProfile()
-    if p and p.disableBlizzCDM == true then s:SetChecked(false); return end
+    if p and p.useBlizzCDM ~= true then s:SetChecked(false); return end
     if p then 
       local wasAttached = p.useBuffBar
       p.useBuffBar = s:GetChecked()
@@ -4443,7 +4440,7 @@ local function InitHandlers()
   end end
   if addonTable.essentialBarCB then addonTable.essentialBarCB.customOnClick = function(s) 
     local p = GetProfile()
-    if p and p.disableBlizzCDM == true then s:SetChecked(false); return end
+    if p and p.useBlizzCDM ~= true then s:SetChecked(false); return end
     if p then 
       local wasAttached = p.useEssentialBar
       p.useEssentialBar = s:GetChecked()
@@ -4453,7 +4450,7 @@ local function InitHandlers()
       end
     end 
   end end
-  if addonTable.buffSizeSlider then addonTable.buffSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.buffBarIconSizeOffset = math.floor(v); s.valueText:SetText(math.floor(v)) end end) end
+  if addonTable.buffSizeSlider then addonTable.buffSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.buffBarIconSizeOffset = math.floor(v); s.valueText:SetText(math.floor(v)) end end) end
   local sa = addonTable.standalone
   if sa then
     local function ShowReloadPromptLocal(was)
@@ -4461,42 +4458,42 @@ local function InitHandlers()
         ShowReloadPrompt("Disabling standalone bar skinning requires a UI reload. Reload now?", "Reload", "Later")
       end
     end
-    if sa.skinBuffCB then sa.skinBuffCB.customOnClick = function(s) local p = GetProfile(); if p and p.disableBlizzCDM == true then s:SetChecked(false); return end; if p then local was = p.standaloneSkinBuff; p.standaloneSkinBuff = s:GetChecked(); if was and not s:GetChecked() then ShowReloadPromptLocal(true) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.skinEssentialCB then sa.skinEssentialCB.customOnClick = function(s) local p = GetProfile(); if p and p.disableBlizzCDM == true then s:SetChecked(false); return end; if p then local was = p.standaloneSkinEssential; p.standaloneSkinEssential = s:GetChecked(); if was and not s:GetChecked() then ShowReloadPromptLocal(true) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.skinUtilityCB then sa.skinUtilityCB.customOnClick = function(s) local p = GetProfile(); if p and p.disableBlizzCDM == true then s:SetChecked(false); return end; if p then local was = p.standaloneSkinUtility; p.standaloneSkinUtility = s:GetChecked(); if was and not s:GetChecked() then ShowReloadPromptLocal(true) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.buffCenteredCB then sa.buffCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneBuffCentered == true); return end; p.standaloneBuffCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.essentialCenteredCB then sa.essentialCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneEssentialCentered == true); return end; p.standaloneEssentialCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.utilityCenteredCB then sa.utilityCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true then s:SetChecked(p.standaloneUtilityCentered == true); return end; p.standaloneUtilityCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
-    if sa.hideGlowsCB then sa.hideGlowsCB.customOnClick = function(s) local p = GetProfile(); if p then if p.disableBlizzCDM == true or not IsModuleEnabled("blizzcdm") then s:SetChecked(p.hideBlizzCDMGlows == true); return end; p.hideBlizzCDMGlows = s:GetChecked(); ShowReloadPrompt("A reload is required for glow changes to take effect.", "Reload", "Later") end end end
-    if sa.spacingSlider then sa.spacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneSpacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
-    if sa.borderSizeSlider then sa.borderSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneIconBorderSize = math.floor(v); s.valueText:SetText(math.floor(v)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
-    if sa.cdTextScaleSlider then sa.cdTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.buffSizeSlider then sa.buffSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneBuffSize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.buffCdTextSlider then sa.buffCdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneBuffCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.buffIconsPerRowSlider then sa.buffIconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneBuffIconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.buffRowsDD then sa.buffRowsDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneBuffMaxRows = tonumber(v) or 2; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.buffGrowDD then sa.buffGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneBuffGrowDirection = v or "right"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.buffRowGrowDD then sa.buffRowGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneBuffRowGrowDirection = v or "down"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.buffYSlider then sa.buffYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local n = RoundToHalf(v); p.blizzBarBuffY = n; p.standaloneBuffY = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.buffXSlider then sa.buffXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local n = RoundToHalf(v); p.blizzBarBuffX = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.essentialSizeSlider then sa.essentialSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneEssentialSize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.essentialSecondRowSizeSlider then sa.essentialSecondRowSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneEssentialSecondRowSize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.essentialCdTextSlider then sa.essentialCdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneEssentialCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.essentialIconsPerRowSlider then sa.essentialIconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneEssentialIconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.essentialRowsDD then sa.essentialRowsDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneEssentialMaxRows = tonumber(v) or 2; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.essentialGrowDD then sa.essentialGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneEssentialGrowDirection = v or "right"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.essentialRowGrowDD then sa.essentialRowGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneEssentialRowGrowDirection = v or "down"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.essentialYSlider then sa.essentialYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local n = RoundToHalf(v); p.blizzBarEssentialY = n; p.standaloneEssentialY = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.essentialXSlider then sa.essentialXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local n = RoundToHalf(v); p.blizzBarEssentialX = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.utilitySizeSlider then sa.utilitySizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneUtilitySize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.utilityCdTextSlider then sa.utilityCdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneUtilityCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.utilityIconsPerRowSlider then sa.utilityIconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneUtilityIconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
-    if sa.utilityRowsDD then sa.utilityRowsDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneUtilityMaxRows = tonumber(v) or 2; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.utilityGrowDD then sa.utilityGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneUtilityGrowDirection = v or "right"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.utilityRowGrowDD then sa.utilityRowGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneUtilityRowGrowDirection = v or "down"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
-    if sa.utilityAutoWidthDD then sa.utilityAutoWidthDD.onSelect = function(v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; p.standaloneUtilityAutoWidth = v; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end end
-    if sa.utilityYSlider then sa.utilityYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local n = RoundToHalf(v); p.blizzBarUtilityY = n; p.standaloneUtilityY = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
-    if sa.utilityXSlider then sa.utilityXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.disableBlizzCDM == true then return end; local n = RoundToHalf(v); p.blizzBarUtilityX = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.skinBuffCB then sa.skinBuffCB.customOnClick = function(s) local p = GetProfile(); if p and p.useBlizzCDM ~= true then s:SetChecked(false); return end; if p then local was = p.standaloneSkinBuff; p.standaloneSkinBuff = s:GetChecked(); if was and not s:GetChecked() then ShowReloadPromptLocal(true) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.skinEssentialCB then sa.skinEssentialCB.customOnClick = function(s) local p = GetProfile(); if p and p.useBlizzCDM ~= true then s:SetChecked(false); return end; if p then local was = p.standaloneSkinEssential; p.standaloneSkinEssential = s:GetChecked(); if was and not s:GetChecked() then ShowReloadPromptLocal(true) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.skinUtilityCB then sa.skinUtilityCB.customOnClick = function(s) local p = GetProfile(); if p and p.useBlizzCDM ~= true then s:SetChecked(false); return end; if p then local was = p.standaloneSkinUtility; p.standaloneSkinUtility = s:GetChecked(); if was and not s:GetChecked() then ShowReloadPromptLocal(true) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.buffCenteredCB then sa.buffCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then s:SetChecked(p.standaloneBuffCentered == true); return end; p.standaloneBuffCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.essentialCenteredCB then sa.essentialCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then s:SetChecked(p.standaloneEssentialCentered == true); return end; p.standaloneEssentialCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.utilityCenteredCB then sa.utilityCenteredCB.customOnClick = function(s) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then s:SetChecked(p.standaloneUtilityCentered == true); return end; p.standaloneUtilityCentered = s:GetChecked(); if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end; if addonTable.EvaluateMainTicker then addonTable.EvaluateMainTicker() end end end end
+    if sa.hideGlowsCB then sa.hideGlowsCB.customOnClick = function(s) local p = GetProfile(); if p then if p.useBlizzCDM ~= true or not IsModuleEnabled("blizzcdm") then s:SetChecked(p.hideBlizzCDMGlows == true); return end; p.hideBlizzCDMGlows = s:GetChecked(); ShowReloadPrompt("A reload is required for glow changes to take effect.", "Reload", "Later") end end end
+    if sa.spacingSlider then sa.spacingSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneSpacing = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
+    if sa.borderSizeSlider then sa.borderSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneIconBorderSize = math.floor(v); s.valueText:SetText(math.floor(v)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end) end
+    if sa.cdTextScaleSlider then sa.cdTextScaleSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.buffSizeSlider then sa.buffSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneBuffSize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.buffCdTextSlider then sa.buffCdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneBuffCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.buffIconsPerRowSlider then sa.buffIconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneBuffIconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.buffRowsDD then sa.buffRowsDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneBuffMaxRows = tonumber(v) or 2; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.buffGrowDD then sa.buffGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneBuffGrowDirection = v or "right"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.buffRowGrowDD then sa.buffRowGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneBuffRowGrowDirection = v or "down"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.buffYSlider then sa.buffYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local n = RoundToHalf(v); p.blizzBarBuffY = n; p.standaloneBuffY = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.buffXSlider then sa.buffXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local n = RoundToHalf(v); p.blizzBarBuffX = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.essentialSizeSlider then sa.essentialSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneEssentialSize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.essentialSecondRowSizeSlider then sa.essentialSecondRowSizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneEssentialSecondRowSize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.essentialCdTextSlider then sa.essentialCdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneEssentialCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.essentialIconsPerRowSlider then sa.essentialIconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneEssentialIconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.essentialRowsDD then sa.essentialRowsDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneEssentialMaxRows = tonumber(v) or 2; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.essentialGrowDD then sa.essentialGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneEssentialGrowDirection = v or "right"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.essentialRowGrowDD then sa.essentialRowGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneEssentialRowGrowDirection = v or "down"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.essentialYSlider then sa.essentialYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local n = RoundToHalf(v); p.blizzBarEssentialY = n; p.standaloneEssentialY = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.essentialXSlider then sa.essentialXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local n = RoundToHalf(v); p.blizzBarEssentialX = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.utilitySizeSlider then sa.utilitySizeSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneUtilitySize = v; s.valueText:SetText(v); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.utilityCdTextSlider then sa.utilityCdTextSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local rv = math.floor(v * 10 + 0.5) / 10; p.standaloneUtilityCdTextScale = rv; s.valueText:SetText(string.format("%.1f", rv)); addonTable.State.standaloneNeedsSkinning = true; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.utilityIconsPerRowSlider then sa.utilityIconsPerRowSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneUtilityIconsPerRow = math.floor(v); s.valueText:SetText(math.floor(v)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end) end
+    if sa.utilityRowsDD then sa.utilityRowsDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneUtilityMaxRows = tonumber(v) or 2; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.utilityGrowDD then sa.utilityGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneUtilityGrowDirection = v or "right"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.utilityRowGrowDD then sa.utilityRowGrowDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneUtilityRowGrowDirection = v or "down"; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end end end end
+    if sa.utilityAutoWidthDD then sa.utilityAutoWidthDD.onSelect = function(v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; p.standaloneUtilityAutoWidth = v; if addonTable.UpdateStandaloneControlsState then addonTable.UpdateStandaloneControlsState() end; if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.HighlightCustomBar then addonTable.HighlightCustomBar(6) end end end end
+    if sa.utilityYSlider then sa.utilityYSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local n = RoundToHalf(v); p.blizzBarUtilityY = n; p.standaloneUtilityY = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
+    if sa.utilityXSlider then sa.utilityXSlider:SetScript("OnValueChanged", function(s, v) local p = GetProfile(); if p then if p.useBlizzCDM ~= true then return end; local n = RoundToHalf(v); p.blizzBarUtilityX = n; s.valueText:SetText(FormatHalf(n)); if addonTable.UpdateStandaloneBlizzardBars then addonTable.UpdateStandaloneBlizzardBars() end; if addonTable.GetGUIOpen and addonTable.GetGUIOpen() and addonTable.ShowBlizzBarDragOverlays then addonTable.ShowBlizzBarDragOverlays(true) end end end) end
   end
   local exportCategoryKeys = {
     general = {"iconBorderSize", "iconStrata", "enableMasque", "showMinimapButton", "minimapButtonAngle",
@@ -4579,7 +4576,7 @@ local function InitHandlers()
 	              "numColumns", "showGCD", "cursorShowGCD", "iconsCombatOnly", "cursorCombatOnly",
 	              "stackTextPosition", "stackTextOffsetX", "stackTextOffsetY", "useBuffOverlay", "trackBuffs", "useSpellGlows", "spellGlowDefaultType", "spellGlowSpeed", "spellGlowThickness", "cooldownIconMode",
 	              "glowWhenReady", "showInCombatOnly", "alwaysShowInEnabled", "alwaysShowInMode"},
-    blizzcdm = {"disableBlizzCDM", "hideTrackedBlizzBuffIcons", "useBuffBar", "useEssentialBar",
+    blizzcdm = {"useBlizzCDM", "hideTrackedBlizzBuffIcons", "useBuffBar", "useEssentialBar",
                 "essentialBarSpacing", "standaloneIconBorderSize", "standaloneSkinBuff", "standaloneSkinEssential", "standaloneSkinUtility",
                 "standaloneCentered", "standaloneBuffCentered", "standaloneEssentialCentered", "standaloneUtilityCentered", "hideBlizzCDMGlows",
                 "standaloneSpacing", "standaloneBuffSize", "standaloneBuffIconsPerRow", "standaloneBuffMaxRows", "standaloneBuffGrowDirection", "standaloneBuffRowGrowDirection", "standaloneBuffY", "standaloneBuffX",
@@ -4691,7 +4688,7 @@ local function InitHandlers()
     customBarOutOfCombat = true, customBarShowGCD = true, customBarCentered = true,
     customBar2OutOfCombat = true, customBar2ShowGCD = true, customBar2Centered = true,
     customBar3OutOfCombat = true, customBar3ShowGCD = true, customBar3Centered = true,
-    useBuffBar = true, useEssentialBar = true, blizzardBarSkinning = true, enableMasque = true, showMinimapButton = true,
+    useBlizzCDM = true, disableBlizzCDM = true, useBuffBar = true, useEssentialBar = true, blizzardBarSkinning = true, enableMasque = true, showMinimapButton = true,
     standaloneSkinBuff = true, standaloneSkinEssential = true, standaloneSkinUtility = true,
     standaloneCentered = true, standaloneBuffCentered = true, standaloneEssentialCentered = true, standaloneUtilityCentered = true,
     usePersonalResourceBar = true, prbCentered = true, prbShowHealth = true, prbShowPower = true,
@@ -4763,6 +4760,10 @@ local function InitHandlers()
       end
       profile[oldK] = nil
     end
+    if profile.disableBlizzCDM ~= nil and profile.useBlizzCDM == nil then
+      profile.useBlizzCDM = not profile.disableBlizzCDM
+      profile.disableBlizzCDM = nil
+    end
     local count = profile.customBarsCount or 0
     profile.customBarEnabled = (count >= 1)
     profile.customBar2Enabled = (count >= 2)
@@ -4770,7 +4771,7 @@ local function InitHandlers()
     profile.customBar4Enabled = (count >= 4)
     profile.customBar5Enabled = (count >= 5)
   end
-  EXAMPLE_IMPORT_DATA_DPS_TANK = [[customBarOutOfCombat=1;customBarAnchorPoint="RIGHT";hideAB4InCombat=1;hideAB5Mouseover=1;ufBigHBTargetLevelTextScale=0.95;enableMasque=0;customBarCdGradientR=0;chatBackgroundColorG=0;blizzBarUtilityY=-352.5;prbUseLowPowerColor=1;compactMinimapIcons=0;combatTimerStyle="boxed";selfHighlightColorB=0.0078431377187371;prbLowPowerThreshold=20;prbClassPowerY=-99;ufBigHBTargetNameX=6;chatCopyButton=1;prbDmgAbsorb="bar";combatTimerBgColorB=0.12;chatBackgroundAlpha=40;combatTimerBgAlpha=0.85;skyridingVigorEmptyColorR=0.14901961386204;prbX=2;cursorShowGCD=0;prbShowHealth=0;ufUseCustomNameColor=1;standaloneEssentialIconsPerRow=5;combatStatusEnabled=1;prbPowerTextScale=1.3;ufBigHBPlayerNameX=0;customBar3AnchorFrame="UIParent";castbarTimeScale=1.2;customBar3IconsPerRow=20;standaloneBuffRowGrowDirection="up";skyridingVigorColorR=0;lowHealthWarningColorR=1;hideAB2InCombat=1;ufCustomBorderColorG=0;standaloneUtilityMaxRows=2;ufBigHBNameMaxChars=18;combatTimerScale=0.89999997615814;hidePetBarAlways=0;stackTextOffsetY=0;offsetX=20;combatTimerY=-536;combatTimerX=828;crTimerY=-537;crTimerLayout="horizontal";useCustomBorderColor=1;ufBigHBTargetNameTextScale=1.05;prbLowHealthColorB=0;autoQuestRewardMode="skip";autoRepair=1;ufBigHBTargetNameY=1;castbarBgColorB=0.13333334028721;customBarUseBuffOverlay=0;playerDebuffSortDirection="right";customBar2IconsPerRow=20;hideAB2Always=0;prbAutoWidthSource="essential";noTargetAlertColorR=1;hideEliteTexture=0;fadeBagBar=1;noTargetAlertY=95;iconsCombatOnly=0;castbarBgColorR=0.13333334028721;standaloneEssentialSecondRowSize=39.5;ufNameColorR=1;selfHighlightShape="cross";prbY=-271;playerDebuffY=231;skyridingWhirlingSurgeColorG=0.23921570181847;selfHighlightThickness="thin";lowHealthWarningEnabled=1;crTimerScale=1.1000000238419;lowHealthWarningX=0;iconBorderSize=1;showTooltipIDs=1;prbAbsorbStripes=1;standaloneUtilitySize=42.5;spellGlowThickness=2.8;blizzBarUtilityX=0;chatTabFlash=1;castbarY=-291;customBar2CdGradientR=0;prbHealthColorR=0;combatStatusLeaveColorG=1;hideAB4Mouseover=1;focusCastbarCentered=1;customBar2AnchorPoint="RIGHT";prbCentered=1;noTargetAlertFontSize=37;customBar2CdGradientB=0;skyridingHideCDM=1;abSkinSpacing=0;radialAlpha=1;skyridingY=-205;customBar3X=-188;standaloneIconBorderSize=1;prbLowHealthThreshold=40;customBarY=0;ufBigHBPlayerNameY=12;customBarCdGradientThreshold=5;prbBorderSize=1;quickRoleSignup=1;noTargetAlertColorG=0;ufBigHBFocusNameAnchor="left";cdTextGradientG=1;skyridingTexture="lsm:Solid";iconSize=45;focusCastbarY=106;ufBigHBHideTargetName=0;customBar3IconSize=55;hidePetBarInCombat=1;standaloneUtilityCentered=1;skyridingVigorBar=1;standaloneUtilityIconsPerRow=6;prbOverAbsorbBar=1;focusCastbarColorB=0.023529414087534;standaloneBuffCentered=1;standaloneEssentialCentered=1;focusCastbarWidth=300;castbarColorB=0;standaloneEssentialSize=50;skyridingWhirlingSurgeColorB=0.96862751245499;focusCastbarColorR=1;customBar3Y=-118;prbHealthYOffset=9;skyridingVigorEmptyColorG=0.14901961386204;castbarSpellNameScale=1.2;enhancedTooltip=1;customBar3TrackBuffs=0;chatHideButtons=1;prbHealPred="on";showGCD=0;standaloneEssentialY=-218;castbarBorderSize=1;hideAB6Mouseover=1;focusCastbarX=0;hideAB6InCombat=1;blizzBarBuffX=0;ufBigHBFocusNameY=0;hideStanceBarMouseover=1;prbManaYOffset=-23;blizzBarEssentialY=-218;hideActionBar1InCombat=1;ufHideGroupIndicator=1;focusCastbarShowIcon=1;radialColorR=0;selfHighlightColorG=1;customBarGrowth="UP";customBarUseSpellGlows=1;customBar2X=-41;selfHighlightY=0;customBarCdGradientB=0.1843137294054;usePersonalResourceBar=1;autoQuestExcludeCompleted=1;customBar2CdGradientG=1;skyridingSecondWindColorB=0.23529413342476;skyridingVigorColorG=1;prbShowManaBar=0;combatStatusY=59;lowHealthWarningSound="Details Horn";customBar3ShowMode="always";ufBigHBTargetNameAnchor="left";chatEditBoxStyled=1;prbBgColorB=0;castbarCentered=1;ufBigHBPlayerHealAbsorb="on";ufBigHBFocusLevelMode="hidemax";fadeMicroMenu=1;ufBigHBPlayerNameAnchor="center";useCastbar=1;hidePetBarMouseover=1;customBar2IconSize=40;hideAB4Always=0;stackTextScale=1.1000000238419;prbHealthTextMode="percent";skyridingVigorRechargeColorR=0.68627452850342;cooldownIconMode="show";castbarColorG=0;customBar2CdTextScale=1;customBar2Spacing=0;standaloneUtilitySecondRowSize=45;castbarShowIcon=0;skyridingEnabled=1;castbarX=0;standaloneEssentialMaxRows=2;customBar2CdGradientThreshold=10;selfHighlightColorR=0;castbarAutoWidthSource="utility";prbLowPowerColorR=1;prbBackgroundAlpha=100;ufBigHBFocusEnabled=1;cursorCombatOnly=1;spellGlowSpeed=0;prbPowerTextMode="percentnumber";disableBlizzCDM=0;autoQuestExcludeDaily=1;skyridingScale=110;autoQuest=1;customBarAnchorToPoint="TOPRIGHT";customBar2Y=20;ufBigHBFocusLevelY=0;showMinimapButton=1;skyridingVigorColorB=0.59607845544815;crTimerMode="always";prbLowHealthColorR=1;cdTextScale=1;skyridingSecondWindColorG=0;standaloneUtilityGrowDirection="right";disableTargetBuffs=1;hideAB3InCombat=1;castbarTexture="lsm:Solid";standaloneCdTextScale=1.7;noTargetAlertFlash=1;combatTimerMode="always";skyridingCooldowns=1;alwaysShowInEnabled=0;standaloneUtilityRowGrowDirection="down";standaloneBuffMaxRows=2;hideActionBarBorders=1;customBar3Centered=1;useBuffOverlay=0;customBar3StackTextOffsetX=0;blizzBarBuffY=-170;standaloneBuffIconsPerRow=10;combatStatusX=0;noTargetAlertEnabled=1;chatUrlDetection=1;focusCastbarTexture="lsm:Solid";customBar3Spacing=2;customBarIconSize=40;ufBigHBPlayerAbsorbStripes=1;customBarAnchorFrame="PlayerFrame";ufCustomBorderColorB=0;skyridingX=0;customBarIconsPerRow=4;playerDebuffRowGrowDirection="up";ufClassColor=1;skyridingCentered=1;ufBigHBPlayerLevelMode="hidemax";ufBigHBPlayerEnabled=1;customBar2UseSpellGlows=1;ufDisableGlows=1;hideStanceBarAlways=0;actionBarGlobalMode="combat_mouseover";selfHighlightSize=23;useFocusCastbar=1;customBarStackTextScale=1;hideActionBar1Mouseover=1;stackTextOffsetX=0;combatTimerTextColorR=1;ufBigHBTargetLevelX=-1;ufUseCustomTextures=1;prbShowClassPower=1;hideAB7Mouseover=1;combatStatusEnterColorR=1;trackBuffs=0;chatClassColorNames=1;layoutDirection="horizontal";hideAB8Mouseover=1;hideAB6Always=0;customBarTrackBuffs=0;combatTimerTextColorG=1;playerDebuffIconsPerRow=5;radialColorB=0.61568629741669;hideAB5Always=0;ufBigHBPlayerLevelX=-106;globalFont="lsm:Expressway";hideAB2Mouseover=1;cdTextGradientThreshold=7;customBar2UseBuffOverlay=0;prbClampBars=1;autoSellJunk=1;crTimerEnabled=1;customBarShowMode="always";prbLowHealthColorG=0;standaloneEssentialCdTextScale=2;radialRadius=20;customBarCdTextScale=1;blizzBarEssentialX=0;standaloneSkinEssential=1;customBar4X=0;hideAB3Always=0;useEssentialBar=0;prbHealthColorG=1;customBarShowGCD=1;chatTimestamps=1;prbBgColorG=0;prbSpacing=-1;chatBackgroundColorB=0;ufBigHBTargetLevelMode="hidemax";ufNameColorG=1;ufBigHBFocusLevelX=107;skyridingWhirlingSurgeColorR=0;customBar4Centered=1;cdTextGradientB=0;prbLowPowerColorG=0.17254902422428;customBarStackTextOffsetY=0;combatStatusEnterColorB=0;prbPowerTexture="lsm:Solid";crTimerX=997;combatTimerBgColorR=0.12;standaloneBuffCdTextScale=1.2;cdTextGradientR=0.062745101749897;standaloneUtilityCdTextScale=2.3;customBar2AnchorFrame="CCMCustomBar";betterItemLevel=1;customBar2OutOfCombat=1;cdFont="lsm:Expressway";hideAB8Always=0;customBarCdGradientG=1;stackTextPosition="BOTTOMRIGHT";hideTrackedBlizzBuffIcons=1;prbUseClassColor=0;standaloneBuffY=-170;focusCastbarHeight=35;growDirection="right";ufBigHBHidePlayerName=0;ufBigHBHideRealm=1;lowHealthWarningColorG=0;chatBackground=1;ufBigHBPlayerLevelY=1;prbPowerYOffset=-38;prbClassPowerHeight=12;skyridingVigorRechargeColorG=0;globalOutline="OUTLINE";combatStatusScale=1.1000000238419;offsetY=20;standaloneSpacing=0;autoQuestExcludeTrivial=1;crTimerCentered=0;customBar3OutOfCombat=1;autoQuestExcludeWeekly=1;standaloneEssentialRowGrowDirection="up";customBarStackTextOffsetX=2;customBarCooldownMode="hide";customBar2AnchorToPoint="TOPRIGHT";prbPowerHeight=15;combatTimerBgColorG=0.12;standaloneUtilityY=-352.5;prbShowPower=1;combatTimerTextColorB=1;ufCustomBorderColorR=0;customBar3CdTextScale=1;prbLowPowerColorB=0;ufBigHBTargetLevelY=0;lowHealthWarningFontSize=45;chatFadeToggle=1;combatTimerEnabled=1;fadeObjectiveTracker=1;focusCastbarColorG=0;standaloneSkinBuff=1;skyridingSecondWindColorR=0.50588238239288;noTargetAlertColorB=0.031372550874949;customBar2Centered=1;prbHealAbsorb="on";customBar2ShowMode="raid";chatFadeDelay=20;iconsPerRow=5;skyridingVigorRechargeColorB=0.0078431377187371;radialThickness=3;radialColorG=1;customBarsCount=2;crTimerDisplay="timer";prbPowerTextY=0;useBuffBar=0;ufBigHBTargetHealPred="off";ufBigHBFocusHealPred="off";iconSpacing=0;lowHealthWarningY=-33;chatEditBoxPosition="bottom";lowHealthWarningColorB=0;castbarUseClassColor=0;castbarBgAlpha=80;prbHealthColorB=0.21960785984993;skyridingVigorEmptyColorB=0.14901961386204;useSpellGlows=0;prbBgColorR=0;playerDebuffX=581;prbUsePowerTypeColor=1;playerDebuffSize=63;hideActionBar1Always=0;customBar2CooldownMode="hide";ufBigHBTargetAbsorbStripes=1;autoFillDelete=1;customBarX=-92;chatHideTabs="mouseover";castbarColorR=0.40000003576279;enablePlayerDebuffs=1;hideAB3Mouseover=1;prbUseLowHealthColor=1;customBarSpacing=0;playerDebuffSpacing=0;uiScale=0.53333;hideStanceBarInCombat=1;blizzardBarSkinning=1;showInCombatOnly=0;combatStatusLeaveColorB=0;playerDebuffBorderSize=2;ufHealthTexture="lsm:Solid";ufBigHBTargetEnabled=1;ufBigHBHideFocusName=0;hideAB8InCombat=1;chatBackgroundColorR=0;ufDisableCombatText=1;castbarBgColorG=0.13333334028721;castbarHeight=35;showRadialCircle=1;hideAB5InCombat=1;lowHealthWarningFlash=1;hideAB7Always=0;combatStatusEnterColorG=0.094117656350136;hideAB7InCombat=1;standaloneEssentialGrowDirection="right";ufBigHBPlayerLevelTextScale=0.95;standaloneSkinUtility=1;focusCastbarTimePrecision="1";combatTimerCentered=0;customBarCentered=1;chatCopyButtonCorner="TOPRIGHT";prbClampAnchor="top";ufBigHBFocusNameX=0;combatStatusCentered=1;standaloneUtilityAutoWidth="off";ufNameColorB=1;customBar3StackTextOffsetY=0;audioChannel="Master";standaloneBuffSize=40;showEquipmentDetails=1;combatStatusLeaveColorR=0.13333334028721;customBar2StackTextPosition="BOTTOMRIGHT";uiScaleMode="1440p";customBar2TrackBuffs=0;selfHighlightOutline=1;ufBigHBPlayerDmgAbsorb="bar_glow";]]
+  EXAMPLE_IMPORT_DATA_DPS_TANK = [[customBarOutOfCombat=1;customBarAnchorPoint="RIGHT";hideAB4InCombat=1;hideAB5Mouseover=1;ufBigHBTargetLevelTextScale=0.95;enableMasque=0;customBarCdGradientR=0;chatBackgroundColorG=0;blizzBarUtilityY=-352.5;prbUseLowPowerColor=1;compactMinimapIcons=0;combatTimerStyle="boxed";selfHighlightColorB=0.0078431377187371;prbLowPowerThreshold=20;prbClassPowerY=-99;ufBigHBTargetNameX=6;chatCopyButton=1;prbDmgAbsorb="bar";combatTimerBgColorB=0.12;chatBackgroundAlpha=40;combatTimerBgAlpha=0.85;skyridingVigorEmptyColorR=0.14901961386204;prbX=2;cursorShowGCD=0;prbShowHealth=0;ufUseCustomNameColor=1;standaloneEssentialIconsPerRow=5;combatStatusEnabled=1;prbPowerTextScale=1.3;ufBigHBPlayerNameX=0;customBar3AnchorFrame="UIParent";castbarTimeScale=1.2;customBar3IconsPerRow=20;standaloneBuffRowGrowDirection="up";skyridingVigorColorR=0;lowHealthWarningColorR=1;hideAB2InCombat=1;ufCustomBorderColorG=0;standaloneUtilityMaxRows=2;ufBigHBNameMaxChars=18;combatTimerScale=0.89999997615814;hidePetBarAlways=0;stackTextOffsetY=0;offsetX=20;combatTimerY=-536;combatTimerX=828;crTimerY=-537;crTimerLayout="horizontal";useCustomBorderColor=1;ufBigHBTargetNameTextScale=1.05;prbLowHealthColorB=0;autoQuestRewardMode="skip";autoRepair=1;ufBigHBTargetNameY=1;castbarBgColorB=0.13333334028721;customBarUseBuffOverlay=0;playerDebuffSortDirection="right";customBar2IconsPerRow=20;hideAB2Always=0;prbAutoWidthSource="essential";noTargetAlertColorR=1;hideEliteTexture=0;fadeBagBar=1;noTargetAlertY=95;iconsCombatOnly=0;castbarBgColorR=0.13333334028721;standaloneEssentialSecondRowSize=39.5;ufNameColorR=1;selfHighlightShape="cross";prbY=-271;playerDebuffY=231;skyridingWhirlingSurgeColorG=0.23921570181847;selfHighlightThickness="thin";lowHealthWarningEnabled=1;crTimerScale=1.1000000238419;lowHealthWarningX=0;iconBorderSize=1;showTooltipIDs=1;prbAbsorbStripes=1;standaloneUtilitySize=42.5;spellGlowThickness=2.8;blizzBarUtilityX=0;chatTabFlash=1;castbarY=-291;customBar2CdGradientR=0;prbHealthColorR=0;combatStatusLeaveColorG=1;hideAB4Mouseover=1;focusCastbarCentered=1;customBar2AnchorPoint="RIGHT";prbCentered=1;noTargetAlertFontSize=37;customBar2CdGradientB=0;skyridingHideCDM=1;abSkinSpacing=0;radialAlpha=1;skyridingY=-205;customBar3X=-188;standaloneIconBorderSize=1;prbLowHealthThreshold=40;customBarY=0;ufBigHBPlayerNameY=12;customBarCdGradientThreshold=5;prbBorderSize=1;quickRoleSignup=1;noTargetAlertColorG=0;ufBigHBFocusNameAnchor="left";cdTextGradientG=1;skyridingTexture="lsm:Solid";iconSize=45;focusCastbarY=106;ufBigHBHideTargetName=0;customBar3IconSize=55;hidePetBarInCombat=1;standaloneUtilityCentered=1;skyridingVigorBar=1;standaloneUtilityIconsPerRow=6;prbOverAbsorbBar=1;focusCastbarColorB=0.023529414087534;standaloneBuffCentered=1;standaloneEssentialCentered=1;focusCastbarWidth=300;castbarColorB=0;standaloneEssentialSize=50;skyridingWhirlingSurgeColorB=0.96862751245499;focusCastbarColorR=1;customBar3Y=-118;prbHealthYOffset=9;skyridingVigorEmptyColorG=0.14901961386204;castbarSpellNameScale=1.2;enhancedTooltip=1;customBar3TrackBuffs=0;chatHideButtons=1;prbHealPred="on";showGCD=0;standaloneEssentialY=-218;castbarBorderSize=1;hideAB6Mouseover=1;focusCastbarX=0;hideAB6InCombat=1;blizzBarBuffX=0;ufBigHBFocusNameY=0;hideStanceBarMouseover=1;prbManaYOffset=-23;blizzBarEssentialY=-218;hideActionBar1InCombat=1;ufHideGroupIndicator=1;focusCastbarShowIcon=1;radialColorR=0;selfHighlightColorG=1;customBarGrowth="UP";customBarUseSpellGlows=1;customBar2X=-41;selfHighlightY=0;customBarCdGradientB=0.1843137294054;usePersonalResourceBar=1;autoQuestExcludeCompleted=1;customBar2CdGradientG=1;skyridingSecondWindColorB=0.23529413342476;skyridingVigorColorG=1;prbShowManaBar=0;combatStatusY=59;lowHealthWarningSound="Details Horn";customBar3ShowMode="always";ufBigHBTargetNameAnchor="left";chatEditBoxStyled=1;prbBgColorB=0;castbarCentered=1;ufBigHBPlayerHealAbsorb="on";ufBigHBFocusLevelMode="hidemax";fadeMicroMenu=1;ufBigHBPlayerNameAnchor="center";useCastbar=1;hidePetBarMouseover=1;customBar2IconSize=40;hideAB4Always=0;stackTextScale=1.1000000238419;prbHealthTextMode="percent";skyridingVigorRechargeColorR=0.68627452850342;cooldownIconMode="show";castbarColorG=0;customBar2CdTextScale=1;customBar2Spacing=0;standaloneUtilitySecondRowSize=45;castbarShowIcon=0;skyridingEnabled=1;castbarX=0;standaloneEssentialMaxRows=2;customBar2CdGradientThreshold=10;selfHighlightColorR=0;castbarAutoWidthSource="utility";prbLowPowerColorR=1;prbBackgroundAlpha=100;ufBigHBFocusEnabled=1;cursorCombatOnly=1;spellGlowSpeed=0;prbPowerTextMode="percentnumber";useBlizzCDM=1;autoQuestExcludeDaily=1;skyridingScale=110;autoQuest=1;customBarAnchorToPoint="TOPRIGHT";customBar2Y=20;ufBigHBFocusLevelY=0;showMinimapButton=1;skyridingVigorColorB=0.59607845544815;crTimerMode="always";prbLowHealthColorR=1;cdTextScale=1;skyridingSecondWindColorG=0;standaloneUtilityGrowDirection="right";disableTargetBuffs=1;hideAB3InCombat=1;castbarTexture="lsm:Solid";standaloneCdTextScale=1.7;noTargetAlertFlash=1;combatTimerMode="always";skyridingCooldowns=1;alwaysShowInEnabled=0;standaloneUtilityRowGrowDirection="down";standaloneBuffMaxRows=2;hideActionBarBorders=1;customBar3Centered=1;useBuffOverlay=0;customBar3StackTextOffsetX=0;blizzBarBuffY=-170;standaloneBuffIconsPerRow=10;combatStatusX=0;noTargetAlertEnabled=1;chatUrlDetection=1;focusCastbarTexture="lsm:Solid";customBar3Spacing=2;customBarIconSize=40;ufBigHBPlayerAbsorbStripes=1;customBarAnchorFrame="PlayerFrame";ufCustomBorderColorB=0;skyridingX=0;customBarIconsPerRow=4;playerDebuffRowGrowDirection="up";ufClassColor=1;skyridingCentered=1;ufBigHBPlayerLevelMode="hidemax";ufBigHBPlayerEnabled=1;customBar2UseSpellGlows=1;ufDisableGlows=1;hideStanceBarAlways=0;actionBarGlobalMode="combat_mouseover";selfHighlightSize=23;useFocusCastbar=1;customBarStackTextScale=1;hideActionBar1Mouseover=1;stackTextOffsetX=0;combatTimerTextColorR=1;ufBigHBTargetLevelX=-1;ufUseCustomTextures=1;prbShowClassPower=1;hideAB7Mouseover=1;combatStatusEnterColorR=1;trackBuffs=0;chatClassColorNames=1;layoutDirection="horizontal";hideAB8Mouseover=1;hideAB6Always=0;customBarTrackBuffs=0;combatTimerTextColorG=1;playerDebuffIconsPerRow=5;radialColorB=0.61568629741669;hideAB5Always=0;ufBigHBPlayerLevelX=-106;globalFont="lsm:Expressway";hideAB2Mouseover=1;cdTextGradientThreshold=7;customBar2UseBuffOverlay=0;prbClampBars=1;autoSellJunk=1;crTimerEnabled=1;customBarShowMode="always";prbLowHealthColorG=0;standaloneEssentialCdTextScale=2;radialRadius=20;customBarCdTextScale=1;blizzBarEssentialX=0;standaloneSkinEssential=1;customBar4X=0;hideAB3Always=0;useEssentialBar=0;prbHealthColorG=1;customBarShowGCD=1;chatTimestamps=1;prbBgColorG=0;prbSpacing=-1;chatBackgroundColorB=0;ufBigHBTargetLevelMode="hidemax";ufNameColorG=1;ufBigHBFocusLevelX=107;skyridingWhirlingSurgeColorR=0;customBar4Centered=1;cdTextGradientB=0;prbLowPowerColorG=0.17254902422428;customBarStackTextOffsetY=0;combatStatusEnterColorB=0;prbPowerTexture="lsm:Solid";crTimerX=997;combatTimerBgColorR=0.12;standaloneBuffCdTextScale=1.2;cdTextGradientR=0.062745101749897;standaloneUtilityCdTextScale=2.3;customBar2AnchorFrame="CCMCustomBar";betterItemLevel=1;customBar2OutOfCombat=1;cdFont="lsm:Expressway";hideAB8Always=0;customBarCdGradientG=1;stackTextPosition="BOTTOMRIGHT";hideTrackedBlizzBuffIcons=1;prbUseClassColor=0;standaloneBuffY=-170;focusCastbarHeight=35;growDirection="right";ufBigHBHidePlayerName=0;ufBigHBHideRealm=1;lowHealthWarningColorG=0;chatBackground=1;ufBigHBPlayerLevelY=1;prbPowerYOffset=-38;prbClassPowerHeight=12;skyridingVigorRechargeColorG=0;globalOutline="OUTLINE";combatStatusScale=1.1000000238419;offsetY=20;standaloneSpacing=0;autoQuestExcludeTrivial=1;crTimerCentered=0;customBar3OutOfCombat=1;autoQuestExcludeWeekly=1;standaloneEssentialRowGrowDirection="up";customBarStackTextOffsetX=2;customBarCooldownMode="hide";customBar2AnchorToPoint="TOPRIGHT";prbPowerHeight=15;combatTimerBgColorG=0.12;standaloneUtilityY=-352.5;prbShowPower=1;combatTimerTextColorB=1;ufCustomBorderColorR=0;customBar3CdTextScale=1;prbLowPowerColorB=0;ufBigHBTargetLevelY=0;lowHealthWarningFontSize=45;chatFadeToggle=1;combatTimerEnabled=1;fadeObjectiveTracker=1;focusCastbarColorG=0;standaloneSkinBuff=1;skyridingSecondWindColorR=0.50588238239288;noTargetAlertColorB=0.031372550874949;customBar2Centered=1;prbHealAbsorb="on";customBar2ShowMode="raid";chatFadeDelay=20;iconsPerRow=5;skyridingVigorRechargeColorB=0.0078431377187371;radialThickness=3;radialColorG=1;customBarsCount=2;crTimerDisplay="timer";prbPowerTextY=0;useBuffBar=0;ufBigHBTargetHealPred="off";ufBigHBFocusHealPred="off";iconSpacing=0;lowHealthWarningY=-33;chatEditBoxPosition="bottom";lowHealthWarningColorB=0;castbarUseClassColor=0;castbarBgAlpha=80;prbHealthColorB=0.21960785984993;skyridingVigorEmptyColorB=0.14901961386204;useSpellGlows=0;prbBgColorR=0;playerDebuffX=581;prbUsePowerTypeColor=1;playerDebuffSize=63;hideActionBar1Always=0;customBar2CooldownMode="hide";ufBigHBTargetAbsorbStripes=1;autoFillDelete=1;customBarX=-92;chatHideTabs="mouseover";castbarColorR=0.40000003576279;enablePlayerDebuffs=1;hideAB3Mouseover=1;prbUseLowHealthColor=1;customBarSpacing=0;playerDebuffSpacing=0;uiScale=0.53333;hideStanceBarInCombat=1;blizzardBarSkinning=1;showInCombatOnly=0;combatStatusLeaveColorB=0;playerDebuffBorderSize=2;ufHealthTexture="lsm:Solid";ufBigHBTargetEnabled=1;ufBigHBHideFocusName=0;hideAB8InCombat=1;chatBackgroundColorR=0;ufDisableCombatText=1;castbarBgColorG=0.13333334028721;castbarHeight=35;showRadialCircle=1;hideAB5InCombat=1;lowHealthWarningFlash=1;hideAB7Always=0;combatStatusEnterColorG=0.094117656350136;hideAB7InCombat=1;standaloneEssentialGrowDirection="right";ufBigHBPlayerLevelTextScale=0.95;standaloneSkinUtility=1;focusCastbarTimePrecision="1";combatTimerCentered=0;customBarCentered=1;chatCopyButtonCorner="TOPRIGHT";prbClampAnchor="top";ufBigHBFocusNameX=0;combatStatusCentered=1;standaloneUtilityAutoWidth="off";ufNameColorB=1;customBar3StackTextOffsetY=0;audioChannel="Master";standaloneBuffSize=40;showEquipmentDetails=1;combatStatusLeaveColorR=0.13333334028721;customBar2StackTextPosition="BOTTOMRIGHT";uiScaleMode="1440p";customBar2TrackBuffs=0;selfHighlightOutline=1;ufBigHBPlayerDmgAbsorb="bar_glow";]]
   if addonTable.importBtn then
     addonTable.importBtn:SetScript("OnClick", function()
       if addonTable.exportImportPopup then
